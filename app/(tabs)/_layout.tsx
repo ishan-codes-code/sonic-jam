@@ -1,35 +1,83 @@
 import { Tabs } from 'expo-router';
+import { Compass, Home, Library, User } from 'lucide-react-native';
 import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Platform, View } from 'react-native';
+import { theme } from '../../src/theme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        animation: 'fade',
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: '#ffffff', // Spotify active tab is white
+        tabBarInactiveTintColor: theme.colors.textSecondary,
+        tabBarLabelStyle: {
+          ...theme.typography.label,
+          fontSize: 10,
+          marginTop: -4,
+          fontWeight: '500',
+        },
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: Platform.OS === 'ios' ? 88 : 70, // Standard tab bar height with safe area
+          backgroundColor: '#0A0A0A', // Deep dark for the tab bar
+          borderTopWidth: 0,
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          paddingTop: 12,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+        },
+        tabBarBackground: () => (
+          <View style={{ flex: 1, backgroundColor: '#0A0A0A', borderTopLeftRadius: 20, borderTopRightRadius: 20 }} />
+        ),
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color, size }) => <Home color={color} size={24} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
           title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          tabBarIcon: ({ color, size }) => <Compass color={color} size={24} />,
+          headerShown: false,
         }}
       />
+
+      <Tabs.Screen
+        name="library"
+        options={{
+          title: 'Library',
+          tabBarIcon: ({ color, size }) => <Library color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => <User color={color} size={24} />,
+        }}
+      />
+      {/* <Tabs.Screen
+        name="player"
+        options={{
+          href: null, // hides from tab bar
+        }}
+      /> */}
     </Tabs>
   );
 }
