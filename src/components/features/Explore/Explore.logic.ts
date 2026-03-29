@@ -11,13 +11,19 @@ import { DynamicSection } from '../../../types/explore';
 
 export const useExploreLogic = () => {
   const router = useRouter();
-  const { playFromYouTube } = usePlayerStore();
+  const {
+    playFromYouTube,
+    songJobs,
+    cleanupSongJobs,
+    dismissSongJob,
+    error: playbackError,
+  } = usePlayerStore();
   const { show } = useFlashMessage();
 
   const {
     sections,
     isLoading: loading,
-    error,
+    error: exploreError,
     loadInitial,
     refreshSection,
     loadMoreSection,
@@ -36,6 +42,10 @@ export const useExploreLogic = () => {
   const [menuVisible, setMenuVisible] = useState(false);
 
   const debouncedQuery = useDebounce(query, 450);
+  const activeSongJob =
+    songJobs.find((job) => job.status === 'processing') ??
+    songJobs[songJobs.length - 1] ??
+    null;
 
   const handlePlay = async (item: YouTubeVideo) => {
     try {
@@ -50,6 +60,10 @@ export const useExploreLogic = () => {
       loadInitial();
     }
   }, [sections, loadInitial]);
+
+  useEffect(() => () => {
+    cleanupSongJobs();
+  }, [cleanupSongJobs]);
 
   useEffect(() => {
     if (!debouncedQuery.trim()) {
@@ -124,7 +138,7 @@ export const useExploreLogic = () => {
     isSearchMode,
     sections,
     loading,
-    error,
+    error: exploreError,
     searchResults,
     searchLoading,
     loadingMoreSearch,
@@ -142,5 +156,8 @@ export const useExploreLogic = () => {
     handleGenrePress,
     handleAddSection,
     GENRES,
+    activeSongJob,
+    playbackError,
+    dismissSongJob,
   };
 };

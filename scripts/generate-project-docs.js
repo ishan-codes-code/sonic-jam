@@ -51,7 +51,7 @@ const DESIGN_DECISIONS = [
   "Zustand stores hold app-level state for auth, discovery sections, and playback so multiple routes/components can react without prop drilling.",
   "React Query is used for backend library data and mutations, while transient YouTube discovery/search state is managed locally plus in `exploreStore`.",
   "Auth tokens are stored with `expo-secure-store`; Axios interceptors attach access tokens and transparently refresh on `401` responses.",
-  "Playback is centralized in `playerStore` using `expo-audio`, allowing both library songs and directly streamed YouTube-derived tracks to share one control surface.",
+  "Playback is centralized in `playerStore` using `expo-audio`, with direct-ready playback for saved songs plus queued job polling for YouTube-origin requests.",
   "Theme primitives are centralized under `src/theme` to keep the highly stylized visual direction consistent across screens.",
 ];
 
@@ -246,12 +246,12 @@ ${getArchitectureSection()}
 ### Stores
 - \`src/store/authStore.ts\`: Handles login, signup, logout, boot-time auth checks, error extraction, and auth reset after interceptor refresh failures.
 - \`src/store/exploreStore.ts\`: Owns default Explore sections, user-added sections, pagination, refresh, deletion, loading state, and error/flash handling.
-- \`src/store/playerStore.ts\`: Owns the global playback lifecycle, current item, streaming URL refresh, progress, duration, and player cleanup.
+- \`src/store/playerStore.ts\`: Owns the global playback lifecycle, current item, library and YouTube playback resolution, job polling, queue state, progress, duration, and player cleanup.
 
 ### API and service layers
 - \`src/api/apiClient.ts\`: Shared Axios client with bearer-token injection and queued token refresh on \`401\`.
 - \`src/api/authApi.ts\`: Backend auth calls for signup, login, refresh, logout, and \`getMe\`.
-- \`src/api/musicApi.ts\`: Backend library/playback calls for add-song, get-library, get-stream-url, and direct play.
+- \`src/api/musicApi.ts\`: Backend library/playback calls for add-song, get-library, saved-song play URLs, direct play, and job-status polling.
 - \`src/services/youtube.ts\`: YouTube Data API wrapper for search, trending, batch details, playlist fetches, genre search, and formatting helpers.
 
 ### Feature modules
@@ -307,11 +307,12 @@ ${tree}
 
 ### Playback workflow
 1. Playback can begin from a backend library song or directly from a YouTube video result.
-2. For library songs, the app requests \`GET /stream/:songId\`.
-3. For YouTube-origin playback, the app calls \`POST /songs/play\` to resolve a streamable URL without forcing a library add.
-4. \`expo-audio\` is used to create a player instance and stream status updates back into the store.
-5. The mini-player and full player screen both read from the same store, so controls remain synchronized.
-6. If a stream URL is older than roughly 4.5 minutes, playback resumes by re-fetching a fresh stream URL.
+2. For library songs, the app requests \`GET /songs/play/:songId\` and plays the returned stream URL immediately.
+3. For YouTube-origin playback, the app calls \`POST /songs/play\`, which may return either an immediate stream URL or a background job ID.
+4. When a job ID is returned, \`playerStore\` polls \`GET /songs/job/:jobId\`, updates queue/progress state, and starts playback automatically once the job is done.
+5. \`expo-audio\` is used to create a player instance and stream status updates back into the store.
+6. The mini-player and full player screen both read from the same store, so controls remain synchronized.
+7. If a stream URL is older than roughly 4.5 minutes, playback resumes by re-fetching a fresh stream URL.
 
 ### Add-to-library workflow
 1. A YouTube video ID is passed into \`useMusic().addSong\`.
@@ -418,4 +419,6 @@ if (WATCH_MODE) {
 } else {
   writeDoc();
 }
+
+
 

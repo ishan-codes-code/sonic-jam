@@ -47,20 +47,27 @@ export function Explore() {
     handleGenrePress,
     handleAddSection,
     GENRES,
+    activeSongJob,
+    playbackError,
+    dismissSongJob,
   } = useExploreLogic();
+  const { isPlayPending } = usePlayerStore();
 
-  const { isPlayPending, } = usePlayerStore();
-
-  const [flashMsz, setFlashMsz] = useState(false);
-  const [isError, setIsError] = useState(false);
-
-  useEffect(() => {
-    setFlashMsz(isPlayPending)
-  }, [isPlayPending])
+  const [isFlashVisible, setIsFlashVisible] = useState(false);
+  const [dismissedJobId, setDismissedJobId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (error) setIsError(true)
-  }, [error])
+    if (!activeSongJob) return;
+
+    setDismissedJobId(null);
+    setIsFlashVisible(true);
+  }, [activeSongJob]);
+
+  useEffect(() => {
+    if (!activeSongJob && !isPlayPending) {
+      setIsFlashVisible(false);
+    }
+  }, [activeSongJob, isPlayPending]);
 
 
   const renderSectionHeader = (title: string) => (
@@ -287,10 +294,29 @@ export function Explore() {
       )}
 
       <FakeProgressFlashMessage
-        visible={flashMsz}
-        error={isError}
-        errorMessage={error || "Failed to process. Try again."}
-        onDismiss={() => { setFlashMsz(false); setIsError(false); }}
+        visible={isFlashVisible && activeSongJob?.jobId !== dismissedJobId}
+        error={activeSongJob?.status === 'error'}
+        errorMessage={playbackError || 'Failed to process. Try again.'}
+        label={
+          activeSongJob
+            ? `${activeSongJob.title} ${
+                activeSongJob.status === 'processing'
+                  ? 'is processing...'
+                  : activeSongJob.status === 'error'
+                    ? 'failed to process.'
+                    : 'is ready.'
+              }`
+            : undefined
+        }
+        progress={activeSongJob?.progress}
+        onDismiss={() => {
+          if (activeSongJob?.status === 'error') {
+            dismissSongJob(activeSongJob.jobId);
+          }
+
+          setDismissedJobId(activeSongJob?.jobId ?? null);
+          setIsFlashVisible(false);
+        }}
       />
     </View>
   );
