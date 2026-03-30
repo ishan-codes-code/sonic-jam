@@ -33,9 +33,47 @@ export type PlayResponse =
   | { type: "job"; jobId: string };
 
 export type PlayJobResponse =
-  | { status: "processing"; progress: number }
-  | { status: "done"; streamUrl: string; progress?: number }
-  | { status: "error"; progress?: number; message?: string };
+  { status: string; progress: number; streamUrl?: string; message?: string };
+
+const readNumericProgress = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (value && typeof value === "object") {
+    const candidate = (value as Record<string, unknown>).percent;
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
+
+const readStreamUrl = (data: any): string | null => {
+  const candidates = [
+    data?.streamUrl,
+    data?.url,
+    data?.data?.streamUrl,
+    data?.data?.url,
+    data?.result?.streamUrl,
+    data?.result?.url,
+    data?.returnvalue?.streamUrl,
+    data?.returnvalue?.url,
+    data?.returnValue?.streamUrl,
+    data?.returnValue?.url,
+    data?.data?.result?.streamUrl,
+    data?.data?.result?.url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
 
 const normalizePlayResponse = (data: any): PlayResponse => {
   console.log("[musicApi.play] raw response:", data);
@@ -65,38 +103,30 @@ const normalizePlayJobResponse = (data: any): PlayJobResponse => {
 
   const rawStatus = String(data?.status ?? data?.type ?? "").toLowerCase();
   const progress =
-    typeof data?.progress === "number"
-      ? data.progress
-      : typeof data?.data?.progress === "number"
-        ? data.data.progress
-        : 0;
+    readNumericProgress(data?.progress) ??
+    readNumericProgress(data?.data?.progress) ??
+    0;
 
-  const streamUrl =
-    data?.streamUrl ??
-    data?.url ??
-    data?.data?.streamUrl ??
-    data?.result?.streamUrl;
+  const streamUrl = readStreamUrl(data);
 
   const message =
-    data?.message ?? data?.error ?? data?.data?.message ?? data?.data?.error;
+    data?.message ??
+    data?.error ??
+    data?.failedReason ??
+    data?.data?.message ??
+    data?.data?.error;
 
-  if (["processing", "queued", "pending", "in_progress"].includes(rawStatus)) {
-    return { status: "processing", progress };
-  }
-
-  if (
-    ["done", "completed", "ready", "success"].includes(rawStatus) &&
-    typeof streamUrl === "string"
-  ) {
-    return { status: "done", streamUrl, progress };
-  }
-
-  if (["error", "failed", "failure"].includes(rawStatus)) {
-    return { status: "error", progress, message };
+  if (rawStatus) {
+    return {
+      status: rawStatus,
+      progress,
+      ...(typeof streamUrl === "string" ? { streamUrl } : {}),
+      ...(typeof message === "string" ? { message } : {}),
+    };
   }
 
   if (typeof streamUrl === "string") {
-    return { status: "done", streamUrl, progress };
+    return { status: "completed", streamUrl, progress };
   }
 
   console.error("[musicApi.getPlayJob] unexpected response shape:", data);

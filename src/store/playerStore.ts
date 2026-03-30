@@ -8,7 +8,7 @@ export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "error";
 export type SongJob = {
   jobId: string;
   title: string;
-  status: "processing" | "done" | "error";
+  status: string;
   progress: number;
 };
 
@@ -24,6 +24,37 @@ const jobPollers = new Map<string, ReturnType<typeof setInterval>>();
 const pendingVideoJobs = new Map<string, PendingVideoJob>();
 const jobCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const jobPollInFlight = new Set<string>();
+
+const PROCESSING_JOB_STATUSES = new Set([
+  "processing",
+  "queued",
+  "pending",
+  "in_progress",
+  "waiting",
+  "active",
+  "delayed",
+  "prioritized",
+  "waiting-children",
+  "paused",
+]);
+
+const FAILED_JOB_STATUSES = new Set(["error", "failed", "failure"]);
+
+const COMPLETED_JOB_STATUSES = new Set([
+  "done",
+  "completed",
+  "ready",
+  "success",
+]);
+
+const isProcessingJobStatus = (status: string) =>
+  PROCESSING_JOB_STATUSES.has(status.toLowerCase());
+
+const isFailedJobStatus = (status: string) =>
+  FAILED_JOB_STATUSES.has(status.toLowerCase());
+
+const isCompletedJobStatus = (status: string) =>
+  COMPLETED_JOB_STATUSES.has(status.toLowerCase());
 
 interface PlayerState {
   currentSong: Song | null;
@@ -102,7 +133,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const nextJobs = state.songJobs.filter((job) => job.jobId !== jobId);
       return {
         songJobs: nextJobs,
-        isPlayPending: nextJobs.some((job) => job.status === "processing"),
+        isPlayPending: nextJobs.some((job) => isProcessingJobStatus(job.status)),
       };
     });
   };
@@ -121,7 +152,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         const nextJobs = [...state.songJobs, nextJob];
         return {
           songJobs: nextJobs,
-          isPlayPending: nextJobs.some((item) => item.status === "processing"),
+          isPlayPending: nextJobs.some((item) => isProcessingJobStatus(item.status)),
         };
       }
 
@@ -129,7 +160,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       nextJobs[existingIndex] = nextJob;
       return {
         songJobs: nextJobs,
-        isPlayPending: nextJobs.some((item) => item.status === "processing"),
+        isPlayPending: nextJobs.some((item) => isProcessingJobStatus(item.status)),
       };
     });
   };
@@ -246,21 +277,35 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       return;
     }
 
-    if (res.status === "processing") {
+    if (isProcessingJobStatus(res.status)) {
       upsertSongJob(jobId, {
         title: pendingJob.video.title,
-        status: "processing",
+        status: res.status,
         progress: res.progress ?? 0,
       });
       return;
     }
 
-    if (res.status === "done") {
+    if (isCompletedJobStatus(res.status) || typeof res.streamUrl === "string") {
+      if (typeof res.streamUrl !== "string") {
+        stopPollingJob(jobId);
+        upsertSongJob(jobId, {
+          title: pendingJob.video.title,
+          status: res.status,
+          progress: res.progress ?? 100,
+        });
+        set({
+          status: "error",
+          error: "Playback finished processing but no stream URL was returned.",
+        });
+        return;
+      }
+
       stopPollingJob(jobId);
       upsertSongJob(jobId, {
         title: pendingJob.video.title,
-        status: "done",
-        progress: 100,
+        status: res.status,
+        progress: res.progress ?? 100,
       });
       console.log("[playerStore] starting playback for completed job:", {
         jobId,
@@ -279,12 +324,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     stopPollingJob(jobId);
     upsertSongJob(jobId, {
       title: pendingJob.video.title,
-      status: "error",
+      status: res.status,
       progress: res.progress ?? 0,
     });
     set({
       status: "error",
-      error: res.message ?? "Playback failed while processing this song.",
+      error:
+        res.message ??
+        (isFailedJobStatus(res.status)
+          ? "Playback failed while processing this song."
+          : `Unexpected job status: ${res.status}`),
     });
   };
 
@@ -310,7 +359,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       if (pendingJob) {
         upsertSongJob(jobId, {
           title: pendingJob.video.title,
-          status: "error",
+          status: "failed",
           progress: 0,
         });
       }
@@ -450,7 +499,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
         upsertSongJob(res.jobId, {
           title: video.title,
-          status: "processing",
+          status: "queued",
           progress: 0,
         });
 
@@ -533,7 +582,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         duration: 0,
         streamUrl: null,
         isPlayPending: get().songJobs.some(
-          (job) => job.status === "processing",
+          (job) => isProcessingJobStatus(job.status),
         ),
       });
     },

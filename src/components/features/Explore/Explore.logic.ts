@@ -9,6 +9,19 @@ import { useExploreStore } from '../../../store/exploreStore';
 import { usePlayerStore } from '../../../store/playerStore';
 import { DynamicSection } from '../../../types/explore';
 
+const ACTIVE_JOB_STATUSES = new Set([
+  'processing',
+  'queued',
+  'pending',
+  'in_progress',
+  'waiting',
+  'active',
+  'delayed',
+  'prioritized',
+  'waiting-children',
+  'paused',
+]);
+
 export const useExploreLogic = () => {
   const router = useRouter();
   const {
@@ -43,7 +56,7 @@ export const useExploreLogic = () => {
 
   const debouncedQuery = useDebounce(query, 450);
   const activeSongJob =
-    songJobs.find((job) => job.status === 'processing') ??
+    songJobs.find((job) => ACTIVE_JOB_STATUSES.has(job.status.toLowerCase())) ??
     songJobs[songJobs.length - 1] ??
     null;
 
