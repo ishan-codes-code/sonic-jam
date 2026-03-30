@@ -21,6 +21,8 @@ import { styles } from './Explore.styles';
 import { SectionItem } from './SectionItem';
 import { VerticalVideoCard } from './VideoCard';
 
+const FAILED_JOB_STATUSES = new Set(['error', 'failed', 'failure']);
+
 export function Explore() {
   const {
     query,
@@ -55,6 +57,10 @@ export function Explore() {
 
   const [isFlashVisible, setIsFlashVisible] = useState(false);
   const [dismissedJobId, setDismissedJobId] = useState<string | null>(null);
+  const normalizedJobStatus = activeSongJob?.status?.toLowerCase();
+  const isJobFailed = normalizedJobStatus
+    ? FAILED_JOB_STATUSES.has(normalizedJobStatus)
+    : false;
 
   useEffect(() => {
     if (!activeSongJob) return;
@@ -295,22 +301,18 @@ export function Explore() {
 
       <FakeProgressFlashMessage
         visible={isFlashVisible && activeSongJob?.jobId !== dismissedJobId}
-        error={activeSongJob?.status === 'error'}
+        error={isJobFailed}
         errorMessage={playbackError || 'Failed to process. Try again.'}
         label={
           activeSongJob
-            ? `${activeSongJob.title} ${
-                activeSongJob.status === 'processing'
-                  ? 'is processing...'
-                  : activeSongJob.status === 'error'
-                    ? 'failed to process.'
-                    : 'is ready.'
-              }`
+            ? `${activeSongJob.title} [${activeSongJob.status}] ${Math.round(
+                activeSongJob.progress ?? 0,
+              )}%`
             : undefined
         }
         progress={activeSongJob?.progress}
         onDismiss={() => {
-          if (activeSongJob?.status === 'error') {
+          if (isJobFailed && activeSongJob) {
             dismissSongJob(activeSongJob.jobId);
           }
 

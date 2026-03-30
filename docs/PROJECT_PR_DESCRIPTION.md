@@ -1,6 +1,6 @@
 # Sonic PR Description
 
-_Generated automatically by `scripts/generate-project-docs.js` on 2026-03-29T22:16:22.580Z._
+_Generated automatically by `scripts/generate-project-docs.js` on 2026-03-30T21:29:47.211Z._
 
 ## Project Overview
 
@@ -64,6 +64,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## File and Folder Structure
 
 ### Top-level structure
+- `android/`: Expo-managed native Android project (`com.itsishandev.sonic`) with Gradle scripts, resource sets, keystore, and generated `MainActivity`/`MainApplication` entrypoints.
 - `app/`: Expo Router file-based routes. Most files are thin wrappers that render feature modules from `src/components/features`.
 - `assets/`: Static images and Stitch design references used by the visual UI and design handoff.
 - `src/`: Application source code: features, stores, hooks, APIs, theme tokens, services, and shared UI.
@@ -82,6 +83,87 @@ This document is the single source of truth for onboarding, debugging, and futur
 
 ### Repository snapshot
 ```text
+|-- android/
+|   |-- app/
+|   |   |-- src/
+|   |   |   |-- debug/
+|   |   |   |   `-- AndroidManifest.xml
+|   |   |   |-- debugOptimized/
+|   |   |   |   `-- AndroidManifest.xml
+|   |   |   `-- main/
+|   |   |       |-- java/
+|   |   |       |   `-- com/
+|   |   |       |       `-- itsishandev/
+|   |   |       |           `-- sonic/
+|   |   |       |               |-- MainActivity.kt
+|   |   |       |               `-- MainApplication.kt
+|   |   |       |-- res/
+|   |   |       |   |-- drawable/
+|   |   |       |   |   |-- ic_launcher_background.xml
+|   |   |       |   |   `-- rn_edit_text_material.xml
+|   |   |       |   |-- drawable-hdpi/
+|   |   |       |   |   `-- splashscreen_logo.png
+|   |   |       |   |-- drawable-mdpi/
+|   |   |       |   |   `-- splashscreen_logo.png
+|   |   |       |   |-- drawable-xhdpi/
+|   |   |       |   |   `-- splashscreen_logo.png
+|   |   |       |   |-- drawable-xxhdpi/
+|   |   |       |   |   `-- splashscreen_logo.png
+|   |   |       |   |-- drawable-xxxhdpi/
+|   |   |       |   |   `-- splashscreen_logo.png
+|   |   |       |   |-- mipmap-anydpi-v26/
+|   |   |       |   |   |-- ic_launcher_round.xml
+|   |   |       |   |   `-- ic_launcher.xml
+|   |   |       |   |-- mipmap-hdpi/
+|   |   |       |   |   |-- ic_launcher_background.webp
+|   |   |       |   |   |-- ic_launcher_foreground.webp
+|   |   |       |   |   |-- ic_launcher_monochrome.webp
+|   |   |       |   |   |-- ic_launcher_round.webp
+|   |   |       |   |   `-- ic_launcher.webp
+|   |   |       |   |-- mipmap-mdpi/
+|   |   |       |   |   |-- ic_launcher_background.webp
+|   |   |       |   |   |-- ic_launcher_foreground.webp
+|   |   |       |   |   |-- ic_launcher_monochrome.webp
+|   |   |       |   |   |-- ic_launcher_round.webp
+|   |   |       |   |   `-- ic_launcher.webp
+|   |   |       |   |-- mipmap-xhdpi/
+|   |   |       |   |   |-- ic_launcher_background.webp
+|   |   |       |   |   |-- ic_launcher_foreground.webp
+|   |   |       |   |   |-- ic_launcher_monochrome.webp
+|   |   |       |   |   |-- ic_launcher_round.webp
+|   |   |       |   |   `-- ic_launcher.webp
+|   |   |       |   |-- mipmap-xxhdpi/
+|   |   |       |   |   |-- ic_launcher_background.webp
+|   |   |       |   |   |-- ic_launcher_foreground.webp
+|   |   |       |   |   |-- ic_launcher_monochrome.webp
+|   |   |       |   |   |-- ic_launcher_round.webp
+|   |   |       |   |   `-- ic_launcher.webp
+|   |   |       |   |-- mipmap-xxxhdpi/
+|   |   |       |   |   |-- ic_launcher_background.webp
+|   |   |       |   |   |-- ic_launcher_foreground.webp
+|   |   |       |   |   |-- ic_launcher_monochrome.webp
+|   |   |       |   |   |-- ic_launcher_round.webp
+|   |   |       |   |   `-- ic_launcher.webp
+|   |   |       |   |-- values/
+|   |   |       |   |   |-- colors.xml
+|   |   |       |   |   |-- strings.xml
+|   |   |       |   |   `-- styles.xml
+|   |   |       |   `-- values-night/
+|   |   |       |       `-- colors.xml
+|   |   |       `-- AndroidManifest.xml
+|   |   |-- build.gradle
+|   |   |-- debug.keystore
+|   |   `-- proguard-rules.pro
+|   |-- gradle/
+|   |   `-- wrapper/
+|   |       |-- gradle-wrapper.jar
+|   |       `-- gradle-wrapper.properties
+|   |-- .gitignore
+|   |-- build.gradle
+|   |-- gradle.properties
+|   |-- gradlew
+|   |-- gradlew.bat
+|   `-- settings.gradle
 |-- app/
 |   |-- (tabs)/
 |   |   |-- explore/
@@ -357,6 +439,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 - Expo slug: `sonic`
 - Typed routes: `enabled`
 - React Compiler experiment: `enabled`
+- Android package identifier: `android.package` in `app.json` is `com.itsishandev.sonic`.
 - Environment keys found in repository root `.env`: `EXPO_PUBLIC_YOUTUBE_API_KEY`, `EXPO_PUBLIC_API_URL`
 
 ## Known Issues and Limitations
@@ -373,5 +456,6 @@ This document is the single source of truth for onboarding, debugging, and futur
 - The canonical file is `docs/PROJECT_PR_DESCRIPTION.md`.
 - It is generated by `npm run docs:generate`.
 - It can stay live during development with `npm run docs:watch`, which watches the repository and regenerates the document after file changes.
-- Standard workflows also refresh the document automatically through npm pre-scripts wired into `start`, `android`, `ios`, `web`, and `lint`.
+- Standard workflows also refresh the document automatically through npm pre-scripts wired into `start`, `android` (`expo run:android`), `ios` (`expo run:ios`), `web`, and `lint`.
+- The native Android shell changes are reflected in `app.json` and `package.json` so the app can build with the generated Android project.
 - If the architecture changes meaningfully, update the curated summaries inside `scripts/generate-project-docs.js` so the generated narrative remains accurate in addition to the automatically refreshed file tree and dependency snapshot.
