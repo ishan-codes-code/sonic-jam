@@ -1,21 +1,36 @@
 import { ListMusic, Music, Play } from 'lucide-react-native';
-import React from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../../theme';
+import { AppHeader } from '../../ui/AppHeader';
 import AudioWave from '../../ui/AudioWave';
 import { useLibraryLogic } from './Library.logic';
 import { styles } from './Library.styles';
 
 export const Library = () => {
+
+  const [refreshing, setRefreshing] = useState(false);
   const {
-    library,
-    isLoadingLibrary,
+    allSongs,
+    isLoadingAllSongs,
     libraryError,
     currentSong,
     status,
     handlePlay,
+    refetchAllSongs,
+    isFetchingSongs,
   } = useLibraryLogic();
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    // Simulate data fetching
+    setTimeout(() => {
+
+      setRefreshing(false);
+    }, 2000);
+  };
+
 
   const renderItem = ({ item }: { item: any }) => {
     const isPlayingCurrent = currentSong?.songId === item.songId;
@@ -74,42 +89,59 @@ export const Library = () => {
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
+  const listHeader = (
+    <>
+      <AppHeader />
       <View style={styles.header}>
         <Text style={[theme.typography.displayMedium, { color: theme.colors.textPrimary }]}>
           Your Library
         </Text>
         <Text style={[theme.typography.body, { color: theme.colors.textSecondary, marginTop: 4 }]}>
-          {library.length} tracks saved
+          {allSongs.length} tracks saved
         </Text>
       </View>
+    </>
+  );
 
-      {isLoadingLibrary ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.colors.primaryAccent} />
-        </View>
+  return (
+    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+      {isLoadingAllSongs ? (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {listHeader}
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={theme.colors.primaryAccent} />
+          </View>
+        </ScrollView>
       ) : libraryError ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.error }}>Error loading library</Text>
-        </View>
-      ) : library.length === 0 ? (
-        <View style={styles.center}>
-          <ListMusic color={theme.colors.textMuted} size={48} strokeWidth={1} />
-          <Text style={[theme.typography.title, { color: theme.colors.textSecondary, marginTop: 16 }]}>
-            Empty Library
-          </Text>
-          <Text style={[theme.typography.body, { color: theme.colors.textMuted, marginTop: 8, textAlign: 'center' }]}>
-            Add songs from the Explore page to see them here.
-          </Text>
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {listHeader}
+          <View style={styles.center}>
+            <Text style={{ color: theme.colors.error }}>Error loading library</Text>
+          </View>
+        </ScrollView>
+      ) : allSongs.length === 0 ? (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {listHeader}
+          <View style={styles.center}>
+            <ListMusic color={theme.colors.textMuted} size={48} strokeWidth={1} />
+            <Text style={[theme.typography.title, { color: theme.colors.textSecondary, marginTop: 16 }]}>
+              Empty Library
+            </Text>
+            <Text style={[theme.typography.body, { color: theme.colors.textMuted, marginTop: 8, textAlign: 'center' }]}>
+              Add songs from the Explore page to see them here.
+            </Text>
+          </View>
+        </ScrollView>
       ) : (
         <FlatList
-          data={library}
+          data={allSongs}
           keyExtractor={(item) => item.songId}
           renderItem={renderItem}
+          ListHeaderComponent={listHeader}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onRefresh={refetchAllSongs}
+          refreshing={isFetchingSongs}
         />
       )}
     </SafeAreaView>

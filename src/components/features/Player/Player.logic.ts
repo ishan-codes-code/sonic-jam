@@ -1,9 +1,20 @@
-import { useRouter } from 'expo-router';
-import { usePlayerStore } from '../../../store/playerStore';
+import { useRouter } from "expo-router";
+import { usePlayerStore } from "../../../store/playerStore";
 
 export const usePlayerLogic = () => {
   const router = useRouter();
-  const { currentSong, currentVideo, status, error, progress, duration, togglePlayback, seek } = usePlayerStore();
+  const {
+    currentSong,
+    currentVideo,
+    status,
+    error,
+    progress,
+    duration,
+    togglePlayback,
+    seek,
+    next,
+    prev,
+  } = usePlayerStore();
 
   const activeItem = currentSong || currentVideo;
 
@@ -11,7 +22,7 @@ export const usePlayerLogic = () => {
     const totalSeconds = millis / 1000;
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = Math.floor(totalSeconds % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   const youtubeId = currentSong?.youtubeId || currentVideo?.videoId;
@@ -29,5 +40,7 @@ export const usePlayerLogic = () => {
     formatTime,
     youtubeId,
     thumbnailUrl,
+    next,
+    prev,
   };
 };

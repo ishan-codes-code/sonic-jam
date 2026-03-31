@@ -1,4 +1,4 @@
-import { Dimensions, Platform, StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import { theme } from '../../../theme';
 
 const { width } = Dimensions.get('window');
@@ -9,27 +9,10 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.colors.backgroundBase,
   },
   scrollContent: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: theme.spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.xl,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: theme.colors.outlineVariant,
+    paddingBottom: 0,
   },
   section: {
+    paddingHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.xxl,
   },
   sectionHeader: {

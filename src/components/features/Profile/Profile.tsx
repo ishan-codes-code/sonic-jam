@@ -4,7 +4,6 @@ import {
   Edit2,
   Lock,
   LogOut,
-  Menu,
   Music,
   Smartphone,
   Wifi
@@ -21,8 +20,8 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppHeader } from '../../ui/AppHeader';
 import { GlassCard } from '../../ui/GlassCard';
-import { GradientText } from '../../ui/GradientText';
 import { theme } from '../../../theme';
 import { useProfileLogic } from './Profile.logic';
 import { styles } from './Profile.styles';
@@ -39,23 +38,8 @@ export const Profile = () => {
   } = useProfileLogic();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon}>
-          <Menu color={theme.colors.textPrimary} size={24} />
-        </TouchableOpacity>
-        <GradientText
-          text="SONICJAM"
-          style={[theme.typography.title, { letterSpacing: 2, fontWeight: 'bold' }]}
-        />
-        <TouchableOpacity style={styles.headerAvatarContainer}>
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/150?u=a042581f4e29026024d' }}
-            style={styles.headerAvatar}
-          />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView edges={['left', 'right']} style={styles.safeArea}>
+      <AppHeader />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}

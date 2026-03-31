@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../../theme';
 import AudioWave from '../../ui/AudioWave';
+import MovingLine from '../../ui/MovingLine';
 import { usePlayerLogic } from './Player.logic';
 import { styles } from './Player.styles';
 
@@ -28,6 +29,8 @@ export const Player = () => {
     formatTime,
     youtubeId,
     thumbnailUrl,
+    next,
+    prev,
   } = usePlayerLogic();
 
   if (status === 'error' && error) {
@@ -108,16 +111,23 @@ export const Player = () => {
 
       {/* Progress Section */}
       <View style={styles.progressSection}>
-        <Slider
-          style={styles.slider}
-          minimumValue={0}
-          maximumValue={duration}
-          value={progress}
-          onSlidingComplete={seek}
-          minimumTrackTintColor={theme.colors.secondaryAccent}
-          maximumTrackTintColor="rgba(255,255,255,0.1)"
-          thumbTintColor={theme.colors.secondaryAccent}
-        />
+        {status === 'loading' ? (
+          <MovingLine />
+        ) : (
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={duration}
+            value={progress}
+            onSlidingComplete={seek}
+            minimumTrackTintColor={theme.colors.secondaryAccent}
+            maximumTrackTintColor="rgba(255,255,255,0.1)"
+            thumbTintColor={theme.colors.secondaryAccent}
+          />
+        )
+
+        }
+
         <View style={styles.timeLabels}>
           <Text style={styles.timeText}>{formatTime(progress)}</Text>
           <Text style={styles.timeText}>{formatTime(duration)}</Text>
@@ -131,9 +141,10 @@ export const Player = () => {
         </TouchableOpacity>
 
         <View style={styles.mainControls}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={prev} disabled={status === 'loading'} >
             <SkipBack color={theme.colors.textPrimary} size={32} fill={theme.colors.textPrimary} />
           </TouchableOpacity>
+
 
           <TouchableOpacity
             style={styles.playBtn}
@@ -147,7 +158,7 @@ export const Player = () => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={next} disabled={status === 'loading'} >
             <SkipForward color={theme.colors.textPrimary} size={32} fill={theme.colors.textPrimary} />
           </TouchableOpacity>
         </View>

@@ -3,8 +3,8 @@
  * All data fetching for the Explore screen goes through here.
  */
 
-const API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ?? '';
-const BASE_URL = 'https://www.googleapis.com/youtube/v3';
+const API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ?? "";
+const BASE_URL = "https://www.googleapis.com/youtube/v3";
 
 export interface YouTubeVideo {
   videoId: string;
@@ -13,7 +13,7 @@ export interface YouTubeVideo {
   thumbnail: string;
   viewCount?: string;
   publishedAt?: string;
-  duration?: number; // In seconds
+  duration: number; // In seconds
 }
 
 export interface YouTubeResponse {
@@ -33,14 +33,15 @@ function parseSearchItems(items: any[]): YouTubeVideo[] {
     .filter((item) => item.id?.videoId)
     .map((item) => ({
       videoId: item.id.videoId,
-      title: item.snippet?.title ?? '',
-      channelTitle: item.snippet?.channelTitle ?? '',
+      title: item.snippet?.title ?? "",
+      channelTitle: item.snippet?.channelTitle ?? "",
+      duration: 0, // Duration is not available in search results; will fetch details later
       thumbnail:
         item.snippet?.thumbnails?.high?.url ??
         item.snippet?.thumbnails?.medium?.url ??
         item.snippet?.thumbnails?.default?.url ??
-        '',
-      publishedAt: item.snippet?.publishedAt ?? '',
+        "",
+      publishedAt: item.snippet?.publishedAt ?? "",
     }));
 }
 
@@ -48,31 +49,31 @@ function parseVideoItems(items: any[]): YouTubeVideo[] {
   return items
     .filter((item) => item.id)
     .map((item) => ({
-      videoId: typeof item.id === 'string' ? item.id : item.id?.videoId ?? '',
-      title: item.snippet?.title ?? '',
-      channelTitle: item.snippet?.channelTitle ?? '',
+      videoId: typeof item.id === "string" ? item.id : (item.id?.videoId ?? ""),
+      title: item.snippet?.title ?? "",
+      channelTitle: item.snippet?.channelTitle ?? "",
       thumbnail:
         item.snippet?.thumbnails?.high?.url ??
         item.snippet?.thumbnails?.medium?.url ??
         item.snippet?.thumbnails?.default?.url ??
-        '',
+        "",
       viewCount: item.statistics?.viewCount,
-      publishedAt: item.snippet?.publishedAt ?? '',
-      duration: item.contentDetails?.duration ? parseDuration(item.contentDetails.duration) : undefined,
+      publishedAt: item.snippet?.publishedAt ?? "",
+      duration: parseDuration(item.contentDetails.duration),
     }));
 }
 
 function parseDuration(isoDuration: string): number {
   const match = isoDuration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
   if (!match) return 0;
-  const hours = parseInt(match[1]?.slice(0, -1) ?? '0', 10);
-  const minutes = parseInt(match[2]?.slice(0, -1) ?? '0', 10);
-  const seconds = parseInt(match[3]?.slice(0, -1) ?? '0', 10);
+  const hours = parseInt(match[1]?.slice(0, -1) ?? "0", 10);
+  const minutes = parseInt(match[2]?.slice(0, -1) ?? "0", 10);
+  const seconds = parseInt(match[3]?.slice(0, -1) ?? "0", 10);
   return hours * 3600 + minutes * 60 + seconds;
 }
 
 function formatViewCount(count?: string): string {
-  if (!count) return '';
+  if (!count) return "";
   const n = parseInt(count, 10);
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M views`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K views`;
@@ -80,17 +81,17 @@ function formatViewCount(count?: string): string {
 }
 
 function formatDuration(seconds?: number): string {
-  if (!seconds) return '';
+  if (!seconds) return "";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   if (h > 0) {
-    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   }
-  return `${m}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export { formatViewCount, formatDuration };
+export { formatDuration, formatViewCount };
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
@@ -100,16 +101,16 @@ export async function searchVideos(
   pageToken?: string,
 ): Promise<YouTubeResponse> {
   const params: Record<string, string> = {
-    part: 'snippet',
+    part: "snippet",
     q: query,
-    type: 'video',
-    videoCategoryId: '10',
-    regionCode: 'IN',
-    maxResults: '20',
+    type: "video",
+    videoCategoryId: "10",
+    regionCode: "IN",
+    maxResults: "20",
   };
   if (pageToken) params.pageToken = pageToken;
 
-  const res = await fetch(buildUrl('search', params));
+  const res = await fetch(buildUrl("search", params));
   if (!res.ok) throw new Error(`YouTube search failed: ${res.status}`);
   const data = await res.json();
 
@@ -124,15 +125,15 @@ export async function fetchTrendingVideos(
   pageToken?: string,
 ): Promise<YouTubeResponse> {
   const params: Record<string, string> = {
-    part: 'snippet,statistics,contentDetails',
-    chart: 'mostPopular',
-    videoCategoryId: '10',
-    regionCode: 'IN',
-    maxResults: '20',
+    part: "snippet,statistics,contentDetails",
+    chart: "mostPopular",
+    videoCategoryId: "10",
+    regionCode: "IN",
+    maxResults: "20",
   };
   if (pageToken) params.pageToken = pageToken;
 
-  const res = await fetch(buildUrl('videos', params));
+  const res = await fetch(buildUrl("videos", params));
   if (!res.ok) throw new Error(`YouTube trending failed: ${res.status}`);
   const data = await res.json();
 
@@ -143,27 +144,31 @@ export async function fetchTrendingVideos(
 }
 
 /** Fetch video details by list of IDs. */
-export async function fetchVideosBatchDetails(videoIds: string[]): Promise<YouTubeVideo[]> {
+export async function fetchVideosBatchDetails(
+  videoIds: string[],
+): Promise<YouTubeVideo[]> {
   if (!videoIds.length) return [];
   const params: Record<string, string> = {
-    part: 'snippet,statistics,contentDetails',
-    id: videoIds.join(','),
+    part: "snippet,statistics,contentDetails",
+    id: videoIds.join(","),
   };
 
-  const res = await fetch(buildUrl('videos', params));
+  const res = await fetch(buildUrl("videos", params));
   if (!res.ok) throw new Error(`YouTube batch details failed: ${res.status}`);
   const data = await res.json();
   return parseVideoItems(data.items ?? []);
 }
 
 /** Fetch video details by ID (including duration). */
-export async function fetchVideoDetails(videoId: string): Promise<YouTubeVideo | null> {
+export async function fetchVideoDetails(
+  videoId: string,
+): Promise<YouTubeVideo | null> {
   const params: Record<string, string> = {
-    part: 'snippet,statistics,contentDetails',
+    part: "snippet,statistics,contentDetails",
     id: videoId,
   };
 
-  const res = await fetch(buildUrl('videos', params));
+  const res = await fetch(buildUrl("videos", params));
   if (!res.ok) throw new Error(`YouTube details failed: ${res.status}`);
   const data = await res.json();
 
@@ -171,9 +176,10 @@ export async function fetchVideoDetails(videoId: string): Promise<YouTubeVideo |
   return parseVideoItems(data.items)[0];
 }
 
-
 /** Fetch videos for a specific genre. */
-export async function fetchGenreVideos(genre: string): Promise<YouTubeResponse> {
+export async function fetchGenreVideos(
+  genre: string,
+): Promise<YouTubeResponse> {
   return searchVideos(`${genre} music`);
 }
 
@@ -185,16 +191,16 @@ export async function searchVideosIN(
   pageToken?: string,
 ): Promise<YouTubeResponse> {
   const params: Record<string, string> = {
-    part: 'snippet',
+    part: "snippet",
     q: query,
-    type: 'video',
-    videoCategoryId: '10',
-    regionCode: 'IN',
-    maxResults: '20',
+    type: "video",
+    videoCategoryId: "10",
+    regionCode: "IN",
+    maxResults: "20",
   };
   if (pageToken) params.pageToken = pageToken;
 
-  const res = await fetch(buildUrl('search', params));
+  const res = await fetch(buildUrl("search", params));
   if (!res.ok) throw new Error(`YouTube search (IN) failed: ${res.status}`);
   const data = await res.json();
 
@@ -208,7 +214,7 @@ export async function searchVideosIN(
 export function extractPlaylistId(url: string): string | null {
   try {
     const u = new URL(url);
-    const listParam = u.searchParams.get('list');
+    const listParam = u.searchParams.get("list");
     if (listParam) return listParam;
   } catch {
     // not a URL
@@ -224,28 +230,33 @@ export async function fetchPlaylistItems(
   pageToken?: string,
 ): Promise<YouTubeResponse> {
   const params: Record<string, string> = {
-    part: 'snippet',
+    part: "snippet",
     playlistId,
-    regionCode: 'IN',
-    maxResults: '20',
+    regionCode: "IN",
+    maxResults: "20",
   };
   if (pageToken) params.pageToken = pageToken;
 
-  const res = await fetch(buildUrl('playlistItems', params));
+  const res = await fetch(buildUrl("playlistItems", params));
   if (!res.ok) throw new Error(`YouTube playlist failed: ${res.status}`);
   const data = await res.json();
 
-  const items: YouTubeVideo[] = (data.items ?? []).map((item: any) => ({
-    videoId: item.snippet?.resourceId?.videoId ?? '',
-    title: item.snippet?.title ?? '',
-    channelTitle: item.snippet?.videoOwnerChannelTitle ?? item.snippet?.channelTitle ?? '',
-    thumbnail:
-      item.snippet?.thumbnails?.high?.url ??
-      item.snippet?.thumbnails?.medium?.url ??
-      item.snippet?.thumbnails?.default?.url ??
-      '',
-    publishedAt: item.snippet?.publishedAt ?? '',
-  })).filter((v: YouTubeVideo) => v.videoId);
+  const items: YouTubeVideo[] = (data.items ?? [])
+    .map((item: any) => ({
+      videoId: item.snippet?.resourceId?.videoId ?? "",
+      title: item.snippet?.title ?? "",
+      channelTitle:
+        item.snippet?.videoOwnerChannelTitle ??
+        item.snippet?.channelTitle ??
+        "",
+      thumbnail:
+        item.snippet?.thumbnails?.high?.url ??
+        item.snippet?.thumbnails?.medium?.url ??
+        item.snippet?.thumbnails?.default?.url ??
+        "",
+      publishedAt: item.snippet?.publishedAt ?? "",
+    }))
+    .filter((v: YouTubeVideo) => v.videoId);
 
   return {
     items,

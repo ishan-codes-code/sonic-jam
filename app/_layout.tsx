@@ -68,6 +68,9 @@ export default function RootLayout() {
           >
             {/* Tabs group */}
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="processing"
+            />
 
             <Stack.Screen
               name="addSection"

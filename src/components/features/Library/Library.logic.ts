@@ -1,8 +1,14 @@
-import { useMusic } from '../../../hooks/useMusic';
-import { usePlayerStore } from '../../../store/playerStore';
+import { useMusic } from "../../../hooks/useMusic";
+import { usePlayerStore } from "../../../store/playerStore";
 
 export const useLibraryLogic = () => {
-  const { library, isLoadingLibrary, libraryError } = useMusic();
+  const {
+    allSongs,
+    isLoadingAllSongs,
+    libraryError,
+    refetchAllSongs,
+    isFetchingSongs,
+  } = useMusic();
   const { playSong, currentSong, status } = usePlayerStore();
 
   const handlePlay = (song: any) => {
@@ -10,8 +16,10 @@ export const useLibraryLogic = () => {
   };
 
   return {
-    library,
-    isLoadingLibrary,
+    allSongs,
+    isLoadingAllSongs,
+    refetchAllSongs,
+    isFetchingSongs,
     libraryError,
     currentSong,
     status,

@@ -54,7 +54,6 @@ export default function TabLayout() {
         options={{
           title: 'Explore',
           tabBarIcon: ({ color, size }) => <Compass color={color} size={24} />,
-          headerShown: false,
         }}
       />
 

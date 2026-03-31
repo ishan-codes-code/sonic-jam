@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { theme } from '../../../theme';
 
 export const styles = StyleSheet.create({
@@ -6,36 +6,14 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.backgroundBase,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: Platform.OS === 'android' ? 40 : 16,
-  },
-  headerIcon: {
-    padding: 4,
-  },
-  headerAvatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: theme.colors.outlineVariantAlpha,
-  },
-  headerAvatar: {
-    width: '100%',
-    height: '100%',
-  },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 0,
     paddingBottom: 110,
   },
   profileSection: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: theme.spacing.md,
     marginBottom: 40,
   },
   avatarWrapper: {

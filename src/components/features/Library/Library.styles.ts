@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { theme } from '../../../theme';
 
 export const styles = StyleSheet.create({
@@ -8,7 +8,7 @@ export const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: Platform.OS === 'ios' ? 20 : 40,
+    paddingTop: 0,
     paddingBottom: theme.spacing.xl,
   },
   center: {

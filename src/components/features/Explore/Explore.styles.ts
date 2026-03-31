@@ -1,4 +1,4 @@
-import { Dimensions, Platform, StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import { theme } from '../../../theme';
 
 const { width } = Dimensions.get('window');
@@ -8,7 +8,6 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.backgroundBase,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
   searchWrapper: {
     flexDirection: 'row',
@@ -42,14 +41,13 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollContent: {
-    paddingHorizontal: theme.spacing.md,
+    paddingBottom: 120,
   },
   listContent: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
     paddingBottom: 120,
   },
   section: {
+    paddingHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.xxl,
   },
   sectionHeader: {
@@ -102,7 +100,7 @@ export const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 112 : 96,
+    top: 144,
     right: theme.spacing.md,
     backgroundColor: theme.colors.backgroundSection,
     borderRadius: theme.radius.md,

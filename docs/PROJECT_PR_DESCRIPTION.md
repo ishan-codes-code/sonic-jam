@@ -1,6 +1,6 @@
 # Sonic PR Description
 
-_Generated automatically by `scripts/generate-project-docs.js` on 2026-03-30T21:29:47.211Z._
+_Generated automatically by `scripts/generate-project-docs.js` on 2026-03-31T22:12:14.221Z._
 
 ## Project Overview
 
@@ -26,17 +26,25 @@ This document is the single source of truth for onboarding, debugging, and futur
 - Cross-cutting providers currently enabled: React Query = yes, custom flash messages = yes, persistent mini-player = yes.
 
 ### Stores
+
 - `src/store/authStore.ts`: Handles login, signup, logout, boot-time auth checks, error extraction, and auth reset after interceptor refresh failures.
 - `src/store/exploreStore.ts`: Owns default Explore sections, user-added sections, pagination, refresh, deletion, loading state, and error/flash handling.
-- `src/store/playerStore.ts`: Owns the global playback lifecycle, current item, library and YouTube playback resolution, job polling, queue state, progress, duration, and player cleanup.
+- `src/store/playerStore.ts`: Re-exports the modular player store from `src/player/player.store.ts` for backward compatibility.
+- `src/player/player.store.ts`: Main Zustand store for global playback lifecycle, current item, library and YouTube playback resolution, job polling, queue state, progress, duration, player cleanup, pending tracks, and notifications.
+- `src/player/player.types.ts`: TypeScript interfaces and types for player state, tracks, jobs, and notifications.
+- `src/player/player.engine.ts`: Playback engine functions for handling audio streams and player management.
+- `src/player/player.jobs.ts`: Job-related logic including polling, status handling, and job synchronization.
+- `src/player/player.helpers.ts`: Pure helper functions for player utilities and cleanup.
 
 ### API and service layers
+
 - `src/api/apiClient.ts`: Shared Axios client with bearer-token injection and queued token refresh on `401`.
 - `src/api/authApi.ts`: Backend auth calls for signup, login, refresh, logout, and `getMe`.
 - `src/api/musicApi.ts`: Backend library/playback calls for add-song, get-library, saved-song play URLs, direct play, and job-status polling.
 - `src/services/youtube.ts`: YouTube Data API wrapper for search, trending, batch details, playlist fetches, genre search, and formatting helpers.
 
 ### Feature modules
+
 - `AddSection`: Modal/form-sheet flow for creating extra Explore sections from a keyword or playlist-like input.
 - `Explore`: Primary dynamic discovery surface backed by YouTube search/trending APIs and custom user-created sections.
 - `GlobalPlayer`: Persistent mini-player rendered from the root layout so playback controls remain available across screens.
@@ -45,6 +53,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 - `Login`: Auth entry screen that submits credentials through the auth store.
 - `MediaCard`: Reusable media-card building block used by feature surfaces.
 - `Player`: Expanded playback sheet driven by the global player store for both library songs and YouTube-origin playback.
+- `Processing`: Feature module in the current app.
 - `Profile`: Mostly presentational account/settings screen with logout and a flash-message demo route entry point.
 - `Signup`: Registration screen that creates an account through the auth store.
 
@@ -64,12 +73,13 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## File and Folder Structure
 
 ### Top-level structure
-- `android/`: Expo-managed native Android project (`com.itsishandev.sonic`) with Gradle scripts, resource sets, keystore, and generated `MainActivity`/`MainApplication` entrypoints.
+
 - `app/`: Expo Router file-based routes. Most files are thin wrappers that render feature modules from `src/components/features`.
 - `assets/`: Static images and Stitch design references used by the visual UI and design handoff.
 - `src/`: Application source code: features, stores, hooks, APIs, theme tokens, services, and shared UI.
 
 ### Key source-code subfolders
+
 - `src/api/`: Typed backend clients and shared Axios configuration.
 - `src/components/features/`: Screen-level UI split by feature, usually as `Component.tsx + logic + styles + index`.
 - `src/components/ui/`: Shared visual primitives such as cards, flash messages, gradients, and playback visuals.
@@ -82,6 +92,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 - `src/utils/`: Utility modules such as secure token persistence.
 
 ### Repository snapshot
+
 ```text
 |-- android/
 |   |-- app/
@@ -179,6 +190,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |-- index.tsx
 |   |-- login.tsx
 |   |-- player.tsx
+|   |-- processing.tsx
 |   `-- signup.tsx
 |-- assets/
 |   |-- images/
@@ -274,6 +286,10 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |   |   |-- Player.logic.ts
 |   |   |   |   |-- Player.styles.ts
 |   |   |   |   `-- Player.tsx
+|   |   |   |-- Processing/
+|   |   |   |   |-- index.ts
+|   |   |   |   |-- Processing.styles.ts
+|   |   |   |   `-- Processing.tsx
 |   |   |   |-- Profile/
 |   |   |   |   |-- index.ts
 |   |   |   |   |-- Profile.logic.ts
@@ -285,11 +301,14 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |       |-- Signup.styles.ts
 |   |   |       `-- Signup.tsx
 |   |   `-- ui/
+|   |       |-- AppHeader.tsx
 |   |       |-- AudioWave.tsx
 |   |       |-- Fakeprogressflashmessage.tsx
 |   |       |-- FlashMessage.tsx
 |   |       |-- GlassCard.tsx
-|   |       `-- GradientText.tsx
+|   |       |-- GradientText.tsx
+|   |       |-- MovingLine.tsx
+|   |       `-- SpinnerBadge.tsx
 |   |-- constants/
 |   |   `-- genres.ts
 |   |-- hooks/
@@ -297,6 +316,12 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |-- useDebounce.ts
 |   |   |-- useFlashMessage.tsx
 |   |   `-- useMusic.ts
+|   |-- player/
+|   |   |-- player.engine.ts
+|   |   |-- player.helpers.ts
+|   |   |-- player.jobs.ts
+|   |   |-- player.store.ts
+|   |   `-- player.types.ts
 |   |-- services/
 |   |   `-- youtube.ts
 |   |-- store/
@@ -330,6 +355,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## Core Features and Workflows
 
 ### Authentication workflow
+
 1. The app boots through `app/_layout.tsx`.
 2. `AuthGuard` calls `checkAuth()` from `useAuth()`.
 3. `authStore` checks secure storage for a refresh token.
@@ -337,6 +363,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 5. Route access is then enforced: unauthenticated users are redirected to `/login`, authenticated users are redirected into the tabs shell.
 
 ### Explore workflow
+
 1. Explore mounts and triggers `exploreStore.loadInitial()` when default sections are empty.
 2. Two default trending sections are hydrated from the YouTube trending endpoint.
 3. Search input is debounced and resolved through `searchVideos()`.
@@ -345,20 +372,27 @@ This document is the single source of truth for onboarding, debugging, and futur
 6. Section cards support refresh, pagination, deletion, and direct playback.
 
 ### Library workflow
+
 1. `useMusic()` fetches the saved library with React Query.
 2. The Library screen renders backend songs and highlights the currently playing item.
 3. Tapping a saved song delegates playback to `playerStore.playSong()`.
 
 ### Playback workflow
+
 1. Playback can begin from a backend library song or directly from a YouTube video result.
 2. For library songs, the app requests `GET /songs/play/:songId` and plays the returned stream URL immediately.
 3. For YouTube-origin playback, the app calls `POST /songs/play`, which may return either an immediate stream URL or a background job ID.
-4. When a job ID is returned, `playerStore` polls `GET /songs/job/:jobId`, updates queue/progress state, and starts playback automatically once the job is done.
-5. `expo-audio` is used to create a player instance and stream status updates back into the store.
-6. The mini-player and full player screen both read from the same store, so controls remain synchronized.
-7. If a stream URL is older than roughly 4.5 minutes, playback resumes by re-fetching a fresh stream URL.
+4. If an immediate stream URL is returned, playback starts immediately and any pending track is cleared.
+5. If a job ID is returned, the app sets a pending track for the requested song and starts background job polling without interrupting current playback.
+6. When a job completes:
+   - If it matches the current pending track, playback switches to the completed song and the pending track is cleared.
+   - If it doesn't match (e.g., an older job), a notification is shown allowing the user to play the completed song manually.
+7. `expo-audio` is used to create a player instance and stream status updates back into the store.
+8. The mini-player and full player screen both read from the same store, so controls remain synchronized.
+9. If a stream URL is older than roughly 4.5 minutes, playback resumes by re-fetching a fresh stream URL.
 
 ### Add-to-library workflow
+
 1. A YouTube video ID is passed into `useMusic().addSong`.
 2. The app first fetches full video details so title and duration are available.
 3. The backend `/library/addSong` endpoint is called with YouTube metadata.
@@ -367,12 +401,14 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## Important Dependencies and Integrations
 
 ### Framework and runtime
+
 - `expo` (~54.0.33)
 - `react` (19.1.0)
 - `react-native` (0.81.5)
 - `expo-router` (~6.0.23)
 
 ### Navigation and screen infrastructure
+
 - `@react-navigation/native` (^7.1.8)
 - `@react-navigation/bottom-tabs` (^7.15.7)
 - `@react-navigation/native-stack` (^7.14.8)
@@ -380,16 +416,19 @@ This document is the single source of truth for onboarding, debugging, and futur
 - `react-native-screens` (~4.16.0)
 
 ### Data, networking, and state
+
 - `@tanstack/react-query` (^5.95.2)
 - `axios` (^1.13.6)
 - `zustand` (^5.0.12)
 
 ### Media and playback
+
 - `expo-audio` (~1.1.1)
 - `expo-av` (^16.0.8)
 - `@react-native-community/slider` (5.0.1)
 
 ### UI and interaction
+
 - `expo-linear-gradient` (~15.0.8)
 - `expo-blur` (~15.0.8)
 - `expo-image` (~3.0.11)
@@ -399,10 +438,12 @@ This document is the single source of truth for onboarding, debugging, and futur
 - `react-native-flash-message` (^0.4.2)
 
 ### Storage and auth support
+
 - `expo-secure-store` (~15.0.8)
 - `expo-constants` (~18.0.13)
 
 ### External services
+
 - Backend API base URL: `EXPO_PUBLIC_API_URL (declared via .env)`
 - YouTube Data API key: `EXPO_PUBLIC_YOUTUBE_API_KEY`
 - Secure token storage: `expo-secure-store`
@@ -411,6 +452,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## Key Design Decisions and Assumptions
 
 ### Design decisions
+
 - Expo Router owns navigation. Route files stay intentionally thin and delegate real logic to feature modules under `src/components/features`.
 - Zustand stores hold app-level state for auth, discovery sections, and playback so multiple routes/components can react without prop drilling.
 - React Query is used for backend library data and mutations, while transient YouTube discovery/search state is managed locally plus in `exploreStore`.
@@ -419,6 +461,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 - Theme primitives are centralized under `src/theme` to keep the highly stylized visual direction consistent across screens.
 
 ### Assumptions
+
 - The backend exposed by `EXPO_PUBLIC_API_URL` provides working auth, library, streaming, and direct-play endpoints compatible with the current request shapes.
 - The app targets Indian-region YouTube discovery (`regionCode=IN`) for trending/search/playlist flows.
 - Most custom-section state is expected to live only in memory for now; there is no persistence layer for user-created Explore sections.
@@ -427,6 +470,7 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## Debugging Guide
 
 ### Where to look first
+
 - Auth problems: `src/store/authStore.ts`, `src/api/apiClient.ts`, `src/api/authApi.ts`, `src/utils/tokenStorage.ts`
 - Explore/search/trending issues: `src/components/features/Explore/Explore.logic.ts`, `src/store/exploreStore.ts`, `src/services/youtube.ts`
 - Library fetch/add issues: `src/hooks/useMusic.ts`, `src/api/musicApi.ts`
@@ -435,11 +479,11 @@ This document is the single source of truth for onboarding, debugging, and futur
 - Styling consistency issues: `src/theme/` and the relevant feature `.styles.ts` file
 
 ### Runtime configuration
+
 - Expo app name: `sonic`
 - Expo slug: `sonic`
 - Typed routes: `enabled`
 - React Compiler experiment: `enabled`
-- Android package identifier: `android.package` in `app.json` is `com.itsishandev.sonic`.
 - Environment keys found in repository root `.env`: `EXPO_PUBLIC_YOUTUBE_API_KEY`, `EXPO_PUBLIC_API_URL`
 
 ## Known Issues and Limitations
@@ -456,6 +500,5 @@ This document is the single source of truth for onboarding, debugging, and futur
 - The canonical file is `docs/PROJECT_PR_DESCRIPTION.md`.
 - It is generated by `npm run docs:generate`.
 - It can stay live during development with `npm run docs:watch`, which watches the repository and regenerates the document after file changes.
-- Standard workflows also refresh the document automatically through npm pre-scripts wired into `start`, `android` (`expo run:android`), `ios` (`expo run:ios`), `web`, and `lint`.
-- The native Android shell changes are reflected in `app.json` and `package.json` so the app can build with the generated Android project.
+- Standard workflows also refresh the document automatically through npm pre-scripts wired into `start`, `android`, `ios`, `web`, and `lint`.
 - If the architecture changes meaningfully, update the curated summaries inside `scripts/generate-project-docs.js` so the generated narrative remains accurate in addition to the automatically refreshed file tree and dependency snapshot.

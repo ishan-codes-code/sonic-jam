@@ -1,10 +1,11 @@
+import { useMusic } from '@/src/hooks/useMusic';
+import { createTrackFromSong } from '@/src/player/player.helpers';
+import { usePlayerStore } from '@/src/store/playerStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Menu,
   MoreVertical,
   Play,
   Repeat,
-  Search,
   Shuffle,
   SkipBack,
   SkipForward
@@ -19,38 +20,30 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { GlassCard } from '../../ui/GlassCard';
-import { GradientText } from '../../ui/GradientText';
 import { theme } from '../../../theme';
+import { AppHeader } from '../../ui/AppHeader';
+import { GlassCard } from '../../ui/GlassCard';
 import { ARTISTS, QUICK_MIXES, RECENTLY_PLAYED } from './Home.constants';
 import { styles } from './Home.styles';
 
 export const Home = () => {
+
+  const { allSongs } = useMusic();
+
+  const tracks = allSongs.map(createTrackFromSong);
+
+  const onClick = (index: number) => {
+    usePlayerStore.getState().setQueue(tracks, index);
+  }
+
+
   return (
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* HEADER SECTION */}
-        <View style={styles.header}>
-          <TouchableOpacity>
-            <Menu color={theme.colors.textPrimary} size={28} />
-          </TouchableOpacity>
-          <GradientText
-            text="SONICJAM"
-            style={[theme.typography.headline, { letterSpacing: 2 }]}
-          />
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={{ marginRight: theme.spacing.md }}>
-              <Search color={theme.colors.textPrimary} size={24} />
-            </TouchableOpacity>
-            <Image
-              source={{ uri: 'https://i.pravatar.cc/100?u=ishan' }}
-              style={styles.avatar}
-            />
-          </View>
-        </View>
+        <AppHeader />
 
         {/* GREETING SECTION */}
         <View style={styles.section}>
@@ -230,7 +223,7 @@ export const Home = () => {
       </ScrollView>
 
       {/* FLOATING ACTION BUTTON */}
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity onPress={() => onClick(10)} style={styles.fab}>
         <LinearGradient
           colors={[theme.colors.primaryAccent, theme.colors.secondaryAccent]}
           style={styles.fabGradient}
@@ -238,6 +231,8 @@ export const Home = () => {
           <Play color="black" size={24} fill="black" />
         </LinearGradient>
       </TouchableOpacity>
+
+
     </View>
   );
 };

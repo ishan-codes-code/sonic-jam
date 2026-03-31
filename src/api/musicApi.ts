@@ -32,8 +32,12 @@ export type PlayResponse =
   | { type: "ready"; streamUrl: string }
   | { type: "job"; jobId: string };
 
-export type PlayJobResponse =
-  { status: string; progress: number; streamUrl?: string; message?: string };
+export type PlayJobResponse = {
+  status: string;
+  progress: number;
+  streamUrl?: string;
+  message?: string;
+};
 
 const readNumericProgress = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -142,7 +146,7 @@ export const musicApi = {
     return data;
   },
 
-  getLibrary: async (): Promise<Song[]> => {
+  getAllSongs: async (): Promise<Song[]> => {
     const { data } = await apiClient.get<Song[]>("/songs/getAll");
     return data;
   },

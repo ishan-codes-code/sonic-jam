@@ -1,15 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
-import { AddSongPayload, musicApi } from '../api/musicApi';
-import { fetchVideoDetails } from '../services/youtube';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { AddSongPayload, musicApi } from "../api/musicApi";
+import { fetchVideoDetails } from "../services/youtube";
 
 export function useMusic() {
   const queryClient = useQueryClient();
 
-  // 📁 Library Query
-  const libraryQuery = useQuery({
-    queryKey: ['library'],
-    queryFn: musicApi.getLibrary,
+  const allSongsQuery = useQuery({
+    queryKey: ["allSongs"],
+    queryFn: musicApi.getAllSongs,
   });
 
   // 🚀 Add Song Mutation
@@ -17,7 +16,7 @@ export function useMusic() {
     mutationFn: async (videoId: string) => {
       // Step 1: Fetch full details if needed (duration is mandatory for backend)
       const details = await fetchVideoDetails(videoId);
-      if (!details) throw new Error('Video not found');
+      if (!details) throw new Error("Video not found");
 
       const payload: AddSongPayload = {
         youtubeId: videoId,
@@ -29,7 +28,7 @@ export function useMusic() {
     },
     onSuccess: () => {
       // Invalidate library on success
-      queryClient.invalidateQueries({ queryKey: ['library'] });
+      queryClient.invalidateQueries({ queryKey: ["library"] });
     },
   });
 
@@ -41,7 +40,9 @@ export function useMusic() {
         return response.streamUrl;
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 403) {
-          throw new Error('Access Denied: You must add this song to your library first.');
+          throw new Error(
+            "Access Denied: You must add this song to your library first.",
+          );
         }
         throw error;
       }
@@ -49,11 +50,14 @@ export function useMusic() {
   });
 
   return {
-    library: libraryQuery.data ?? [],
-    isLoadingLibrary: libraryQuery.isLoading,
+    allSongs: allSongsQuery.data ?? [],
+    refetchAllSongs: allSongsQuery.refetch,
+    isFetchingSongs: allSongsQuery.isFetching,
+
+    isLoadingAllSongs: allSongsQuery.isLoading,
     isAdding: addSongMutation.isPending,
     addSong: addSongMutation.mutateAsync,
-    libraryError: libraryQuery.error,
+    libraryError: allSongsQuery.error,
 
     // Streaming
     getStreamUrl: streamMutation.mutateAsync,
