@@ -44,6 +44,25 @@ export const elevation = {
       }
     }),
   } as ViewStyle,
+
+  // Shadow-only floating preset (no backgroundColor override)
+  floatingShadow: {
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primaryAccent,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.12,
+        shadowRadius: 32,
+      },
+      android: {
+        elevation: 8,
+        shadowColor: colors.primaryAccent,
+      },
+      web: {
+        boxShadow: `0 12px 32px 0 rgba(197, 154, 255, 0.12)`,
+      },
+    }),
+  } as ViewStyle,
 } as const;
 
 export type Elevation = typeof elevation;

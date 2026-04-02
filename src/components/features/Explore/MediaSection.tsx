@@ -1,4 +1,4 @@
-import { ArrowRight, RotateCcw, Trash2 } from 'lucide-react-native';
+import { ArrowRight, RotateCcw } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -49,7 +49,6 @@ interface MediaSectionProps {
   isLoadingMore?: boolean;
   onRefresh?: () => void;
   onLoadMore?: () => void;
-  onDeleteSection?: () => void;
   onItemPress: (item: YouTubeVideo) => void;
   onItemLongPress?: (item: YouTubeVideo) => void;
   style?: ViewStyle;
@@ -68,7 +67,6 @@ export const MediaSection = ({
   isLoadingMore,
   onRefresh,
   onLoadMore,
-  onDeleteSection,
   onItemPress,
   onItemLongPress,
   renderTitle,
@@ -94,15 +92,6 @@ export const MediaSection = ({
             style={styles.actionBtn}
           >
             <RotateCcw size={18} color={theme.colors.textSecondary as any} />
-          </TouchableOpacity>
-        )}
-        {onDeleteSection && (
-          <TouchableOpacity
-            onPress={onDeleteSection}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={styles.actionBtn}
-          >
-            <Trash2 size={18} color={theme.colors.error as any} />
           </TouchableOpacity>
         )}
       </View>

@@ -40,7 +40,6 @@ export const useExploreLogic = () => {
     loadInitial,
     refreshSection,
     loadMoreSection,
-    deleteSection
   } = useExploreStore();
 
   const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
@@ -130,7 +129,7 @@ export const useExploreLogic = () => {
 
   const handleAddSection = () => {
     const userSections = sections.filter(
-      (s: DynamicSection) => s.id !== 'default_trending' && s.id !== 'default_yt_trending'
+      (s: DynamicSection) => s.id !== 'default_trending'
     );
     if (userSections.length >= 3) {
       setMenuVisible(false);
@@ -163,7 +162,6 @@ export const useExploreLogic = () => {
     loadInitial,
     refreshSection,
     loadMoreSection,
-    deleteSection,
     handlePlay,
     loadMoreSearch,
     handleGenrePress,

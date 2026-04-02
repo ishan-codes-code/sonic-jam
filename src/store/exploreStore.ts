@@ -24,33 +24,21 @@ interface ExploreState {
     layout: 'horizontal' | 'vertical';
     variant: 'large' | 'compact';
   }, reorderedSections?: DynamicSection[]) => Promise<void>;
-  deleteSection: (sectionId: string) => void;
   refreshSection: (sectionId: string) => Promise<void>;
   loadMoreSection: (sectionId: string) => Promise<void>;
 }
 
 export const SECTION_TRENDING_ID = 'default_trending';
-export const SECTION_YT_TRENDING_ID = 'default_yt_trending';
 
 function buildDefaultSections(): DynamicSection[] {
   return [
     {
       id: SECTION_TRENDING_ID,
-      title: 'Trending Now',
+      title: 'YouTube Trending',
       type: 'trending',
       value: '',
       layout: 'horizontal',
       variant: 'large',
-      data: [],
-      isLoading: true,
-    },
-    {
-      id: SECTION_YT_TRENDING_ID,
-      title: 'YouTube Trending',
-      type: 'trending',
-      value: '',
-      layout: 'vertical',
-      variant: 'compact',
       data: [],
       isLoading: true,
     },
@@ -67,10 +55,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
   loadInitial: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [trendRes, ytRes] = await Promise.all([
-        fetchTrendingVideos(),
-        fetchTrendingVideos(),
-      ]);
+      const trendRes = await fetchTrendingVideos();
 
       set((state) => ({
         isLoading: false,
@@ -82,15 +67,6 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
               nextPageToken: trendRes.nextPageToken,
               hasMore: !!trendRes.nextPageToken,
               isLoading: false
-            };
-          }
-          if (s.id === SECTION_YT_TRENDING_ID) {
-            return {
-              ...s,
-              data: ytRes.items,
-              nextPageToken: ytRes.nextPageToken,
-              hasMore: !!ytRes.nextPageToken,
-              isLoading: false,
             };
           }
           return s;
@@ -112,7 +88,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
   addSection: async (config) => {
     const state = get();
     const userSections = state.sections.filter(
-      (s) => s.id !== SECTION_TRENDING_ID && s.id !== SECTION_YT_TRENDING_ID
+      (s) => s.id !== SECTION_TRENDING_ID
     );
 
     if (userSections.length >= 3) {
@@ -142,16 +118,12 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
       hasMore: false,
     };
 
-    // ── Insert into position: after Trending, before YT Trending ──
+    // ── Insert into position: after Trending ──
     set((state) => {
       const nextSections = [...state.sections];
-      const ytIdx = nextSections.findIndex((s) => s.id === SECTION_YT_TRENDING_ID);
-
-      if (ytIdx !== -1) {
-        nextSections.splice(ytIdx, 0, newSection);
-      } else {
-        nextSections.push(newSection);
-      }
+      const trendingIdx = nextSections.findIndex((s) => s.id === SECTION_TRENDING_ID);
+      if (trendingIdx !== -1) nextSections.splice(trendingIdx + 1, 0, newSection);
+      else nextSections.unshift(newSection);
 
       return { sections: nextSections };
     });
@@ -196,18 +168,6 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
     }
   },
 
-  deleteSection: (sectionId) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    set((state) => ({
-      sections: state.sections.filter((s) => s.id !== sectionId),
-    }));
-    showMessage({
-      message: 'Section Deleted',
-      type: 'info',
-      icon: 'success',
-    });
-  },
-
   refreshSection: async (sectionId) => {
     const section = get().sections.find((s) => s.id === sectionId);
     if (!section) return;
@@ -218,7 +178,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
 
     try {
       let searchRes;
-      if (section.id === SECTION_TRENDING_ID || section.id === SECTION_YT_TRENDING_ID) {
+      if (section.id === SECTION_TRENDING_ID) {
         searchRes = await fetchTrendingVideos();
       } else if (section.type === 'playlist') {
         searchRes = await fetchPlaylistItems(section.value);
@@ -228,7 +188,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
 
       // ── Enrich with details if not trending (trending already has details) ──
       let finalData = searchRes.items;
-      if (section.type !== 'trending' && section.id !== SECTION_TRENDING_ID && section.id !== SECTION_YT_TRENDING_ID) {
+      if (section.type !== 'trending' && section.id !== SECTION_TRENDING_ID) {
         const videoIds = searchRes.items.map(v => v.videoId);
         finalData = await fetchVideosBatchDetails(videoIds);
       }

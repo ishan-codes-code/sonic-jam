@@ -11,7 +11,6 @@ interface SectionItemProps {
   onItemPress: (item: YouTubeVideo) => void;
   onLoadMore: () => void;
   onRefresh: () => void;
-  onDelete: () => void;
 }
 
 export function SectionItem({
@@ -19,7 +18,6 @@ export function SectionItem({
   onItemPress,
   onLoadMore,
   onRefresh,
-  onDelete,
 }: SectionItemProps) {
   if (section.isLoading && section.data.length === 0) {
     return (
@@ -35,7 +33,7 @@ export function SectionItem({
   }
 
   const customTitle =
-    section.id === 'default_yt_trending'
+    section.id === 'default_trending'
       ? () => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Ionicons name="logo-youtube" color="#FF0000" size={20} />
@@ -58,7 +56,6 @@ export function SectionItem({
       onLoadMore={onLoadMore}
       onRefresh={onRefresh}
       onItemPress={onItemPress}
-      onDeleteSection={onDelete}
       renderTitle={customTitle}
     />
   );

@@ -1,3 +1,4 @@
+import { useBottomSheet } from '@/src/hooks/useDrawer';
 import { useMusic } from '@/src/hooks/useMusic';
 import { createTrackFromSong } from '@/src/player/player.helpers';
 import { usePlayerStore } from '@/src/store/playerStore';
@@ -35,10 +36,14 @@ export const Home = () => {
   const onClick = (index: number) => {
     usePlayerStore.getState().setQueue(tracks, index);
   }
+  const { open, close } = useBottomSheet();
+
 
 
   return (
     <View style={styles.container}>
+
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -54,7 +59,6 @@ export const Home = () => {
             Ready to find your flow today?
           </Text>
         </View>
-
         {/* TRENDING HERO CARD */}
         <View style={styles.section}>
           <ImageBackground
@@ -231,6 +235,7 @@ export const Home = () => {
           <Play color="black" size={24} fill="black" />
         </LinearGradient>
       </TouchableOpacity>
+
 
 
     </View>

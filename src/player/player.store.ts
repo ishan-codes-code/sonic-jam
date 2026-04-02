@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { Song, musicApi } from "../api/musicApi";
 import { YouTubeVideo, fetchVideoDetails } from "../services/youtube";
-import { playLibraryStream, playTrack, playVideoStream } from "./player.engine";
+import { playSongDirect, playTrack, playVideoStream } from "./player.engine";
 import {
   isCompletedJobStatus,
   isFailedJobStatus,
@@ -176,7 +176,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           streamUrl,
         });
 
-        await playLibraryStream(get, set, song, streamUrl);
+        await playSongDirect(get, set, song, streamUrl);
       } catch (err: any) {
         console.error("[playerStore] playSong error detailing:", {
           message: err.message,

@@ -9,7 +9,7 @@ export const useProfileLogic = () => {
   const [dataSaverEnabled, setDataSaverEnabled] = useState(false);
 
   const handleDemoFlash = () => {
-    router.push('/(tabs)/explore/demo');
+    router.push('/(tabs)/explore');
   };
 
   return {

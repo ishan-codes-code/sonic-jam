@@ -1,3 +1,4 @@
+import { getThumbnailUrl } from "@/src/services/youtube";
 import { usePlayerStore } from "@/src/store/playerStore";
 import { useRouter } from "expo-router";
 import {
@@ -46,8 +47,7 @@ const formatStatus = (status?: string) => {
   return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
-const getThumbnailUrl = (youtubeId?: string) =>
-  youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : undefined;
+
 
 export default function Processing() {
   const router = useRouter();

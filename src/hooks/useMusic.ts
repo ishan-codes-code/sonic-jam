@@ -1,14 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { AddSongPayload, musicApi } from "../api/musicApi";
+import { AddSongPayload, musicApi, PlayListReqPayLoad } from "../api/musicApi";
 import { fetchVideoDetails } from "../services/youtube";
 
-export function useMusic() {
+type UseMusicOptions = {
+  playlistId?: string | null;
+};
+
+export function useMusic(options: UseMusicOptions = {}) {
   const queryClient = useQueryClient();
+  const playlistId = options.playlistId ?? null;
 
   const allSongsQuery = useQuery({
     queryKey: ["allSongs"],
     queryFn: musicApi.getAllSongs,
+  });
+
+  const getUserPlaylistsQuery = useQuery({
+    queryKey: ["userPlaylists"],
+    queryFn: musicApi.getUserPlaylists,
+  });
+
+  const getPlaylistSongsQuery = useQuery({
+    queryKey: ["playlistSongs", playlistId],
+    queryFn: () => musicApi.getPlaylistSongs(playlistId as string),
+    enabled: !!playlistId,
+  });
+
+  const createPlaylistMutation = useMutation({
+    mutationFn: async (payload: PlayListReqPayLoad) => {
+      return await musicApi.addPlayList(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
+    },
   });
 
   // 🚀 Add Song Mutation
@@ -53,8 +78,21 @@ export function useMusic() {
     allSongs: allSongsQuery.data ?? [],
     refetchAllSongs: allSongsQuery.refetch,
     isFetchingSongs: allSongsQuery.isFetching,
-
     isLoadingAllSongs: allSongsQuery.isLoading,
+
+    userPlaylist: getUserPlaylistsQuery.data ?? [],
+    refetchUserPlaylists: getUserPlaylistsQuery.refetch,
+    isFetchingUserPlaylists: getUserPlaylistsQuery.isFetching,
+    isLoadingUserPlaylists: getUserPlaylistsQuery.isLoading,
+
+    playlistSongs: getPlaylistSongsQuery.data ?? [],
+    refetchPlaylistSongs: getPlaylistSongsQuery.refetch,
+    isFetchingPlaylistSongs: getPlaylistSongsQuery.isFetching,
+    isLoadingPlaylistSongs: getPlaylistSongsQuery.isLoading,
+
+    createPlaylist: createPlaylistMutation.mutateAsync,
+    isCreatingPlaylist: createPlaylistMutation.isPending,
+
     isAdding: addSongMutation.isPending,
     addSong: addSongMutation.mutateAsync,
     libraryError: allSongsQuery.error,

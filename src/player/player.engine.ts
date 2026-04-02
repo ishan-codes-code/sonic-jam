@@ -65,7 +65,7 @@ export const playVideoStream = async (
   set({ player, status: "playing" });
 };
 
-export const playLibraryStream = async (
+export const playSongDirect = async (
   get: () => any,
   set: (state: any) => void,
   song: Song,

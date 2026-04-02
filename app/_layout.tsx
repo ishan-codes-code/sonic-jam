@@ -1,8 +1,10 @@
+import { BottomSheetProvider } from '@/src/hooks/useDrawer';
 import { FlashMessageProvider } from '@/src/hooks/useFlashMessage';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GlobalPlayer } from '../src/components/features/GlobalPlayer';
 import { useAuth } from '../src/hooks/useAuth';
 import { theme } from '../src/theme';
@@ -56,50 +58,54 @@ const queryClient = new QueryClient();
 // --------------------------------------------------------------------------
 export default function RootLayout() {
   return (
-    <FlashMessageProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthGuard>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'fade',
-              animationDuration: 200,
-            }}
-          >
-            {/* Tabs group */}
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="processing"
-            />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetProvider>
+        <FlashMessageProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthGuard>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'fade',
+                  animationDuration: 200,
+                }}
+              >
+                {/* Tabs group */}
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen
+                  name="processing"
+                />
 
-            <Stack.Screen
-              name="addSection"
-              options={{
-                presentation: 'formSheet',
-                sheetAllowedDetents: [0.8, 0.9],
-                animation: 'slide_from_bottom',
-                gestureEnabled: true,
-                sheetGrabberVisible: true,
-                contentStyle: { backgroundColor: 'transparent' }
-              }}
-            />
+                <Stack.Screen
+                  name="addSection"
+                  options={{
+                    presentation: 'formSheet',
+                    sheetAllowedDetents: [0.8, 0.9],
+                    animation: 'slide_from_bottom',
+                    gestureEnabled: true,
+                    sheetGrabberVisible: true,
+                    contentStyle: { backgroundColor: 'transparent' }
+                  }}
+                />
 
 
-            {/* Player screen (custom config) */}
-            <Stack.Screen
-              name="player"
-              options={{
-                presentation: 'formSheet', // 🔥 key part
-                animation: 'slide_from_bottom', // nice for player UI
-                gestureEnabled: true,
-                // sheetGrabberVisible: true
-              }}
-            />
-          </Stack>
-          <GlobalPlayer />
-        </AuthGuard>
-      </QueryClientProvider>
-    </FlashMessageProvider>
+                {/* Player screen (custom config) */}
+                <Stack.Screen
+                  name="player"
+                  options={{
+                    presentation: 'formSheet', // 🔥 key part
+                    animation: 'slide_from_bottom', // nice for player UI
+                    gestureEnabled: true,
+                    // sheetGrabberVisible: true
+                  }}
+                />
+              </Stack>
+              <GlobalPlayer />
+            </AuthGuard>
+          </QueryClientProvider>
+        </FlashMessageProvider>
+      </BottomSheetProvider>
+    </GestureHandlerRootView>
   );
 }
 

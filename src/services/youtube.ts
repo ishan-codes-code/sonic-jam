@@ -28,6 +28,11 @@ function buildUrl(endpoint: string, params: Record<string, string>): string {
   return `${BASE_URL}/${endpoint}?${query}`;
 }
 
+export const getThumbnailUrl = (youtubeId?: string) =>
+  youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : undefined;
+
 function parseSearchItems(items: any[]): YouTubeVideo[] {
   return items
     .filter((item) => item.id?.videoId)

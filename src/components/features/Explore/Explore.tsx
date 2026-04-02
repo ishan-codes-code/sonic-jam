@@ -43,7 +43,6 @@ export function Explore() {
     loadInitial,
     refreshSection,
     loadMoreSection,
-    deleteSection,
     handlePlay,
     loadMoreSearch,
     handleGenrePress,
@@ -272,7 +271,6 @@ export function Explore() {
             onItemPress={handlePlay}
             onLoadMore={() => loadMoreSection(section.id)}
             onRefresh={() => refreshSection(section.id)}
-            onDelete={() => deleteSection(section.id)}
           />
         ))}
 

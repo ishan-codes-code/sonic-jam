@@ -28,6 +28,22 @@ export interface PlayPayload {
   duration: number;
 }
 
+export type Playlist = {
+  id: string;
+  name: string;
+  description: string | null;
+  thumbnailUrl: string[] | null;
+  isPublic: boolean;
+  createdAt: string;
+  songCount?: number;
+};
+
+export type PlayListReqPayLoad = {
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+};
+
 export type PlayResponse =
   | { type: "ready"; streamUrl: string }
   | { type: "job"; jobId: string };
@@ -37,6 +53,16 @@ export type PlayJobResponse = {
   progress: number;
   streamUrl?: string;
   message?: string;
+};
+
+export type PlaylistSongs = {
+  id: string;
+  title: string;
+  duration: number;
+  youtubeId: string;
+  position: number;
+  channelName: string;
+  channelId: string;
 };
 
 const readNumericProgress = (value: unknown): number | null => {
@@ -143,6 +169,21 @@ export const musicApi = {
       "/library/addSong",
       payload,
     );
+    return data;
+  },
+
+  getUserPlaylists: async (): Promise<Playlist[]> => {
+    const { data } = await apiClient.get("/playlist/getAll");
+    return data;
+  },
+
+  addPlayList: async (payload: PlayListReqPayLoad) => {
+    const { data } = await apiClient.post("/playlist/create", payload);
+    return data;
+  },
+
+  getPlaylistSongs: async (playlistId: string): Promise<PlaylistSongs[]> => {
+    const { data } = await apiClient.get(`/playlist/${playlistId}/songs`);
     return data;
   },
 
