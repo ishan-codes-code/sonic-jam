@@ -53,6 +53,8 @@ const DESIGN_DECISIONS = [
   "Auth tokens are stored with `expo-secure-store`; Axios interceptors attach access tokens and transparently refresh on `401` responses.",
   "Playback is centralized in `playerStore` using `expo-audio`, with direct-ready playback for saved songs plus queued job polling for YouTube-origin requests.",
   "Theme primitives are centralized under `src/theme` to keep the highly stylized visual direction consistent across screens.",
+  "A global `ConfirmProvider` (React Context + Promise-based hook) provides a Spotify-style confirmation dialog accessible anywhere via `useConfirm()` without prop drilling.",
+  "A global `BottomSheetProvider` (React Context + hook) exposes `useBottomSheet()` for rendering reusable bottom drawers including `MusicOptionsDrawer` from any screen.",
 ];
 
 const ASSUMPTIONS = [
@@ -202,15 +204,15 @@ function getArchitectureSection() {
   const rootLayout = safeRead("app/_layout.tsx");
   const usesGlobalPlayer = rootLayout.includes("<GlobalPlayer />");
   const usesQueryClient = rootLayout.includes("QueryClientProvider");
-  const usesFlashProvider = rootLayout.includes("FlashMessageProvider");
+  const usesToast = rootLayout.includes("Toast config={toastConfig}");
 
   return [
-    "- `app/_layout.tsx` bootstraps the app shell, auth guard, React Query provider, flash-message provider, stack navigation, and the persistent global player.",
+    "- `app/_layout.tsx` bootstraps the app shell, auth guard, React Query provider, global toast system, stack navigation, and the persistent global player.",
     "- `app/(tabs)/_layout.tsx` defines the main four-tab shell: Home, Explore, Library, and Profile.",
     "- Auth is checked on boot through `useAuth()`/`authStore`; authenticated users are redirected away from login/signup, while unauthenticated users are blocked from tabs and the player sheet.",
     "- Explore content comes from YouTube service functions plus an `exploreStore` that manages dynamic sections, pagination, refreshes, and deletion.",
     "- Library data is fetched from the backend with React Query (`useMusic`), while playback state is shared through `playerStore` so mini-player and full-player stay in sync.",
-    `- Cross-cutting providers currently enabled: React Query = ${usesQueryClient ? "yes" : "no"}, custom flash messages = ${usesFlashProvider ? "yes" : "no"}, persistent mini-player = ${usesGlobalPlayer ? "yes" : "no"}.`,
+    `- Cross-cutting providers currently enabled: React Query = ${usesQueryClient ? "yes" : "no"}, global toast system (pill-style) = ${usesToast ? "yes" : "no"}, persistent mini-player = ${usesGlobalPlayer ? "yes" : "no"}.`,
   ].join("\n");
 }
 

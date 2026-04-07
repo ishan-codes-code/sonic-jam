@@ -187,6 +187,16 @@ export const musicApi = {
     return data;
   },
 
+  deletePlaylist: async (playlistId: string): Promise<{ message: string }> => {
+    const { data } = await apiClient.delete(`/playlist/${playlistId}`);
+    return data;
+  },
+
+  removeSongFromPlaylist: async (playlistId: string, songId: string): Promise<{ message: string }> => {
+    const { data } = await apiClient.delete(`/playlist/${playlistId}/song/${songId}`);
+    return data;
+  },
+
   getAllSongs: async (): Promise<Song[]> => {
     const { data } = await apiClient.get<Song[]>("/songs/getAll");
     return data;

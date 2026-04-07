@@ -1,8 +1,14 @@
 import SongListCard from '@/src/components/features/Playlist/SongListCard';
 import AnimatedPressable from '@/src/components/ui/AnimatedPressable';
+import { MusicOptionsDrawer } from '@/src/components/ui/MusicOptionsDrawer';
+import { useConfirm } from '@/src/hooks/useConfirm';
+import { useBottomSheet } from '@/src/hooks/useDrawer';
+import { useToast } from '@/src/hooks/useToast';
 import { useMusic } from '@/src/hooks/useMusic';
+import { formatPlaylistDuration } from '@/src/player/player.helpers';
 import { theme } from '@/src/theme';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,13 +45,7 @@ const pickHeroGradient = (seed: string) => {
     };
 };
 
-export const formatPlaylistDuration = (totalSec: number) => {
-    const sec = Math.max(0, Math.floor(totalSec || 0));
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    if (h <= 0) return `${m} min`;
-    return `${h} hr ${m} min`;
-};
+
 
 const SkeletonBlock = ({ w, h, r }: { w: DimensionValue; h: number; r?: number }) => {
     return <View style={[styles.skeleton, { width: w, height: h, borderRadius: r ?? theme.radius.md }]} />;
@@ -68,8 +68,13 @@ export default function PlaylistScreen() {
         playlistSongs,
         isFetchingPlaylistSongs,
         isLoadingPlaylistSongs,
-
+        deletePlaylist,
+        removeSongFromPlaylist,
     } = useMusic({ playlistId: id });
+
+    const confirm = useConfirm();
+    const { open: openSheet, close: closeSheet } = useBottomSheet();
+    const toast = useToast();
 
     const [isLiked, setLiked] = useState(false);
 
@@ -78,6 +83,59 @@ export default function PlaylistScreen() {
     }, [id, userPlaylist]);
 
     const hero = useMemo(() => pickHeroGradient(id), [id]);
+
+    const cover = playlist?.thumbnailUrl?.[0] ?? null;
+
+    const handleMoreOptions = () => {
+        openSheet(
+            <MusicOptionsDrawer
+                image={cover}
+                title={playlist?.name ?? 'Playlist'}
+                subtitle={playlist?.description || 'Playlist'}
+                actions={[
+                    {
+                        label: 'Share',
+                        icon: <Ionicons name="share-social-outline" size={24} color={theme.colors.textPrimary} />,
+                        onPress: () => closeSheet(),
+                    },
+                    {
+                        label: 'Delete playlist',
+                        icon: <Ionicons name="close-outline" size={24} color={theme.colors.error} />,
+                        onPress: async () => {
+                            closeSheet();
+                            const ok = await confirm({
+                                title: 'Delete playlist',
+                                message: `Are you sure you want to delete "${playlist?.name}"? This action cannot be undone.`,
+                                confirmText: 'DELETE',
+                                cancelText: 'CANCEL',
+                            });
+                            if (ok) {
+                                try {
+                                    await deletePlaylist(id);
+                                    toast.success('Playlist deleted');
+                                    router.back();
+                                } catch (error) {
+                                    console.error('Delete failed:', error);
+                                    toast.error('Failed to delete playlist');
+                                }
+                            }
+                        },
+                    },
+                ]}
+            />
+        );
+    };
+
+    const handleRemoveSong = async (songId: string) => {
+        try {
+            await removeSongFromPlaylist({ playlistId: id, songId });
+            toast.success('Removed from playlist');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (error) {
+            toast.error('Failed to remove song');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+    };
 
 
 
@@ -103,7 +161,6 @@ export default function PlaylistScreen() {
         return { opacity, transform: [{ translateY }] };
     });
 
-    const cover = playlist?.thumbnailUrl?.[0] ?? null;
     const showCompactColumns = SCREEN_WIDTH < 520;
 
     const header = (
@@ -189,6 +246,7 @@ export default function PlaylistScreen() {
                             feedback="snappy"
                             scaleTo={0.9}
                             accessibilityLabel="More options"
+                            onPress={handleMoreOptions}
                         >
                             <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
                         </AnimatedPressable>
@@ -239,8 +297,7 @@ export default function PlaylistScreen() {
                     <SongListCard
                         playlistSongs={item}
                         onPress={() => { }}
-                        onLongPress={() => { }}
-
+                        onRemove={() => handleRemoveSong(item.id)}
                     />
                 )}
                 contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}

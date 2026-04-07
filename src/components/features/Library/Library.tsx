@@ -1,5 +1,9 @@
+import { useBottomSheet } from '@/src/hooks/useDrawer';
+import { useConfirm } from '@/src/hooks/useConfirm';
+import { useToast } from '@/src/hooks/useToast';
 import { useMusic } from '@/src/hooks/useMusic';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -16,9 +20,11 @@ import {
 import { theme } from '../../../theme';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 import { AppHeader } from '../../ui/AppHeader';
+import { MusicOptionsDrawer } from '../../ui/MusicOptionsDrawer';
+import { PlaylistCard } from '../Playlist/PlaylistCard';
 import AddPlaylistModal from './AddPlaylistModal';
 import { styles } from './Library.styles';
-import { PlaylistCard } from '../Playlist/PlaylistCard';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -114,10 +120,12 @@ function CuratedCard({ item }: { item: (typeof CURATED)[number] }) {
 
 export const Library = () => {
   const router = useRouter()
-  const { userPlaylist, createPlaylist, isCreatingPlaylist } = useMusic();
+  const { userPlaylist, createPlaylist, isCreatingPlaylist, deletePlaylist } = useMusic();
 
   const [playListLayout, setPlaylistLayout] = useState<'grid' | 'list'>('grid');
-  const [open, setOpen] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+  const confirm = useConfirm();
+  const toast = useToast();
 
 
   const handleCreatePlaylist = async (data: { name: string; description?: string; isPublic?: boolean }) => {
@@ -127,10 +135,11 @@ export const Library = () => {
         description: data.description || null,
         isPublic: data.isPublic ?? false,
       });
-      setOpen(false);
+      setOpenModal(false);
+      toast.success('Playlist created');
     } catch (error) {
       console.error('Failed to create playlist:', error);
-      // Optionally show error message
+      toast.error('Failed to create playlist');
     }
   };
 
@@ -141,15 +150,71 @@ export const Library = () => {
     });
   }
 
+  const { open, close } = useBottomSheet();
+
+
+  const handleLongPress = (item: { id: string, name: string, description?: string | null }) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    open(
+      <MusicOptionsDrawer
+        title={item.name}
+        subtitle={item.description || "Playlist"}
+        actions={[
+          {
+            label: 'Share',
+            icon: <Ionicons name="share-social-outline" size={24} color={theme.colors.textPrimary} />,
+            onPress: () => {
+              close();
+              // Share logic
+            }
+          },
+          {
+            label: 'Download',
+            icon: <Ionicons name="arrow-down-circle-outline" size={24} color={theme.colors.textPrimary} />,
+            onPress: () => close(),
+
+          },
+          {
+            label: 'Pin playlist',
+            icon: <Ionicons name="pin-outline" size={24} color={theme.colors.textPrimary} />,
+            onPress: () => close()
+          },
+          {
+            label: 'Delete playlist',
+            icon: <Ionicons name="close-outline" size={24} color={theme.colors.error} />,
+            onPress: async () => {
+              close();
+              const ok = await confirm({
+                title: 'Delete playlist',
+                message: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+                confirmText: 'DELETE',
+                cancelText: 'CANCEL',
+              });
+              if (ok) {
+                try {
+                  await deletePlaylist(item.id);
+                  toast.success('Playlist deleted');
+                } catch (error) {
+                  console.error('Delete failed:', error);
+                  toast.error('Failed to delete playlist');
+                }
+              }
+            }
+          },
+        ]}
+      />
+    )
+
+  }
 
 
 
   return (
     <View style={styles.root}>
       <AddPlaylistModal
-        visible={open}
+        visible={openModal}
         defaultName="My playlist #5"
-        onCancel={() => setOpen(false)}
+        onCancel={() => setOpenModal(false)}
         onCreate={handleCreatePlaylist}
         isCreating={isCreatingPlaylist}
       />
@@ -171,7 +236,7 @@ export const Library = () => {
               <Text style={styles.sectionTitle}>Playlist</Text>
             </View>
             <View style={styles.headerIconTray}>
-              <AnimatedPressable onPress={() => setOpen(true)} hitSlop={10} accessibilityLabel="Toggle playlist layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
+              <AnimatedPressable onPress={() => setOpenModal(true)} hitSlop={10} accessibilityLabel="Toggle playlist layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
 
                 <Ionicons name={"add"} size={theme.spacing.lg} color="#fff" />
 
@@ -228,6 +293,7 @@ export const Library = () => {
                   name={item.name}
                   description={item.description}
                   onPress={() => clickedPlaylist(item.id)}
+                  onLongPress={() => handleLongPress(item)}
                   gridCardWidth={
                     Math.floor((SCREEN_WIDTH - theme.spacing.md * 2 - 12 * 2) / 3)
                   }
@@ -247,6 +313,7 @@ export const Library = () => {
                   name={item.name}
                   description={item.description}
                   onPress={() => clickedPlaylist(item.id)}
+                  onLongPress={() => handleLongPress(item)}
 
                 />
               ))}

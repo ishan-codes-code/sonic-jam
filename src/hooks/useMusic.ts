@@ -36,6 +36,15 @@ export function useMusic(options: UseMusicOptions = {}) {
     },
   });
 
+  const deletePlaylistMutation = useMutation({
+    mutationFn: async (playlistId: string) => {
+      return await musicApi.deletePlaylist(playlistId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
+    },
+  });
+
   // 🚀 Add Song Mutation
   const addSongMutation = useMutation({
     mutationFn: async (videoId: string) => {
@@ -54,6 +63,31 @@ export function useMusic(options: UseMusicOptions = {}) {
     onSuccess: () => {
       // Invalidate library on success
       queryClient.invalidateQueries({ queryKey: ["library"] });
+    },
+  });
+
+  const removeSongFromPlaylistMutation = useMutation({
+    mutationFn: async ({ playlistId, songId }: { playlistId: string; songId: string }) => {
+      return await musicApi.removeSongFromPlaylist(playlistId, songId);
+    },
+    onMutate: async ({ playlistId, songId }) => {
+      await queryClient.cancelQueries({ queryKey: ["playlistSongs", playlistId] });
+      const previousSongs = queryClient.getQueryData(["playlistSongs", playlistId]);
+
+      queryClient.setQueryData(["playlistSongs", playlistId], (old: any) => {
+        return old?.filter((s: any) => s.id !== songId);
+      });
+
+      return { previousSongs };
+    },
+    onError: (err, { playlistId }, context) => {
+      if (context?.previousSongs) {
+        queryClient.setQueryData(["playlistSongs", playlistId], context.previousSongs);
+      }
+    },
+    onSettled: (data, err, { playlistId }) => {
+      queryClient.invalidateQueries({ queryKey: ["playlistSongs", playlistId] });
+      queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
     },
   });
 
@@ -93,8 +127,13 @@ export function useMusic(options: UseMusicOptions = {}) {
     createPlaylist: createPlaylistMutation.mutateAsync,
     isCreatingPlaylist: createPlaylistMutation.isPending,
 
+    deletePlaylist: deletePlaylistMutation.mutateAsync,
+    isDeletingPlaylist: deletePlaylistMutation.isPending,
+
     isAdding: addSongMutation.isPending,
     addSong: addSongMutation.mutateAsync,
+    removeSongFromPlaylist: removeSongFromPlaylistMutation.mutateAsync,
+    isRemoving: removeSongFromPlaylistMutation.isPending,
     libraryError: allSongsQuery.error,
 
     // Streaming

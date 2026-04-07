@@ -17,8 +17,8 @@ export const colors = {
   primaryAccent: '#c59aff', // primary (sophisticated royal purple)
   primaryAccentDim: '#9547f7', // primary-dim
   secondaryAccent: '#00e3fd', // secondary (high-energy neon blue)
-  actionAccent: '#1ED760', // modern play-green (used sparingly for primary actions)
-  actionAccentDim: '#18B84E', // pressed/active state green
+  actionAccent: '#00e3fd', // neon action (matches secondary accent)
+  actionAccentDim: '#00b8cc', // pressed action state blue
   
   // States & Utility
   error: '#ff6e84', // coral-red high contrast

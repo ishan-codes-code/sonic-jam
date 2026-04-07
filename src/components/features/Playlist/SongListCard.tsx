@@ -1,35 +1,84 @@
-import { formatPlaylistDuration } from '@/app/(tabs)/library/[playlistId]';
+
 import { PlaylistSongs } from '@/src/api/musicApi';
 import { useBottomSheet } from '@/src/hooks/useDrawer';
+import { formatPlaylistDuration } from '@/src/player/player.helpers';
 import { usePlayerStore } from '@/src/player/player.store';
 import { getThumbnailUrl } from '@/src/services/youtube';
 import { theme } from '@/src/theme';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from "expo-haptics";
 import React, { useState } from 'react';
-import { Button, Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import AnimatedPressable from '../../ui/AnimatedPressable';
+import { MusicOptionsDrawer } from '../../ui/MusicOptionsDrawer';
 
 interface SongListCardProps {
-    playlistSongs: PlaylistSongs
+    playlistSongs: PlaylistSongs;
     onPress: () => void;
-    onLongPress: () => void;
+    onLongPress?: () => void;
+    onRemove?: () => void;
 }
 
-export default function SongListCard({ playlistSongs, onPress, onLongPress }: SongListCardProps) {
+export default function SongListCard({ playlistSongs, onPress, onLongPress, onRemove }: SongListCardProps) {
     const [imageError, setImageError] = useState(false);
     const thumbnailUrl = getThumbnailUrl(playlistSongs.youtubeId);
 
-    const { playSong } = usePlayerStore()
-
+    const { playSong } = usePlayerStore();
     const { open, close } = useBottomSheet();
 
     const handleOpen = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        
+        const actions = [
+            {
+                label: 'Share',
+                icon: <Ionicons name="share-social-outline" size={24} color={theme.colors.textPrimary} />,
+                onPress: () => {
+                    close();
+                    // Share logic
+                }
+            },
+            {
+                label: 'Add to other playlist',
+                icon: <Ionicons name="add-circle-outline" size={24} color={theme.colors.textPrimary} />,
+                onPress: () => {
+                    close();
+                }
+            },
+            {
+                label: 'Add to Queue',
+                icon: <Ionicons name="list-outline" size={24} color={theme.colors.textPrimary} />,
+                onPress: () => {
+                    close();
+                }
+            },
+            {
+                label: 'Go to artist',
+                icon: <Ionicons name="person-outline" size={24} color={theme.colors.textPrimary} />,
+                onPress: () => {
+                    close();
+                }
+            }
+        ];
+
+        if (onRemove) {
+            actions.push({
+                label: 'Remove from playlist',
+                icon: <Ionicons name="trash-outline" size={24} color={theme.colors.error} />,
+                onPress: () => {
+                    close();
+                    onRemove();
+                }
+            });
+        }
+
         open(
-            <View>
-                <Text>Hello from Bottom Sheet 👋</Text>
-                <Button title="Close" onPress={close} />
-            </View>,
-            ['25%', '50%'] // optional snap points
+            <MusicOptionsDrawer
+                image={thumbnailUrl}
+                title={playlistSongs.title}
+                subtitle={`${playlistSongs.channelName ?? "Unknown"} • ${playlistSongs.duration ? formatPlaylistDuration(playlistSongs.duration) : "0:00"}`}
+                actions={actions}
+            />
         );
     };
 

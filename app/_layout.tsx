@@ -1,5 +1,7 @@
 import { BottomSheetProvider } from '@/src/hooks/useDrawer';
-import { FlashMessageProvider } from '@/src/hooks/useFlashMessage';
+import { ConfirmProvider } from '@/src/context/ConfirmProvider';
+import Toast from 'react-native-toast-message';
+import { toastConfig } from '@/src/hooks/useToast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -59,11 +61,11 @@ const queryClient = new QueryClient();
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <BottomSheetProvider>
-        <FlashMessageProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthGuard>
-              <Stack
+      <ConfirmProvider>
+        <BottomSheetProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthGuard>
+                <Stack
                 screenOptions={{
                   headerShown: false,
                   animation: 'fade',
@@ -103,8 +105,9 @@ export default function RootLayout() {
               <GlobalPlayer />
             </AuthGuard>
           </QueryClientProvider>
-        </FlashMessageProvider>
-      </BottomSheetProvider>
+        </BottomSheetProvider>
+      </ConfirmProvider>
+      <Toast config={toastConfig} />
     </GestureHandlerRootView>
   );
 }

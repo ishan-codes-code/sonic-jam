@@ -35,3 +35,12 @@ export const createTrackFromVideo = (video: YouTubeVideo): Track => ({
   youtubeId: video.videoId,
   duration: video.duration,
 });
+
+
+export const formatPlaylistDuration = (totalSec: number) => {
+  const sec = Math.max(0, Math.floor(totalSec || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h <= 0) return `${m} min`;
+  return `${h} hr ${m} min`;
+};

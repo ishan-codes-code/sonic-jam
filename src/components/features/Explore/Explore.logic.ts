@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { GENRES } from '../../../constants/genres';
 import { useDebounce } from '../../../hooks/useDebounce';
-import { useFlashMessage } from '../../../hooks/useFlashMessage';
+import { useToast } from '../../../hooks/useToast';
 import { fetchGenreVideos, searchVideos, YouTubeVideo } from '../../../services/youtube';
 import { useExploreStore } from '../../../store/exploreStore';
 import { usePlayerStore } from '../../../store/playerStore';
@@ -31,7 +31,7 @@ export const useExploreLogic = () => {
     dismissSongJob,
     error: playbackError,
   } = usePlayerStore();
-  const { show } = useFlashMessage();
+  const toast = useToast();
 
   const {
     sections,
@@ -133,7 +133,7 @@ export const useExploreLogic = () => {
     );
     if (userSections.length >= 3) {
       setMenuVisible(false);
-      show({ message: "Maximum 3 custom sections allowed.", type: "warning", autoDismissMs: 2000, dismissible: true })
+      toast.error("Maximum 3 custom sections allowed.");
       setTimeout(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning), 600);
       return;
     }

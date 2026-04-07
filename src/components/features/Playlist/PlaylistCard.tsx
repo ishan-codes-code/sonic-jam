@@ -85,6 +85,7 @@ export interface PlaylistCardProps {
     description?: string | null;
     /** Tap callback */
     onPress?: () => void;
+    onLongPress?: () => void
     /** Override the outer wrapper style */
     style?: StyleProp<ViewStyle>;
     /** Override the inner pressable style */
@@ -122,6 +123,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = memo(
         description,
         thumbnailUrl,
         onPress,
+        onLongPress,
         style,
         pressableStyle,
         gridCardWidth = DEFAULT_GRID_WIDTH,
@@ -138,6 +140,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = memo(
             return (
                 <AnimatedPressable
                     onPress={onPress}
+                    onLongPress={onLongPress}
                     feedback={animFeedback}
                     scaleTo={scaleTo}
                     style={[{ width: gridCardWidth, marginBottom: 16 }, style]}
@@ -213,6 +216,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = memo(
         return (
             <AnimatedPressable
                 onPress={onPress}
+                onLongPress={onLongPress}
                 feedback={animFeedback}
                 scaleTo={scaleTo}
                 style={[{ width: '100%' }, style]}
