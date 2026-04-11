@@ -1,16 +1,16 @@
 # Sonic PR Description
 
-_Generated automatically by `scripts/generate-project-docs.js` on 2026-04-07T17:49:50.891Z._
+_Generated automatically by `scripts/generate-project-docs.js` on 2026-04-09T22:35:36.937Z._
 
 ## Project Overview
 
 Sonic is an Expo/React Native music application prototype that combines three product layers:
 
 - authenticated account access against a custom backend
-- YouTube-powered discovery and search for music videos
-- backend-mediated audio playback and library management
+- YouTube-powered discovery plus backend-driven direct song search
+- backend-mediated audio playback, processing jobs, playlists, and library management
 
-The current product emphasis is strongest on the Explore and playback flows. Home and parts of Profile are intentionally more showcase-oriented than backend-driven.
+The current product emphasis is strongest on the Explore, playback, and processing flows. Home and parts of Profile remain more showcase-oriented than backend-driven.
 
 ## Purpose
 
@@ -19,35 +19,41 @@ This document is the single source of truth for onboarding, debugging, and futur
 ## Architecture and Key Components
 
 - `app/_layout.tsx` bootstraps the app shell, auth guard, React Query provider, global toast system, stack navigation, and the persistent global player.
-- `app/(tabs)/_layout.tsx` defines the main four-tab shell: Home, Explore, Library, and Profile.
+- `app/(tabs)/_layout.tsx` defines the current five-tab shell: Home, Explore, Library, Processing, and Profile.
 - Auth is checked on boot through `useAuth()`/`authStore`; authenticated users are redirected away from login/signup, while unauthenticated users are blocked from tabs and the player sheet.
-- Explore content comes from YouTube service functions plus an `exploreStore` that manages dynamic sections, pagination, refreshes, and deletion.
-- Library data is fetched from the backend with React Query (`useMusic`), while playback state is shared through `playerStore` so mini-player and full-player stay in sync.
+- Explore is now split into two surfaces: the main discovery screen for genres/custom sections and a nested `/explore/search` route for direct song search and playback.
+- Library and playlist data are fetched from the backend with React Query (`useMusic`), while playback state is shared through `playerStore` so mini-player, processing tab, and player sheet stay in sync.
+- Add Section still opens as a root form-sheet modal from inside the tab tree via `app/addSection.tsx`.
 - Cross-cutting providers currently enabled: React Query = yes, global toast system (pill-style) = yes, persistent mini-player = yes.
 
 ### Stores
 - `src/store/authStore.ts`: Handles login, signup, logout, boot-time auth checks, error extraction, and auth reset after interceptor refresh failures.
-- `src/store/exploreStore.ts`: Owns default Explore sections, user-added sections, pagination, refresh, deletion, loading state, and error/flash handling.
-- `src/store/playerStore.ts`: Owns the global playback lifecycle, current item, library and YouTube playback resolution, job polling, queue state, progress, duration, and player cleanup.
+- `src/store/exploreStore.ts`: Owns default Explore sections, user-added sections, pagination, refresh, deletion, loading state, and discovery-surface data used by the main Explore tab.
+- `src/store/playerStore.ts`: Re-exports the active player store from `src/player/player.store.ts` so legacy imports keep working.
+
+### Playback internals
+- `src/player/player.store.ts`: Owns the global playback lifecycle, current item, direct-ready playback, background job polling, queue state, progress, duration, and player cleanup.
+- `src/player/player.jobs.ts`: Keeps the in-memory job registry, polling intervals, and completed/failed playback-job transitions in sync with the visible Processing tab.
+- `src/player/player.engine.ts`: Creates and tears down `expo-audio` players, updates stream timestamps, and reports playback progress back into Zustand state.
 
 ### API and service layers
 - `src/api/apiClient.ts`: Shared Axios client with bearer-token injection and queued token refresh on `401`.
 - `src/api/authApi.ts`: Backend auth calls for signup, login, refresh, logout, and `getMe`.
-- `src/api/musicApi.ts`: Backend library/playback calls for add-song, get-library, saved-song play URLs, direct play, and job-status polling.
-- `src/services/youtube.ts`: YouTube Data API wrapper for search, trending, batch details, playlist fetches, genre search, and formatting helpers.
+- `src/api/musicApi.ts`: Backend playlist, library, direct-play, and job-status client that normalizes playback-ready responses into `streamUrl + song` pairs.
+- `src/services/searchService.ts`: Backend `/search` client used by the dedicated Explore search route for title/artist result lists.
+- `src/services/youtube.ts`: YouTube Data API wrapper for trending, batch details, playlist fetches, genre search, and thumbnail helpers.
 
 ### Feature modules
 - `AddSection`: Modal/form-sheet flow for creating extra Explore sections from a keyword or playlist-like input.
-- `Explore`: Primary dynamic discovery surface backed by YouTube search/trending APIs and custom user-created sections.
+- `Explore`: Primary discovery surface for trending/genre-driven YouTube exploration, custom sections, and navigation into the dedicated Explore search screen.
 - `GlobalPlayer`: Persistent mini-player rendered from the root layout so playback controls remain available across screens.
 - `Home`: Presentational landing tab with curated/stubbed content blocks, hero artwork, mixes, and artist sections.
-- `Library`: Authenticated library view backed by the backend `getLibrary` endpoint and connected to the shared player store.
+- `Library`: Authenticated playlist and collection view backed by backend playlist/song endpoints and connected to the shared player store.
 - `Login`: Auth entry screen that submits credentials through the auth store.
 - `MediaCard`: Reusable media-card building block used by feature surfaces.
-- `Player`: Expanded playback sheet driven by the global player store for both library songs and YouTube-origin playback.
-- `Playlist`: Feature module in the current app.
-- `Processing`: Feature module in the current app.
-- `Profile`: Mostly presentational account/settings screen with logout and a flash-message demo route entry point.
+- `Playlist`: Reusable playlist and song-row building blocks used by Library, search results, and playlist detail routes.
+- `Processing`: Dedicated processing/downloads tab that shows playback jobs, progress, and completed or failed conversion states.
+- `Profile`: Account/settings screen with logout, preference toggles, and a flash-message demo trigger.
 - `Signup`: Registration screen that creates an account through the auth store.
 
 ## Navigation and Route Map
@@ -55,11 +61,13 @@ This document is the single source of truth for onboarding, debugging, and futur
 - `app/index.tsx`: Default entry route. Redirects to `/login`; the root auth guard decides the final destination.
 - `app/login.tsx`: Unauthenticated login screen.
 - `app/signup.tsx`: Unauthenticated signup screen.
-- `app/player.tsx`: Player form-sheet route for the full-screen playback experience.
 - `app/addSection.tsx`: Explore add-section form-sheet route.
 - `app/(tabs)/index.tsx`: Home tab.
+- `app/(tabs)/library/index.tsx`: Library tab.
+- `app/(tabs)/processing.tsx`: Processing tab for background playback/conversion jobs.
 - `app/(tabs)/profile.tsx`: Profile tab.
 - `app/(tabs)/explore/index.tsx`: Explore tab landing screen.
+- `app/(tabs)/explore/search.tsx`: Dedicated Explore search screen with song-result playback.
 
 ## File and Folder Structure
 
@@ -71,116 +79,36 @@ This document is the single source of truth for onboarding, debugging, and futur
 ### Key source-code subfolders
 - `src/api/`: Typed backend clients and shared Axios configuration.
 - `src/components/features/`: Screen-level UI split by feature, usually as `Component.tsx + logic + styles + index`.
-- `src/components/ui/`: Shared visual primitives such as cards, flash messages, gradients, and playback visuals.
+- `src/components/ui/`: Shared visual primitives such as cards, bottom sheets, gradients, placeholders, and playback visuals.
 - `src/constants/`: Static app constants such as Explore genre definitions.
-- `src/hooks/`: Shared hooks for auth, debounce, music/library queries, and flash-message orchestration.
-- `src/services/`: Non-backend external integration layer, currently YouTube Data API helpers.
-- `src/store/`: Global Zustand state containers.
+- `src/hooks/`: Shared hooks for auth, debounce, drawer control, React Query-powered music data, and toast orchestration.
+- `src/services/`: Integration clients for backend search plus YouTube discovery helpers.
+- `src/store/`: Global Zustand state containers and compatibility re-exports.
+- `src/player/`: Playback engine, job polling, helpers, types, and the canonical Zustand playback store.
 - `src/theme/`: Centralized design tokens for color, spacing, typography, elevation, radius, glass effects, and gradients.
 - `src/types/`: Cross-feature TypeScript types, including Explore section/video shape modeling.
 - `src/utils/`: Utility modules such as secure token persistence.
 
 ### Repository snapshot
 ```text
-|-- android/
-|   |-- app/
-|   |   |-- src/
-|   |   |   |-- debug/
-|   |   |   |   `-- AndroidManifest.xml
-|   |   |   |-- debugOptimized/
-|   |   |   |   `-- AndroidManifest.xml
-|   |   |   `-- main/
-|   |   |       |-- java/
-|   |   |       |   `-- com/
-|   |   |       |       `-- itsishandev/
-|   |   |       |           `-- sonic/
-|   |   |       |               |-- MainActivity.kt
-|   |   |       |               `-- MainApplication.kt
-|   |   |       |-- res/
-|   |   |       |   |-- drawable/
-|   |   |       |   |   |-- ic_launcher_background.xml
-|   |   |       |   |   `-- rn_edit_text_material.xml
-|   |   |       |   |-- drawable-hdpi/
-|   |   |       |   |   `-- splashscreen_logo.png
-|   |   |       |   |-- drawable-mdpi/
-|   |   |       |   |   `-- splashscreen_logo.png
-|   |   |       |   |-- drawable-xhdpi/
-|   |   |       |   |   `-- splashscreen_logo.png
-|   |   |       |   |-- drawable-xxhdpi/
-|   |   |       |   |   `-- splashscreen_logo.png
-|   |   |       |   |-- drawable-xxxhdpi/
-|   |   |       |   |   `-- splashscreen_logo.png
-|   |   |       |   |-- mipmap-anydpi-v26/
-|   |   |       |   |   |-- ic_launcher_round.xml
-|   |   |       |   |   `-- ic_launcher.xml
-|   |   |       |   |-- mipmap-hdpi/
-|   |   |       |   |   |-- ic_launcher_background.webp
-|   |   |       |   |   |-- ic_launcher_foreground.webp
-|   |   |       |   |   |-- ic_launcher_monochrome.webp
-|   |   |       |   |   |-- ic_launcher_round.webp
-|   |   |       |   |   `-- ic_launcher.webp
-|   |   |       |   |-- mipmap-mdpi/
-|   |   |       |   |   |-- ic_launcher_background.webp
-|   |   |       |   |   |-- ic_launcher_foreground.webp
-|   |   |       |   |   |-- ic_launcher_monochrome.webp
-|   |   |       |   |   |-- ic_launcher_round.webp
-|   |   |       |   |   `-- ic_launcher.webp
-|   |   |       |   |-- mipmap-xhdpi/
-|   |   |       |   |   |-- ic_launcher_background.webp
-|   |   |       |   |   |-- ic_launcher_foreground.webp
-|   |   |       |   |   |-- ic_launcher_monochrome.webp
-|   |   |       |   |   |-- ic_launcher_round.webp
-|   |   |       |   |   `-- ic_launcher.webp
-|   |   |       |   |-- mipmap-xxhdpi/
-|   |   |       |   |   |-- ic_launcher_background.webp
-|   |   |       |   |   |-- ic_launcher_foreground.webp
-|   |   |       |   |   |-- ic_launcher_monochrome.webp
-|   |   |       |   |   |-- ic_launcher_round.webp
-|   |   |       |   |   `-- ic_launcher.webp
-|   |   |       |   |-- mipmap-xxxhdpi/
-|   |   |       |   |   |-- ic_launcher_background.webp
-|   |   |       |   |   |-- ic_launcher_foreground.webp
-|   |   |       |   |   |-- ic_launcher_monochrome.webp
-|   |   |       |   |   |-- ic_launcher_round.webp
-|   |   |       |   |   `-- ic_launcher.webp
-|   |   |       |   |-- values/
-|   |   |       |   |   |-- colors.xml
-|   |   |       |   |   |-- strings.xml
-|   |   |       |   |   `-- styles.xml
-|   |   |       |   `-- values-night/
-|   |   |       |       `-- colors.xml
-|   |   |       `-- AndroidManifest.xml
-|   |   |-- build.gradle
-|   |   |-- debug.keystore
-|   |   `-- proguard-rules.pro
-|   |-- gradle/
-|   |   `-- wrapper/
-|   |       |-- gradle-wrapper.jar
-|   |       `-- gradle-wrapper.properties
-|   |-- .gitignore
-|   |-- build.gradle
-|   |-- gradle.properties
-|   |-- gradlew
-|   |-- gradlew.bat
-|   `-- settings.gradle
 |-- app/
 |   |-- (tabs)/
 |   |   |-- explore/
 |   |   |   |-- _layout.tsx
-|   |   |   `-- index.tsx
+|   |   |   |-- index.tsx
+|   |   |   `-- search.tsx
 |   |   |-- library/
 |   |   |   |-- _layout.tsx
 |   |   |   |-- [playlistId].tsx
 |   |   |   `-- index.tsx
 |   |   |-- _layout.tsx
 |   |   |-- index.tsx
+|   |   |-- processing.tsx
 |   |   `-- profile.tsx
 |   |-- _layout.tsx
 |   |-- addSection.tsx
 |   |-- index.tsx
 |   |-- login.tsx
-|   |-- player.tsx
-|   |-- processing.tsx
 |   `-- signup.tsx
 |-- assets/
 |   |-- images/
@@ -225,15 +153,18 @@ This document is the single source of truth for onboarding, debugging, and futur
 |       `-- sonicjam_midnight/
 |           `-- DESIGN.md
 |-- ditched/
-|   `-- library-old/
-|       `-- src/
-|           `-- components/
-|               `-- features/
-|                   `-- Library/
-|                       |-- index.ts
-|                       |-- Library.logic.ts
-|                       |-- Library.styles.ts
-|                       `-- Library.tsx
+|   |-- library-old/
+|   |   `-- src/
+|   |       `-- components/
+|   |           `-- features/
+|   |               `-- Library/
+|   |                   |-- index.ts
+|   |                   |-- Library.logic.ts
+|   |                   |-- Library.styles.ts
+|   |                   `-- Library.tsx
+|   `-- youtube-search/
+|       |-- explore-search.archived.ts
+|       `-- explore-search.ts
 |-- scripts/
 |   `-- generate-project-docs.js
 |-- skills/
@@ -298,13 +229,15 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |   |   |-- Explore.logic.ts
 |   |   |   |   |-- Explore.styles.ts
 |   |   |   |   |-- Explore.tsx
+|   |   |   |   |-- ExploreSearch.logic.ts
+|   |   |   |   |-- ExploreSearch.styles.ts
+|   |   |   |   |-- ExploreSearch.tsx
 |   |   |   |   |-- index.ts
 |   |   |   |   |-- MediaSection.tsx
+|   |   |   |   |-- RecentSongPlaylistDrawer.tsx
 |   |   |   |   |-- SectionItem.tsx
 |   |   |   |   `-- VideoCard.tsx
 |   |   |   |-- GlobalPlayer/
-|   |   |   |   |-- GlobalPlayer.logic.ts
-|   |   |   |   |-- GlobalPlayer.styles.ts
 |   |   |   |   |-- GlobalPlayer.tsx
 |   |   |   |   `-- index.ts
 |   |   |   |-- Home/
@@ -327,11 +260,6 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |   |   |-- MediaCard.styles.ts
 |   |   |   |   |-- MediaCard.tsx
 |   |   |   |   `-- MediaCard.types.ts
-|   |   |   |-- Player/
-|   |   |   |   |-- index.ts
-|   |   |   |   |-- Player.logic.ts
-|   |   |   |   |-- Player.styles.ts
-|   |   |   |   `-- Player.tsx
 |   |   |   |-- Playlist/
 |   |   |   |   |-- PlaylistCard.tsx
 |   |   |   |   `-- SongListCard.tsx
@@ -351,13 +279,13 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |       `-- Signup.tsx
 |   |   `-- ui/
 |   |       |-- AnimatedPressable.tsx
-|   |       |-- AppHeader.tsx
 |   |       |-- AudioWave.tsx
 |   |       |-- ConfirmDialog.tsx
 |   |       |-- GlassCard.tsx
 |   |       |-- GradientText.tsx
 |   |       |-- MovingLine.tsx
 |   |       |-- MusicOptionsDrawer.tsx
+|   |       |-- SongPlaceholder.tsx
 |   |       `-- SpinnerBadge.tsx
 |   |-- constants/
 |   |   `-- genres.ts
@@ -370,18 +298,21 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |   |-- useDrawer.tsx
 |   |   |-- useMusic.ts
 |   |   `-- useToast.tsx
-|   |-- player/
-|   |   |-- player.engine.ts
-|   |   |-- player.helpers.ts
-|   |   |-- player.jobs.ts
-|   |   |-- player.store.ts
-|   |   `-- player.types.ts
+|   |-- playbackCore/
+|   |   |-- audioEngine.ts
+|   |   |-- mapper.ts
+|   |   |-- playbackController.ts
+|   |   |-- playbackResolver.ts
+|   |   |-- playbackStore.ts
+|   |   |-- setupPlayer.ts
+|   |   `-- types.ts
 |   |-- services/
+|   |   |-- recommendationService.ts
+|   |   |-- searchService.ts
 |   |   `-- youtube.ts
 |   |-- store/
 |   |   |-- authStore.ts
-|   |   |-- exploreStore.ts
-|   |   `-- playerStore.ts
+|   |   `-- exploreStore.ts
 |   |-- theme/
 |   |   |-- colors.ts
 |   |   |-- elevation.ts
@@ -394,6 +325,8 @@ This document is the single source of truth for onboarding, debugging, and futur
 |   |-- types/
 |   |   `-- explore.ts
 |   `-- utils/
+|       |-- recentSongsStorage.ts
+|       |-- songsActions.tsx
 |       `-- tokenStorage.ts
 |-- .env
 |-- .gitignore
@@ -418,30 +351,42 @@ This document is the single source of truth for onboarding, debugging, and futur
 ### Explore workflow
 1. Explore mounts and triggers `exploreStore.loadInitial()` when default sections are empty.
 2. Two default trending sections are hydrated from the YouTube trending endpoint.
-3. Search input is debounced and resolved through `searchVideos()`.
-4. Genre chips call `fetchGenreVideos()` and render inline vertical cards.
-5. Users can add up to three extra sections through the add-section sheet.
+3. The visible search field on the Explore tab is now a dummy trigger that routes into `app/(tabs)/explore/search.tsx`.
+4. Genre chips call `fetchGenreVideos()` and render inline vertical cards beneath the discovery surface.
+5. Users can add up to three extra sections through the add-section form-sheet modal.
 6. Section cards support refresh, pagination, deletion, and direct playback.
 
+### Explore search workflow
+1. The dedicated Explore search route owns query text, debounce, empty states, and result rendering through `ExploreSearch.logic.ts`.
+2. Queries are resolved through the backend `/search` endpoint via `searchService.searchTracks()`, returning title/artist/image results.
+3. Tapping a result calls `playerStore.playFromSearchResult()`, which sends `{ title, artist }` to `POST /songs/play`.
+4. If playback is immediately ready, the returned `song + streamUrl` pair is played directly; otherwise the request enters the shared processing-job flow.
+
 ### Library workflow
-1. `useMusic()` fetches the saved library with React Query.
-2. The Library screen renders backend songs and highlights the currently playing item.
+1. `useMusic()` fetches user playlists, playlist songs, and the global song catalog with React Query.
+2. The Library tab is primarily playlist-driven: users can create/delete playlists, inspect playlist detail screens, and remove songs from playlists.
 3. Tapping a saved song delegates playback to `playerStore.playSong()`.
 
-### Playback workflow
-1. Playback can begin from a backend library song or directly from a YouTube video result.
-2. For library songs, the app requests `GET /songs/play/:songId` and plays the returned stream URL immediately.
-3. For YouTube-origin playback, the app calls `POST /songs/play`, which may return either an immediate stream URL or a background job ID.
-4. When a job ID is returned, `playerStore` polls `GET /songs/job/:jobId`, updates queue/progress state, and starts playback automatically once the job is done.
-5. `expo-audio` is used to create a player instance and stream status updates back into the store.
-6. The mini-player and full player screen both read from the same store, so controls remain synchronized.
-7. If a stream URL is older than roughly 4.5 minutes, playback resumes by re-fetching a fresh stream URL.
+### Processing workflow
+1. Processing is now a first-class tab instead of a standalone route.
+2. The screen reads `songJobs` from the shared player store and groups them into active, waiting, failed, and completed states.
+3. Completed and failed jobs can be dismissed from the UI, while active jobs surface progress and metadata from the backend-returned song records when available.
 
-### Add-to-library workflow
+### Playback workflow
+1. Playback can begin from a backend song record, an Explore YouTube card, or a search result that only knows `title + artist`.
+2. For saved songs, the app requests `GET /songs/play/:songId`, which now returns both `streamUrl` and the full `song` record.
+3. For YouTube-origin playback, the app calls `POST /songs/play` with `{ youtubeId }`; for search-origin playback, it calls the same endpoint with `{ title, artist }`.
+4. Any response that includes `streamUrl` is treated as a playback-ready `streamUrl + song` pair and is played without additional metadata fetches.
+5. When a job ID is returned, `playerStore` polls `GET /songs/job/:jobId`; when the job completes, the response includes both `streamUrl` and the completed `song` record.
+6. `expo-audio` is used to create a player instance and stream status updates back into the store.
+7. The mini-player, Processing tab, and full player screen all read from the same store, so controls and job state remain synchronized.
+8. If a stream URL is older than roughly 4.5 minutes, playback resumes by re-fetching a fresh playable response through `playSong()`, `playFromYouTube()`, or `playFromSearchResult()`.
+
+### Playlist/library mutation workflow
 1. A YouTube video ID is passed into `useMusic().addSong`.
 2. The app first fetches full video details so title and duration are available.
 3. The backend `/library/addSong` endpoint is called with YouTube metadata.
-4. The library query is invalidated so the saved-track list refreshes.
+4. Playlist create/delete and remove-song actions invalidate the relevant React Query caches so library screens refresh after mutations.
 
 ## Important Dependencies and Integrations
 
@@ -464,8 +409,6 @@ This document is the single source of truth for onboarding, debugging, and futur
 - `zustand` (^5.0.12)
 
 ### Media and playback
-- `expo-audio` (~1.1.1)
-- `expo-av` (^16.0.8)
 - `@react-native-community/slider` (5.0.1)
 
 ### UI and interaction
@@ -491,16 +434,17 @@ This document is the single source of truth for onboarding, debugging, and futur
 
 ### Design decisions
 - Expo Router owns navigation. Route files stay intentionally thin and delegate real logic to feature modules under `src/components/features`.
-- Zustand stores hold app-level state for auth, discovery sections, and playback so multiple routes/components can react without prop drilling.
-- React Query is used for backend library data and mutations, while transient YouTube discovery/search state is managed locally plus in `exploreStore`.
+- Zustand stores hold app-level state for auth, Explore discovery sections, and playback so multiple routes/components can react without prop drilling.
+- React Query is used for backend library and playlist data, while transient Explore discovery state is managed in `exploreStore` and dedicated feature-local logic hooks.
 - Auth tokens are stored with `expo-secure-store`; Axios interceptors attach access tokens and transparently refresh on `401` responses.
-- Playback is centralized in `playerStore` using `expo-audio`, with direct-ready playback for saved songs plus queued job polling for YouTube-origin requests.
+- Playback is centralized in `playerStore` using `expo-audio`, with every playback-ready backend response treated as a `streamUrl + song` pair.
 - Theme primitives are centralized under `src/theme` to keep the highly stylized visual direction consistent across screens.
 - A global `ConfirmProvider` (React Context + Promise-based hook) provides a Spotify-style confirmation dialog accessible anywhere via `useConfirm()` without prop drilling.
 - A global `BottomSheetProvider` (React Context + hook) exposes `useBottomSheet()` for rendering reusable bottom drawers including `MusicOptionsDrawer` from any screen.
+- Each tab screen now owns its own top safe-area handling instead of relying on a shared tab-header component.
 
 ### Assumptions
-- The backend exposed by `EXPO_PUBLIC_API_URL` provides working auth, library, streaming, and direct-play endpoints compatible with the current request shapes.
+- The backend exposed by `EXPO_PUBLIC_API_URL` provides working auth, library, streaming, playlist, and direct-play endpoints compatible with the current request shapes.
 - The app targets Indian-region YouTube discovery (`regionCode=IN`) for trending/search/playlist flows.
 - Most custom-section state is expected to live only in memory for now; there is no persistence layer for user-created Explore sections.
 - Home and parts of Profile are currently product/UI prototypes rather than fully backend-driven features.
@@ -509,9 +453,10 @@ This document is the single source of truth for onboarding, debugging, and futur
 
 ### Where to look first
 - Auth problems: `src/store/authStore.ts`, `src/api/apiClient.ts`, `src/api/authApi.ts`, `src/utils/tokenStorage.ts`
-- Explore/search/trending issues: `src/components/features/Explore/Explore.logic.ts`, `src/store/exploreStore.ts`, `src/services/youtube.ts`
+- Explore discovery issues: `src/components/features/Explore/Explore.logic.ts`, `src/store/exploreStore.ts`, `src/services/youtube.ts`
+- Explore search issues: `src/components/features/Explore/ExploreSearch.logic.ts`, `src/services/searchService.ts`, `src/player/player.store.ts`
 - Library fetch/add issues: `src/hooks/useMusic.ts`, `src/api/musicApi.ts`
-- Playback issues: `src/store/playerStore.ts`, `src/components/features/GlobalPlayer/`, `src/components/features/Player/`
+- Playback issues: `src/player/player.store.ts`, `src/player/player.jobs.ts`, `src/components/features/GlobalPlayer/`, `src/components/features/Player/`
 - Route or redirect issues: `app/_layout.tsx`, `app/(tabs)/_layout.tsx`, route wrapper files in `app/`
 - Styling consistency issues: `src/theme/` and the relevant feature `.styles.ts` file
 
@@ -526,10 +471,11 @@ This document is the single source of truth for onboarding, debugging, and futur
 
 - Playlist detection exists in `AddSection.logic`, but the submitted payload always uses `type: 'keyword'`, so playlist URLs are not actually handled as playlist sections.
 - Custom Explore sections are stored only in Zustand memory and disappear after a full reload/app restart.
-- Search failures in Explore are mostly silent; users get little feedback when YouTube search or genre fetches fail.
+- Search failures in the dedicated Explore search screen are mostly silent; users get little feedback when `/search` fails beyond an empty state.
 - The two default Explore sections both call the same trending endpoint, so the distinction between `Trending Now` and `YouTube Trending` is presentation-level rather than data-level.
 - Home and several Profile values are hard-coded placeholders (user name, avatars, version copy, mixes, artists) and should not be treated as authoritative user data.
 - The repository references `scripts/reset-project.js` in `package.json`, but that file is currently absent from the checked-in tree.
+- Queue navigation currently routes `next()` and `prev()` through `playFromYouTube()` even for tracks originally derived from backend song records, which keeps playback working but does not fully preserve library/search provenance.
 
 ## Maintenance and Auto-Update Behavior
 

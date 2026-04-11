@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet, Image, FlatList } from 'react-native';
 import { theme } from '@/src/theme';
 import AnimatedPressable from './AnimatedPressable';
-import { Ionicons } from '@expo/vector-icons';
+import { SongPlaceholder } from './SongPlaceholder';
 
 export interface ActionItem {
   label: string;
@@ -40,9 +40,13 @@ export function MusicOptionsDrawer({ image, title, subtitle, actions }: MusicOpt
         {image ? (
           <Image source={{ uri: image }} style={styles.image} resizeMode="cover" />
         ) : (
-          <View style={[styles.image, styles.placeholderImage]}>
-             <Ionicons name="musical-notes" size={24} color={theme.colors.textSecondary} />
-          </View>
+          <SongPlaceholder
+            title={title}
+            artist={subtitle}
+            size={56}
+            borderRadius={styles.image.borderRadius}
+            style={{ marginRight: theme.spacing.md }}
+          />
         )}
         <View style={styles.headerTextContainer}>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
@@ -82,11 +86,6 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: theme.radius.sm,
     marginRight: theme.spacing.md,
-  },
-  placeholderImage: {
-    backgroundColor: theme.colors.backgroundInteractive,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   headerTextContainer: {
     flex: 1,

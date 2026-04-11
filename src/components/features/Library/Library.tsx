@@ -2,6 +2,7 @@ import { useBottomSheet } from '@/src/hooks/useDrawer';
 import { useConfirm } from '@/src/hooks/useConfirm';
 import { useToast } from '@/src/hooks/useToast';
 import { useMusic } from '@/src/hooks/useMusic';
+import { useAuth } from '@/src/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,9 +18,9 @@ import {
   Text,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../../theme';
 import AnimatedPressable from '../../ui/AnimatedPressable';
-import { AppHeader } from '../../ui/AppHeader';
 import { MusicOptionsDrawer } from '../../ui/MusicOptionsDrawer';
 import { PlaylistCard } from '../Playlist/PlaylistCard';
 import AddPlaylistModal from './AddPlaylistModal';
@@ -27,88 +28,6 @@ import { styles } from './Library.styles';
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const ASSETS = {
-  ethereal: 'https://www.figma.com/api/mcp/asset/d4a9eb07-6026-48b2-84cb-124051ef17d6',
-  midnight: 'https://www.figma.com/api/mcp/asset/44878c20-0bcb-4473-b45d-32a3e4f1aa42',
-  synthetix: 'https://www.figma.com/api/mcp/asset/e3f75c20-dbeb-4d58-bd1d-f5f4f29e985d',
-  neonDreams: 'https://www.figma.com/api/mcp/asset/69a695d7-56b5-48ee-bfa3-6342071a3464',
-  partyMix: 'https://www.figma.com/api/mcp/asset/a3970c37-6434-4796-97a5-c9950eca6941',
-  chillMix: 'https://www.figma.com/api/mcp/asset/928b2b3d-93ea-4c9a-b74d-50d5d05fe91b',
-  avatar: 'https://www.figma.com/api/mcp/asset/d1c5d67f-90f4-42c3-b3a8-56fb158ac68f',
-} as const;
-
-
-const PLAYLIST_CARDS = [
-  {
-    id: '1',
-    title: 'Ethereal Echoes',
-    subtitle: 'Playlist • 48 tracks',
-    image: ASSETS.ethereal,
-    shape: 'rect' as const,
-  },
-  {
-    id: '2',
-    title: 'Midnight Pulse',
-    subtitle: 'Playlist • 124 tracks',
-    image: ASSETS.midnight,
-    shape: 'rect' as const,
-  },
-  {
-    id: '3',
-    title: 'Synthetix Core',
-    subtitle: 'ARTIST',
-    image: ASSETS.synthetix,
-    shape: 'circle' as const,
-    centered: true,
-  },
-  {
-    id: '4',
-    title: 'Neon Dreams',
-    subtitle: 'Album • 2024',
-    image: ASSETS.neonDreams,
-    shape: 'rect' as const,
-  },
-] as const;
-
-const CURATED = [
-  {
-    id: 'c1',
-    title: 'Weekend Warmup',
-    desc: 'Top energetic tracks for your Friday night.',
-    image: ASSETS.partyMix,
-  },
-  {
-    id: 'c2',
-    title: 'Lo‑Fi Afternoons',
-    desc: 'Focus and flow with ambient instrumentals.',
-    image: ASSETS.chillMix,
-  },
-] as const;
-
-
-
-
-
-function CuratedCard({ item }: { item: (typeof CURATED)[number] }) {
-  const cardW = SCREEN_WIDTH * 0.74;
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.curatedCard, { width: cardW }, pressed && styles.pressed]}
-      accessibilityRole="button"
-      accessibilityLabel={item.title}
-    >
-      <Image source={{ uri: item.image }} style={[StyleSheet.absoluteFill, { opacity: 0.6 }]} resizeMode="cover" />
-      <View style={styles.curatedGradient} />
-      <View style={styles.curatedTextWrapper}>
-        <Text style={styles.curatedTitle}>{item.title}</Text>
-        <Text style={styles.curatedDesc} numberOfLines={2}>
-          {item.desc}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
 
 
 
@@ -120,13 +39,22 @@ function CuratedCard({ item }: { item: (typeof CURATED)[number] }) {
 
 export const Library = () => {
   const router = useRouter()
-  const { userPlaylist, createPlaylist, isCreatingPlaylist, deletePlaylist } = useMusic();
+  const { user } = useAuth();
+  const { 
+    userPlaylist, 
+    createPlaylist, 
+    isCreatingPlaylist, 
+    deletePlaylist,
+    isLoadingUserPlaylists 
+  } = useMusic();
 
   const [playListLayout, setPlaylistLayout] = useState<'grid' | 'list'>('grid');
   const [openModal, setOpenModal] = useState(false);
   const confirm = useConfirm();
   const toast = useToast();
 
+  const favorites = userPlaylist.find(p => p.isSystem);
+  const normalPlaylists = userPlaylist.filter(p => !p.isSystem);
 
   const handleCreatePlaylist = async (data: { name: string; description?: string; isPublic?: boolean }) => {
     try {
@@ -138,7 +66,6 @@ export const Library = () => {
       setOpenModal(false);
       toast.success('Playlist created');
     } catch (error) {
-      console.error('Failed to create playlist:', error);
       toast.error('Failed to create playlist');
     }
   };
@@ -153,55 +80,61 @@ export const Library = () => {
   const { open, close } = useBottomSheet();
 
 
-  const handleLongPress = (item: { id: string, name: string, description?: string | null }) => {
+  const handleLongPress = (item: { id: string, name: string, description?: string | null, isSystem: boolean }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    const actions = [
+      {
+        label: 'Share',
+        icon: <Ionicons name="share-social-outline" size={24} color={theme.colors.textPrimary} />,
+        onPress: () => {
+          close();
+          // Share logic
+        }
+      },
+      {
+        label: 'Download',
+        icon: <Ionicons name="arrow-down-circle-outline" size={24} color={theme.colors.textPrimary} />,
+        onPress: () => close(),
+
+      },
+      {
+        label: 'Pin playlist',
+        icon: <Ionicons name="pin-outline" size={24} color={theme.colors.textPrimary} />,
+        onPress: () => close()
+      },
+    ];
+
+    if (!item.isSystem) {
+      actions.push({
+        label: 'Delete playlist',
+        icon: <Ionicons name="close-outline" size={24} color={theme.colors.error} />,
+        onPress: async () => {
+          close();
+          const ok = await confirm({
+            title: 'Delete playlist',
+            message: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+            confirmText: 'DELETE',
+            cancelText: 'CANCEL',
+          });
+          if (ok) {
+            try {
+              await deletePlaylist(item.id);
+              toast.success('Playlist deleted');
+            } catch (error) {
+              console.error('Delete failed:', error);
+              toast.error('Failed to delete playlist');
+            }
+          }
+        }
+      });
+    }
+
     open(
       <MusicOptionsDrawer
         title={item.name}
         subtitle={item.description || "Playlist"}
-        actions={[
-          {
-            label: 'Share',
-            icon: <Ionicons name="share-social-outline" size={24} color={theme.colors.textPrimary} />,
-            onPress: () => {
-              close();
-              // Share logic
-            }
-          },
-          {
-            label: 'Download',
-            icon: <Ionicons name="arrow-down-circle-outline" size={24} color={theme.colors.textPrimary} />,
-            onPress: () => close(),
-
-          },
-          {
-            label: 'Pin playlist',
-            icon: <Ionicons name="pin-outline" size={24} color={theme.colors.textPrimary} />,
-            onPress: () => close()
-          },
-          {
-            label: 'Delete playlist',
-            icon: <Ionicons name="close-outline" size={24} color={theme.colors.error} />,
-            onPress: async () => {
-              close();
-              const ok = await confirm({
-                title: 'Delete playlist',
-                message: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
-                confirmText: 'DELETE',
-                cancelText: 'CANCEL',
-              });
-              if (ok) {
-                try {
-                  await deletePlaylist(item.id);
-                  toast.success('Playlist deleted');
-                } catch (error) {
-                  console.error('Delete failed:', error);
-                  toast.error('Failed to delete playlist');
-                }
-              }
-            }
-          },
-        ]}
+        actions={actions}
       />
     )
 
@@ -210,138 +143,122 @@ export const Library = () => {
 
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
       <AddPlaylistModal
         visible={openModal}
-        defaultName="My playlist #5"
+        defaultName={`My playlist #${userPlaylist.length + 1}`}
         onCancel={() => setOpenModal(false)}
         onCreate={handleCreatePlaylist}
         isCreating={isCreatingPlaylist}
       />
 
-
-
-      <AppHeader />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-
         <View style={styles.section}>
-
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="musical-notes" size={18} color={theme.colors.primaryAccent} />
-              <Text style={styles.sectionTitle}>Playlist</Text>
+              <Ionicons name="library" size={24} color={theme.colors.primaryAccent} />
+              <Text style={styles.sectionTitle}>Your Library</Text>
             </View>
             <View style={styles.headerIconTray}>
-              <AnimatedPressable onPress={() => setOpenModal(true)} hitSlop={10} accessibilityLabel="Toggle playlist layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
-
-                <Ionicons name={"add"} size={theme.spacing.lg} color="#fff" />
-
+              <AnimatedPressable onPress={() => setOpenModal(true)} hitSlop={10} accessibilityLabel="Create playlist" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
+                <Ionicons name={"add"} size={28} color="#fff" />
               </AnimatedPressable>
 
-
-              <AnimatedPressable onPress={() => {
-                if (playListLayout === 'grid') {
-                  setPlaylistLayout('list')
-                } else setPlaylistLayout('grid')
-              }} hitSlop={10} accessibilityLabel="Toggle playlist layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
-
-                <Ionicons name={playListLayout} size={theme.spacing.md} color="#fff" />
-
+              <AnimatedPressable onPress={() => setPlaylistLayout(prev => prev === 'grid' ? 'list' : 'grid')} hitSlop={10} accessibilityLabel="Toggle layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
+                <Ionicons name={playListLayout === 'grid' ? 'list' : 'grid'} size={24} color="#fff" />
               </AnimatedPressable>
             </View>
-
           </View>
 
-          <AnimatedPressable
-            // style={({ pressed }) => [styles.likedBanner, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Liked Songs, 842 tracks"
-
-          >
-            <LinearGradient colors={[theme.colors.secondaryAccent, theme.colors.primaryAccent,]}
-              style={styles.likedBanner}>
-              <View style={styles.likedLeft}>
-                <Text style={styles.likedTitle}>Liked Songs</Text>
-                <View style={styles.likedMeta}>
-                  <Text style={styles.likedCount}>842 tracks</Text>
-                </View>
-              </View>
-              <View style={styles.likedIconWrapper}>
-                <Ionicons name="heart" size={theme.spacing.xl} color={theme.colors.backgroundSection} />
-              </View>
-
-            </LinearGradient>
-          </AnimatedPressable>
-
-
-
-
-
-          {playListLayout === 'grid' ? (
-            <FlatList
-              data={userPlaylist}
-              key={'grid'}
-              numColumns={3}
-              renderItem={({ item }) => (
-                <PlaylistCard
-                  key={item.id}
-                  variant="grid"
-                  name={item.name}
-                  description={item.description}
-                  onPress={() => clickedPlaylist(item.id)}
-                  onLongPress={() => handleLongPress(item)}
-                  gridCardWidth={
-                    Math.floor((SCREEN_WIDTH - theme.spacing.md * 2 - 12 * 2) / 3)
-                  }
-                />
-              )}
-              columnWrapperStyle={{ justifyContent: 'flex-start', gap: 12, marginBottom: 0 }}
-              contentContainerStyle={{ paddingHorizontal: 0, gap: 0 }}
-              scrollEnabled={false}
-              ListEmptyComponent={null}
-            />
+          {isLoadingUserPlaylists ? (
+            <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: theme.colors.textSecondary }}>Sounding the library...</Text>
+            </View>
           ) : (
-            <View style={styles.grid}>
-              {userPlaylist.map(item => (
-                <PlaylistCard
-                  key={item.id}
-                  variant="list"
-                  name={item.name}
-                  description={item.description}
-                  onPress={() => clickedPlaylist(item.id)}
-                  onLongPress={() => handleLongPress(item)}
+            <>
+              {/* PINNED FAVORITES */}
+              {favorites && (
+                <AnimatedPressable
+                  onPress={() => clickedPlaylist(favorites.id)}
+                  onLongPress={() => handleLongPress(favorites)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Favorites, ${favorites.songCount || 0} tracks`}
+                >
+                  <LinearGradient 
+                    colors={[theme.colors.secondaryAccent, theme.colors.primaryAccent]}
+                    style={styles.likedBanner}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <View style={styles.likedLeft}>
+                      <Text style={styles.likedTitle}>{favorites.name}</Text>
+                      <View style={styles.likedMeta}>
+                        <Text style={styles.likedCount}>{favorites.songCount || 0} tracks</Text>
+                      </View>
+                    </View>
+                    <View style={styles.likedIconWrapper}>
+                      <Ionicons name="heart" size={theme.spacing.xl} color={theme.colors.backgroundBase} />
+                    </View>
+                  </LinearGradient>
+                </AnimatedPressable>
+              )}
 
+              {/* EMPTY STATE */}
+              {normalPlaylists.length === 0 && !favorites && (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <Ionicons name="musical-notes-outline" size={64} color={theme.colors.backgroundInteractive} />
+                  <Text style={{ color: theme.colors.textSecondary, marginTop: 16 }}>Your library is empty.</Text>
+                </View>
+              )}
+
+              {/* LISTING */}
+              {playListLayout === 'grid' ? (
+                <FlatList
+                  data={normalPlaylists}
+                  key={'grid-layout'}
+                  numColumns={3}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <PlaylistCard
+                      key={item.id}
+                      variant="grid"
+                      name={item.name}
+                      isSystem={item.isSystem}
+                      description={`${item.songCount || 0} tracks`}
+                      thumbnailUrl={item.thumbnailUrl}
+                      onPress={() => clickedPlaylist(item.id)}
+                      onLongPress={() => handleLongPress(item)}
+                      gridCardWidth={Math.floor((Dimensions.get('window').width - theme.spacing.md * 2 - 12 * 2) / 3)}
+                    />
+                  )}
+                  columnWrapperStyle={{ justifyContent: 'flex-start', gap: 12 }}
                 />
-              ))}
-            </View>
+              ) : (
+                <View style={{ gap: 4 }}>
+                  {normalPlaylists.map(item => (
+                    <PlaylistCard
+                      key={item.id}
+                      variant="list"
+                      name={item.name}
+                      isSystem={item.isSystem}
+                      description={`Playlist • ${item.songCount || 0} tracks`}
+                      thumbnailUrl={item.thumbnailUrl}
+                      onPress={() => clickedPlaylist(item.id)}
+                      onLongPress={() => handleLongPress(item)}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
           )}
-
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.curatedHeader}>
-            <Text style={styles.curatedHeading}>Curated for You</Text>
-            <View style={styles.cyanDot} />
-          </View>
-
-          <FlatList
-            data={CURATED}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.curatedList}
-            renderItem={({ item }) => <CuratedCard item={item} />}
-            ItemSeparatorComponent={() => <View style={{ width: theme.spacing.md }} />}
-          />
-        </View>
-
-        <View style={{ height: theme.spacing.xl }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
-

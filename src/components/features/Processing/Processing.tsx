@@ -1,458 +1,226 @@
-import { getThumbnailUrl } from "@/src/services/youtube";
-import { usePlayerStore } from "@/src/store/playerStore";
+import { useJobStore, usePlayer, JobStatus } from "@/src/playbackCore";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
-  Check,
-  Clock3,
-  MoreVertical,
-  X
+  CheckCircle2,
+  Clock,
+  Play,
+  RotateCcw,
+  XCircle,
+  Activity,
+  Music
 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
-  Image,
   ScrollView,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../../../theme";
-import MovingLine from "../../ui/MovingLine";
 import { styles } from "./Processing.styles";
 
-const FILTERS = {
-  active: ["active"],
-  waiting: ["waiting", "delayed"],
-  failed: ["failed"],
-  completed: ["completed"],
-} as const;
+// ─── Status Mapping ──────────────────────────────────────────────────────────
 
-type FilterKey = keyof typeof FILTERS;
+function getDisplayStatus(status: JobStatus) {
+    switch (status) {
+        case 'waiting':
+            return 'Queued';
+        case 'active':
+            return 'Processing';
+        case 'completed':
+            return 'Ready';
+        case 'failed':
+            return 'Failed';
+        default:
+            return status;
+    }
+}
 
-const FILTER_ORDER: FilterKey[] = ["active", "waiting", "failed", "completed"];
+function getStatusIcon(status: JobStatus) {
+    switch (status) {
+        case 'waiting':
+            return <Clock color={theme.colors.textMuted} size={16} />;
+        case 'active':
+            return <Activity color={theme.colors.primaryAccent} size={16} />;
+        case 'completed':
+            return <CheckCircle2 color={theme.colors.secondaryAccent} size={16} />;
+        case 'failed':
+            return <XCircle color={theme.colors.error} size={16} />;
+    }
+}
 
-const FILTER_LABELS: Record<FilterKey, string> = {
-  active: "Active",
-  waiting: "Waiting",
-  failed: "Failed",
-  completed: "Completed",
-};
-
-const matchesFilter = (filter: FilterKey, status: string) =>
-  (FILTERS[filter] as readonly string[]).includes(status);
-
-const formatStatus = (status?: string) => {
-  if (!status) return "Unknown";
-  return status.charAt(0).toUpperCase() + status.slice(1);
-};
-
-
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Processing() {
   const router = useRouter();
-  const { songJobs, dismissSongJob } = usePlayerStore();
+  const { play } = usePlayer();
+  const jobsMap = useJobStore(s => s.jobs);
+  
+  const jobs = useMemo(() => 
+    Object.values(jobsMap).sort((a,b) => b.createdAt - a.createdAt), 
+    [jobsMap]
+  );
 
-  const [selectedFilters, setSelectedFilters] = useState<FilterKey[]>([
-    "active",
-    "waiting",
-  ]);
+  const processing = useMemo(() => jobs.filter(j => j.status === 'waiting' || j.status === 'active'), [jobs]);
+  const completed = useMemo(() => jobs.filter(j => j.status === 'completed'), [jobs]);
+  const failed = useMemo(() => jobs.filter(j => j.status === 'failed'), [jobs]);
 
-  const toggleFilter = (filter: FilterKey) => {
-    setSelectedFilters((prev) =>
-      prev.includes(filter)
-        ? prev.filter((value) => value !== filter)
-        : [...prev, filter],
+  const handlePlay = (job: any) => {
+      if (job.status === 'completed' && job.song) {
+          play({ songId: job.song.id });
+      }
+  };
+
+  const renderJobItem = (job: any) => {
+    const isCompleted = job.status === 'completed';
+    const isFailed = job.status === 'failed';
+    const artwork = job.song?.image;
+
+    return (
+        <View key={job.jobId} style={[
+            styles.jobCard,
+            isCompleted && styles.completedCard,
+            isFailed && styles.failedCard
+        ]}>
+            <View style={styles.jobInfo}>
+                <View style={styles.artworkContainer}>
+                    {artwork ? (
+                        <Image source={{ uri: artwork }} style={styles.artwork} />
+                    ) : (
+                        <View style={[styles.artwork, styles.artworkPlaceholder]}>
+                            <Music color={theme.colors.textMuted} size={20} />
+                        </View>
+                    )}
+                </View>
+                
+                <View style={styles.jobDetails}>
+                    <Text style={styles.jobTitle} numberOfLines={1}>
+                        {job.song?.trackName || 'Resolving track...'}
+                    </Text>
+                    <Text style={styles.jobSubtitle} numberOfLines={1}>
+                        {job.song?.artistName || `Job ID: ${job.jobId.slice(0, 8)}`}
+                    </Text>
+                    <View style={styles.statusRow}>
+                        {getStatusIcon(job.status)}
+                        <Text style={[
+                            styles.statusLabel,
+                            isCompleted && styles.statusLabelCompleted,
+                            isFailed && styles.statusLabelFailed
+                        ]}>
+                            {getDisplayStatus(job.status)}
+                        </Text>
+                    </View>
+
+                    {/* Progress Bar for active jobs */}
+                    {job.status === 'active' && job.progress !== undefined && (
+                        <View style={styles.progressContainer}>
+                            <View style={styles.progressBarTrack}>
+                                <View style={[styles.progressBarFill, { width: `${job.progress}%` }]} />
+                            </View>
+                            <Text style={styles.progressText}>{Math.round(job.progress)}%</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+
+            <View style={styles.jobActions}>
+                {isCompleted ? (
+                    <TouchableOpacity 
+                        style={styles.actionBtnPrimary}
+                        onPress={() => handlePlay(job)}
+                    >
+                        <Play color={theme.colors.backgroundBase} size={18} fill={theme.colors.backgroundBase} />
+                    </TouchableOpacity>
+                ) : isFailed ? (
+                    <TouchableOpacity 
+                        style={styles.actionBtnSecondary}
+                        onPress={() => {
+                            // Retry logic - would likely involve re-calling usePlayer.play
+                            // For now maybe just clear it or let them try from search again
+                        }}
+                    >
+                        <RotateCcw color={theme.colors.textPrimary} size={18} />
+                    </TouchableOpacity>
+                ) : (
+                    <Clock color={theme.colors.textMuted} size={20} />
+                )}
+            </View>
+        </View>
     );
   };
 
-  const filteredJobs = useMemo(
-    () =>
-      songJobs
-        .filter((job) => {
-          const status = job.status ?? "";
-          return selectedFilters.some((filter) => matchesFilter(filter, status));
-        })
-        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)),
-    [selectedFilters, songJobs],
-  );
-
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+        >
+          <ArrowLeft color={theme.colors.textPrimary} size={24} />
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>Active Jobs</Text>
+          <Text style={styles.headerSubtitle}>Real-time processing queue</Text>
+        </View>
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-            style={styles.headerIcon}
-          >
-            <ArrowLeft color={theme.colors.primaryAccent} size={25} />
-          </TouchableOpacity>
+        {/* Processing Section */}
+        {processing.length > 0 && (
+            <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Processing</Text>
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{processing.length}</Text>
+                    </View>
+                </View>
+                <View style={styles.jobList}>
+                    {processing.map(renderJobItem)}
+                </View>
+            </View>
+        )}
 
-          <View style={styles.headerCopy}>
-            <Text style={styles.screenTitle}>Downloads & Processing</Text>
-            <Text style={styles.screenSubtitle}>Track every queued job</Text>
-          </View>
+        {/* Completed Section */}
+        {completed.length > 0 && (
+            <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Recently Completed</Text>
+                </View>
+                <View style={styles.jobList}>
+                    {completed.map(renderJobItem)}
+                </View>
+            </View>
+        )}
 
-          <View style={styles.headerMenu}>
-            <MoreVertical color={theme.colors.textSecondary} size={26} />
-          </View>
-        </View>
+        {/* Failed Section */}
+        {failed.length > 0 && (
+            <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Failed</Text>
+                </View>
+                <View style={styles.jobList}>
+                    {failed.map(renderJobItem)}
+                </View>
+            </View>
+        )}
 
-        <View style={styles.boxCon}>
-          {FILTER_ORDER.map((filter) => {
-            const isSelected = selectedFilters.includes(filter);
-
-            return (
-              <TouchableOpacity
-                key={filter}
-                onPress={() => toggleFilter(filter)}
-                activeOpacity={0.85}
-                style={[styles.filterChip, isSelected && styles.filterChipActive]}
-              >
-                <Text
-                  style={[
-                    styles.boxLabel,
-                    isSelected && styles.boxLabelActive,
-                  ]}
-                >
-                  {FILTER_LABELS[filter]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View style={styles.sectionContent}>
-          {filteredJobs.length === 0 ? (
+        {jobs.length === 0 && (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No processing jobs</Text>
+                <Activity color={theme.colors.textMuted} size={48} />
+                <Text style={styles.emptyTitle}>No active jobs</Text>
+                <Text style={styles.emptySubtitle}>
+                    When songs need processing, they'll appear here in real-time.
+                </Text>
             </View>
-          ) : (
-            filteredJobs.map((job) => {
-              const title = job.title?.trim() || "Untitled job";
-              const status = job.status ?? "unknown";
-              const progress = Math.max(
-                0,
-                Math.min(100, Number(job.progress ?? 0) || 0),
-              );
-              const thumbnailUrl = getThumbnailUrl(job.youtubeId);
-
-              return (
-                <View
-                  key={job.jobId}
-                  style={[
-                    styles.card,
-                    status === "failed" && styles.failedCard,
-                    status === "completed" && styles.completedCard,
-                  ]}
-                >
-                  {thumbnailUrl ? (
-                    // <Image
-                    //   source={{ uri: thumbnailUrl }}
-                    //   style={styles.artwork}
-                    //   resizeMode="cover"
-                    // />
-                    <View>
-                      <Image
-                        source={{ uri: thumbnailUrl }}
-                        style={styles.artwork}
-                        resizeMode="cover"
-                      />
-                      <Text style={styles.duration}>{job.duration}</Text>
-
-
-                    </View>
-                  ) : (
-                    // <View style={[styles.artwork, styles.artworkFallback]}>
-                    //   <Clock3 color={theme.colors.textSecondary} size={22} />
-                    // </View>
-                    <View style={[styles.artwork, styles.artworkFallback]}>
-                      <Clock3 color={theme.colors.textSecondary} size={22} />
-                      <Text style={styles.durationStatic}>{job.duration}</Text>
-
-                    </View>
-                  )}
-
-                  <View style={styles.cardBody}>
-                    <View style={styles.titleRow}>
-                      <Text numberOfLines={1} style={styles.title}>
-                        {title}
-                      </Text>
-
-                      {(status === "failed" || status === "completed") && (
-                        <TouchableOpacity
-                          onPress={() => dismissSongJob(job.jobId)}
-                          activeOpacity={0.8}
-                          style={styles.dismissButton}
-                        >
-                          <X color={theme.colors.textSecondary} size={16} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
-                    {/* <Text numberOfLines={1} style={styles.youtubeId}>
-                      {youtubeId}
-                    </Text> */}
-
-                    <View style={styles.statusRow}>
-                      <Text
-                        style={[
-                          styles.statusText,
-                          status === "completed" && styles.statusTextDownloaded,
-                          status === "failed" && styles.statusTextFailed,
-                        ]}
-                      >
-                        {formatStatus(status)}
-                      </Text>
-
-                      {status === "completed" ? (
-                        <Check
-                          color={theme.colors.secondaryAccent}
-                          size={18}
-                          strokeWidth={3}
-                        />
-                      ) : status === "failed" ? (
-                        <X color={theme.colors.error} size={18} strokeWidth={3} />
-                      ) : null}
-                    </View>
-
-                    {progress > 0 ? (
-                      <View style={styles.progressSection}>
-                        <View style={styles.progressTrack}>
-                          <View
-                            style={[
-                              styles.progressFill,
-                              { width: `${progress}%` },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.progressValue}>{progress}%</Text>
-                      </View>
-                    ) : (
-                      status != "completed" && status != "failed" && (
-                        <MovingLine />
-                      )
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          )}
-
-
-          {/* <View
-            style={[
-              styles.card,
-            ]}
-          >
-
-
-
-            <View style={[styles.artwork, styles.artworkFallback]}>
-              <Clock3 color={theme.colors.textSecondary} size={22} />
-              <Text style={styles.durationStatic}>2:30</Text>
-
-            </View>
-
-
-            <View style={styles.cardBody}>
-              <View style={styles.titleRow}>
-                <Text numberOfLines={1} style={styles.title}>
-                  Tooa asocvsiv siudhviszh
-                </Text>
-
-
-              </View>
-
-              <View style={styles.statusRow}>
-                <Text
-                  style={[
-                    styles.statusText,
-                  ]}
-                >
-                  Waiting
-                </Text>
-              </View>
-
-
-              <MovingLine />
-            </View>
-          </View> */}
-
-
-
-          {/* 
-          <View
-            style={[
-              styles.card,
-              status === "failed" && styles.failedCard,
-              status === "completed" && styles.completedCard,
-            ]}
-          >
-            {thumbnailUrl ? (
-              <Image
-                source={{ uri: thumbnailUrl }}
-                style={styles.artwork}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.artwork, styles.artworkFallback]}>
-                <Clock3 color={theme.colors.textSecondary} size={22} />
-              </View>
-            )}
-
-            <View style={styles.cardBody}>
-              <View style={styles.titleRow}>
-                <Text numberOfLines={1} style={styles.title}>
-                  {title}
-                </Text>
-
-                {(status === "failed" || status === "completed") && (
-                  <TouchableOpacity
-                    onPress={() => dismissSongJob(job.jobId)}
-                    activeOpacity={0.8}
-                    style={styles.dismissButton}
-                  >
-                    <X color={theme.colors.textSecondary} size={16} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-           
-
-              <View style={styles.statusRow}>
-                <Text
-                  style={[
-                    styles.statusText,
-                    status === "completed" && styles.statusTextDownloaded,
-                    status === "failed" && styles.statusTextFailed,
-                  ]}
-                >
-                  {formatStatus(status)}
-                </Text>
-              </View>
-
-              {progress > 0 ? (
-                <View style={styles.progressSection}>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${progress}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.progressValue}>{progress}%</Text>
-                </View>
-              ) : (
-                <View style={styles.spinnerRow}>
-                  {status === "completed" ? (
-                    <Check
-                      color={theme.colors.secondaryAccent}
-                      size={18}
-                      strokeWidth={3}
-                    />
-                  ) : status === "failed" ? (
-                    <X color={theme.colors.error} size={18} strokeWidth={3} />
-                  ) : (
-                    <>
-                      <MovingLine />
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          </View> */}
-
-          {/* <View
-            style={[
-              styles.card,
-              status === "failed" && styles.failedCard,
-              status === "completed" && styles.completedCard,
-            ]}
-          >
-            {thumbnailUrl ? (
-              <Image
-                source={{ uri: thumbnailUrl }}
-                style={styles.artwork}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.artwork, styles.artworkFallback]}>
-                <Clock3 color={theme.colors.textSecondary} size={22} />
-              </View>
-            )}
-
-            <View style={styles.cardBody}>
-              <View style={styles.titleRow}>
-                <Text numberOfLines={1} style={styles.title}>
-                  {title}
-                </Text>
-
-                {(status === "failed" || status === "completed") && (
-                  <TouchableOpacity
-                    onPress={() => dismissSongJob(job.jobId)}
-                    activeOpacity={0.8}
-                    style={styles.dismissButton}
-                  >
-                    <X color={theme.colors.textSecondary} size={16} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-          
-
-              <View style={styles.statusRow}>
-                <Text
-                  style={[
-                    styles.statusText,
-                    status === "completed" && styles.statusTextDownloaded,
-                    status === "failed" && styles.statusTextFailed,
-                  ]}
-                >
-                  {formatStatus(status)}
-                </Text>
-              </View>
-
-              {progress > 0 ? (
-                <View style={styles.progressSection}>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${progress}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.progressValue}>{progress}%</Text>
-                </View>
-              ) : (
-                <View style={styles.spinnerRow}>
-                  {status === "completed" ? (
-                    <Check
-                      color={theme.colors.secondaryAccent}
-                      size={18}
-                      strokeWidth={3}
-                    />
-                  ) : status === "failed" ? (
-                    <X color={theme.colors.error} size={18} strokeWidth={3} />
-                  ) : (
-                    <>
-                      <MovingLine />
-                    </>
-                  )}
-                </View>
-              )}
-            </View>
-          </View> */}
-
-
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
+

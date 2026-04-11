@@ -1,150 +1,141 @@
-
 import { PlaylistSongs } from '@/src/api/musicApi';
 import { useBottomSheet } from '@/src/hooks/useDrawer';
-import { formatPlaylistDuration } from '@/src/player/player.helpers';
-import { usePlayerStore } from '@/src/player/player.store';
-import { getThumbnailUrl } from '@/src/services/youtube';
 import { theme } from '@/src/theme';
+import { ActionItem, SongQuickAction } from '@/src/utils/songsActions';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 import { MusicOptionsDrawer } from '../../ui/MusicOptionsDrawer';
+import { SongPlaceholder } from '../../ui/SongPlaceholder';
 
 interface SongListCardProps {
     playlistSongs: PlaylistSongs;
+    artworkUri?: string | null;
     onPress: () => void;
-    onLongPress?: () => void;
-    onRemove?: () => void;
+    actions?: ActionItem[];
+    trailingActions?: SongQuickAction[];
 }
 
-export default function SongListCard({ playlistSongs, onPress, onLongPress, onRemove }: SongListCardProps) {
-    const [imageError, setImageError] = useState(false);
-    const thumbnailUrl = getThumbnailUrl(playlistSongs.youtubeId);
+/**
+ * Minimal duration formatter for display purposes.
+ */
+const formatDuration = (seconds: number) => {
+    if (!seconds || seconds <= 0) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 
-    const { playSong } = usePlayerStore();
-    const { open, close } = useBottomSheet();
+export default function SongListCard({
+    playlistSongs,
+    artworkUri,
+    onPress,
+    actions = [],
+    trailingActions = [],
+}: SongListCardProps) {
+    const [imageError, setImageError] = useState(false);
+
+    const resolvedArtworkUri = artworkUri || playlistSongs.image;
+
+    useEffect(() => {
+        setImageError(false);
+    }, [resolvedArtworkUri]);
+
+    const { open } = useBottomSheet();
+    const hasContextMenu = actions.length > 0;
 
     const handleOpen = () => {
+        if (!hasContextMenu) return;
+
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        
-        const actions = [
-            {
-                label: 'Share',
-                icon: <Ionicons name="share-social-outline" size={24} color={theme.colors.textPrimary} />,
-                onPress: () => {
-                    close();
-                    // Share logic
-                }
-            },
-            {
-                label: 'Add to other playlist',
-                icon: <Ionicons name="add-circle-outline" size={24} color={theme.colors.textPrimary} />,
-                onPress: () => {
-                    close();
-                }
-            },
-            {
-                label: 'Add to Queue',
-                icon: <Ionicons name="list-outline" size={24} color={theme.colors.textPrimary} />,
-                onPress: () => {
-                    close();
-                }
-            },
-            {
-                label: 'Go to artist',
-                icon: <Ionicons name="person-outline" size={24} color={theme.colors.textPrimary} />,
-                onPress: () => {
-                    close();
-                }
-            }
-        ];
-
-        if (onRemove) {
-            actions.push({
-                label: 'Remove from playlist',
-                icon: <Ionicons name="trash-outline" size={24} color={theme.colors.error} />,
-                onPress: () => {
-                    close();
-                    onRemove();
-                }
-            });
-        }
-
         open(
             <MusicOptionsDrawer
-                image={thumbnailUrl}
-                title={playlistSongs.title}
-                subtitle={`${playlistSongs.channelName ?? "Unknown"} • ${playlistSongs.duration ? formatPlaylistDuration(playlistSongs.duration) : "0:00"}`}
+                image={resolvedArtworkUri}
+                title={playlistSongs.trackName}
+                subtitle={`${playlistSongs.artistName ?? "Unknown"} • ${playlistSongs.duration ? formatDuration(playlistSongs.duration) : "0:00"}`}
                 actions={actions}
             />
         );
     };
 
-
     return (
-        <AnimatedPressable key={playlistSongs.id}
+        <AnimatedPressable
+            key={playlistSongs.id}
             pressableStyle={styles.wrapper}
             scaleTo={0.985}
             pressedOpacity={0.89}
-            onPress={() => playSong({ ...playlistSongs, songId: playlistSongs.id })}
-            onLongPress={(handleOpen)}
+            onPress={onPress}
+            onLongPress={hasContextMenu ? handleOpen : undefined}
             feedback='snappy'>
             <View style={styles.leftSec}>
-
                 <View style={styles.artWorkWrapper}>
-                    {thumbnailUrl && !imageError ? (
+                    {resolvedArtworkUri && !imageError ? (
                         <Image
-                            source={{ uri: thumbnailUrl }}
+                            source={{ uri: resolvedArtworkUri }}
                             style={{ width: '100%', height: '100%' }}
                             resizeMode="cover"
                             onError={() => setImageError(true)}
                         />
                     ) : (
-                        <Ionicons
-                            name="musical-notes"
-                            size={30}
-                            color={theme.colors.textSecondary}
+                        <SongPlaceholder
+                            title={playlistSongs.trackName}
+                            artist={playlistSongs.artistName}
+                            style={{ width: '100%', height: '100%' }}
+                            borderRadius={styles.artWorkWrapper.borderRadius}
                         />
                     )}
-
-
                 </View>
 
                 <View style={styles.textWrapper}>
-                    <Text style={styles.title} numberOfLines={1}
-                        ellipsizeMode="tail">{playlistSongs.title}</Text>
+                    <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+                        {playlistSongs.trackName}
+                    </Text>
                     <View style={styles.subTitleWrapper}>
-                        <Text style={styles.subTitle}>{playlistSongs.channelName ?? "Unknown"}</Text>
-                        {playlistSongs.duration && <Text style={styles.subTitle}>
-                            {formatPlaylistDuration(playlistSongs.duration)}
-                        </Text>}
-
+                        <Text style={styles.subTitle} numberOfLines={1}>
+                            {playlistSongs.artistName ?? "Unknown"}
+                        </Text>
+                        {playlistSongs.duration > 0 && (
+                            <Text style={styles.subTitle}>
+                                {formatDuration(playlistSongs.duration)}
+                            </Text>
+                        )}
                     </View>
-
                 </View>
-
-            </View>
-            <View>
-                <AnimatedPressable
-                    onPress={handleOpen}
-                    hitSlopSize={12}
-                    scaleTo={0.82}
-                    feedback="snappy"
-                    accessibilityLabel="Open song menu">
-                    <Ionicons
-                        name="ellipsis-vertical"
-                        size={theme.spacing.lg}
-                        color={theme.colors.textSecondary}
-                    />
-
-                </AnimatedPressable>
             </View>
 
+            <View style={styles.actions}>
+                {hasContextMenu ? (
+                    <AnimatedPressable
+                        onPress={handleOpen}
+                        hitSlopSize={12}
+                        scaleTo={0.82}
+                        feedback="snappy"
+                        accessibilityLabel="Open song menu"
+                        style={{ marginLeft: theme.spacing.md }}>
+                        <Ionicons
+                            name="ellipsis-vertical"
+                            size={theme.spacing.lg - 2}
+                            color={theme.colors.textSecondary}
+                        />
+                    </AnimatedPressable>
+                ) : null}
 
+                {trailingActions.map((action, index) => (
+                    <AnimatedPressable
+                        key={`${playlistSongs.id}-action-${index}`}
+                        onPress={action.onPress}
+                        hitSlopSize={12}
+                        scaleTo={0.82}
+                        feedback="snappy"
+                        accessibilityLabel={action.accessibilityLabel}>
+                        {action.icon}
+                    </AnimatedPressable>
+                ))}
+            </View>
         </AnimatedPressable>
-    )
+    );
 }
 
 const styles = StyleSheet.create({
@@ -155,13 +146,18 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 12,
         paddingHorizontal: theme.spacing.md,
+        position: 'relative',
+    },
+    actions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.md,
     },
     leftSec: {
         flexDirection: 'row',
         alignItems: 'center',
-        flex: 1, // ✅ IMPORTANT
+        flex: 1,
     },
-
     artWorkWrapper: {
         width: theme.spacing.xxl,
         height: theme.spacing.xxl,
@@ -170,28 +166,27 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.backgroundInteractive,
         marginRight: 14,
         alignItems: "center",
-        justifyContent: "center"
+        justifyContent: "center",
     },
     textWrapper: {
         gap: theme.spacing.sm,
-        flex: 1,        // ✅ take remaining space
-        flexShrink: 1,  // ✅ allow shrinking
+        flex: 1,
+        flexShrink: 1,
     },
     subTitleWrapper: {
         flexDirection: "row",
         flexWrap: "wrap",
         alignItems: "center",
-        gap: theme.spacing.md
-    }
-    ,
+        gap: theme.spacing.md,
+    },
     title: {
         color: theme.colors.textPrimary,
-        fontSize: theme.spacing.md,
+        fontSize: theme.spacing.md - 1,
         fontWeight: "bold",
-        flexShrink: 1, // ✅ helps in edge cases
+        flexShrink: 1,
     },
     subTitle: {
         color: theme.colors.textSecondary,
         fontSize: theme.spacing.sm + theme.spacing.xs,
-    }
-})
+    },
+});

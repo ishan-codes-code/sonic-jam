@@ -1,11 +1,6 @@
+import { PlayJobResponse, PlayResponseDto, PlaySongDto, Song } from "../playbackCore/types";
 import { apiClient } from "./apiClient";
 
-export interface Song {
-  songId: string;
-  title: string;
-  duration: number;
-  youtubeId: string;
-}
 
 export interface AddSongPayload {
   youtubeId: string;
@@ -18,15 +13,21 @@ export interface AddSongResponse {
   songId: string;
 }
 
-export interface StreamResponse {
-  streamUrl: string;
+export interface AddSongToPlaylistPayload {
+  playlistId: string;
+  songId: string;
 }
 
-export interface PlayPayload {
-  youtubeId: string;
-  title: string;
-  duration: number;
+export interface AddSongToPlaylistResponse {
+  message: string;
 }
+
+export interface StreamResponse {
+  streamUrl: string;
+  song: Song;
+}
+
+
 
 export type Playlist = {
   id: string;
@@ -35,6 +36,7 @@ export type Playlist = {
   thumbnailUrl: string[] | null;
   isPublic: boolean;
   createdAt: string;
+  isSystem: boolean;
   songCount?: number;
 };
 
@@ -44,25 +46,9 @@ export type PlayListReqPayLoad = {
   isPublic: boolean;
 };
 
-export type PlayResponse =
-  | { type: "ready"; streamUrl: string }
-  | { type: "job"; jobId: string };
 
-export type PlayJobResponse = {
-  status: string;
-  progress: number;
-  streamUrl?: string;
-  message?: string;
-};
-
-export type PlaylistSongs = {
-  id: string;
-  title: string;
-  duration: number;
-  youtubeId: string;
-  position: number;
-  channelName: string;
-  channelId: string;
+export type PlaylistSongs = Song & {
+  position?: number;
 };
 
 const readNumericProgress = (value: unknown): number | null => {
@@ -105,68 +91,34 @@ const readStreamUrl = (data: any): string | null => {
   return null;
 };
 
-const normalizePlayResponse = (data: any): PlayResponse => {
-  console.log("[musicApi.play] raw response:", data);
+const toTitleCase = (value: string): string =>
+  value
+    .trim()
+    .split(/\s+/)
+    .map((part) =>
+      part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part,
+    )
+    .join(" ");
 
-  if (data?.type === "ready" && typeof data?.streamUrl === "string") {
-    return { type: "ready", streamUrl: data.streamUrl };
-  }
-
-  if (data?.type === "job" && typeof data?.jobId === "string") {
-    return { type: "job", jobId: data.jobId };
-  }
-
-  if (typeof data?.streamUrl === "string") {
-    return { type: "ready", streamUrl: data.streamUrl };
-  }
-
-  if (typeof data?.jobId === "string") {
-    return { type: "job", jobId: data.jobId };
-  }
-
-  console.error("[musicApi.play] unexpected response shape:", data);
-  throw new Error("Unexpected /songs/play response");
+const formatDisplayName = (value?: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return toTitleCase(trimmed);
 };
 
-const normalizePlayJobResponse = (data: any): PlayJobResponse => {
-  console.log("[musicApi.getPlayJob] raw response:", data);
 
-  const rawStatus = String(data?.status ?? data?.type ?? "").toLowerCase();
-  const progress =
-    readNumericProgress(data?.progress) ??
-    readNumericProgress(data?.data?.progress) ??
-    0;
 
-  const streamUrl = readStreamUrl(data);
 
-  const message =
-    data?.message ??
-    data?.error ??
-    data?.failedReason ??
-    data?.data?.message ??
-    data?.data?.error;
 
-  if (rawStatus) {
-    return {
-      status: rawStatus,
-      progress,
-      ...(typeof streamUrl === "string" ? { streamUrl } : {}),
-      ...(typeof message === "string" ? { message } : {}),
-    };
-  }
-
-  if (typeof streamUrl === "string") {
-    return { status: "completed", streamUrl, progress };
-  }
-
-  console.error("[musicApi.getPlayJob] unexpected response shape:", data);
-  throw new Error("Unexpected /songs/job response");
-};
 
 export const musicApi = {
-  addSong: async (payload: AddSongPayload): Promise<AddSongResponse> => {
-    const { data } = await apiClient.post<AddSongResponse>(
-      "/library/addSong",
+
+  addSongToPlaylist: async (
+    payload: AddSongToPlaylistPayload,
+  ): Promise<AddSongToPlaylistResponse> => {
+    const { data } = await apiClient.post<AddSongToPlaylistResponse>(
+      "/playlist/song/add",
       payload,
     );
     return data;
@@ -192,30 +144,32 @@ export const musicApi = {
     return data;
   },
 
-  removeSongFromPlaylist: async (playlistId: string, songId: string): Promise<{ message: string }> => {
-    const { data } = await apiClient.delete(`/playlist/${playlistId}/song/${songId}`);
-    return data;
-  },
-
-  getAllSongs: async (): Promise<Song[]> => {
-    const { data } = await apiClient.get<Song[]>("/songs/getAll");
-    return data;
-  },
-
-  getStreamUrl: async (songId: string): Promise<StreamResponse> => {
-    const { data } = await apiClient.get<StreamResponse>(
-      `/songs/play/${songId}`,
+  removeSongFromPlaylist: async (
+    playlistId: string,
+    songId: string,
+  ): Promise<{ message: string }> => {
+    const { data } = await apiClient.delete(
+      `/playlist/${playlistId}/song/${songId}`,
     );
     return data;
   },
 
-  play: async (payload: PlayPayload): Promise<PlayResponse> => {
+
+
+
+
+  play: async (payload: PlaySongDto): Promise<PlayResponseDto> => {
     const { data } = await apiClient.post("/songs/play", payload);
-    return normalizePlayResponse(data);
+    return data;
   },
 
-  getPlayJob: async (jobId: string): Promise<PlayJobResponse> => {
+  getJob: async (jobId: string): Promise<PlayJobResponse> => {
     const { data } = await apiClient.get(`/songs/job/${jobId}`);
-    return normalizePlayJobResponse(data);
+    return data;
+  },
+
+  getGenreTracks: async (genre: string, limit: number = 20): Promise<Song[]> => {
+    const { data } = await apiClient.get<Song[]>(`/discovery/genre?genre=${genre}&limit=${limit}`);
+    return data;
   },
 };

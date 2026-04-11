@@ -7,29 +7,29 @@
 
 export const colors = {
   // Atmospheric Layers
-  backgroundBase: '#000000', // surface-container-lowest
-  backgroundSection: '#131313', // surface-container-low
-  backgroundCard: '#191919', // surface-container
-  backgroundInteractive: '#2c2c2c', // surface-bright
-  glassSurface: 'rgba(30, 30, 30, 0.7)', // surface-container-high with transparency
+  backgroundBase: '#000000', // Pitch black for OLED
+  backgroundSection: '#080809', // Deepest atmospheric layer
+  backgroundCard: '#121214', // Elevated card surface
+  backgroundInteractive: '#1c1c1f', // Interactive/hover surface
+  glassSurface: 'rgba(20, 20, 22, 0.65)', // Premium matte glass
   
   // Neon Accents
-  primaryAccent: '#c59aff', // primary (sophisticated royal purple)
-  primaryAccentDim: '#9547f7', // primary-dim
-  secondaryAccent: '#00e3fd', // secondary (high-energy neon blue)
-  actionAccent: '#00e3fd', // neon action (matches secondary accent)
-  actionAccentDim: '#00b8cc', // pressed action state blue
+  primaryAccent: '#a855f7', // Vivid Purple (Aureate Purple)
+  primaryAccentDim: '#7e22ce', // Deep Purple
+  secondaryAccent: '#22d3ee', // Electric Cyan
+  actionAccent: '#22d3ee', // Matches secondary
+  actionAccentDim: '#0891b2', // Pressed Cyan
   
   // States & Utility
-  error: '#ff6e84', // coral-red high contrast
-  outlineVariant: '#484848', // for ghost borders
-  outlineVariantAlpha: 'rgba(72, 72, 72, 0.15)', // Ghost Border (15% opacity)
+  error: '#f43f5e', // Rose-red high contrast
+  outlineVariant: '#27272a', // Subtle boundary
+  outlineVariantAlpha: 'rgba(39, 39, 42, 0.4)', // Ghost Border
   
   // Typography
-  textPrimary: '#f0f0f0', // on-surface (slightly off-white to reduce eye strain)
-  textSecondary: '#ababab', // on-surface-variant
-  textMuted: '#757575', // for low emphasis metadata
-  onPrimary: '#000000',
+  textPrimary: '#ffffff', // Clean white
+  textSecondary: '#a1a1aa', // Zinc secondary
+  textMuted: '#52525b', // Muted metadata
+  onPrimary: '#ffffff',
   onSecondary: '#000000',
 } as const;
 

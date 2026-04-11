@@ -26,7 +26,6 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { memo } from "react";
 import {
     Dimensions,
-    Image,
     StyleProp,
     StyleSheet,
     Text,
@@ -34,6 +33,7 @@ import {
     ViewStyle
 } from "react-native";
 import { AnimatedPressable } from "../../ui/AnimatedPressable";
+import { PlaylistArtwork } from "./PlaylistArtwork";
 
 // ─── Design tokens (matches your existing theme shape) ────────────────────────
 const theme = {
@@ -94,6 +94,11 @@ export interface PlaylistCardProps {
      * Width of the card in grid mode.
      * Defaults to half-screen minus padding and gap.
      */
+    isSystem?: boolean;
+    /**
+     * Width of the card in grid mode.
+     * Defaults to half-screen minus padding and gap.
+     */
     gridCardWidth?: number;
     /**
      * Animation feel passed to AnimatedPressable.
@@ -126,6 +131,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = memo(
         onLongPress,
         style,
         pressableStyle,
+        isSystem = false,
         gridCardWidth = DEFAULT_GRID_WIDTH,
         feedback,
     }) => {
@@ -153,27 +159,17 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = memo(
                     accessibilityLabel={name}
                 >
                     {/* Cover Art */}
-                    <View style={[{
+                    <View style={{
                         width: '100%',
                         aspectRatio: 1,
                         overflow: 'hidden',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        borderRadius: theme.radius.sm,
                         marginBottom: 10,
-                    }, (thumbnailUrl?.length ?? 0) < 1 && { backgroundColor: theme.colors.backgroundCard, }]}>
-
-
-                        {(thumbnailUrl?.length ?? 0) > 0 ? (
-                            <Image source={{ uri: thumbnailUrl?.[0] }}
-                                style={{ width: '100%', height: '100%' }}
-                                resizeMode="cover"
-                                accessible={false}
-                            />
-                        ) : (
-                            <Ionicons name="musical-notes" size={48} color={theme.colors.textSecondary} />
-                        )}
-
-
+                    }}>
+                        <PlaylistArtwork
+                            thumbnailUrl={thumbnailUrl}
+                            isSystem={isSystem}
+                        />
                     </View>
                     {/* Title & Subtitle */}
                     <View style={{
@@ -236,22 +232,12 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = memo(
                     height: thumbSize,
                     borderRadius: theme.radius.sm,
                     overflow: 'hidden',
-                    backgroundColor: theme.colors.backgroundInteractive,
                     marginRight: 14,
-                    alignItems: "center",
-                    justifyContent: "center"
                 }}>
-                    {(thumbnailUrl?.length ?? 0) > 0 ? (
-                        <Image source={{ uri: thumbnailUrl?.[0] }}
-                            style={{ width: '100%', height: '100%' }}
-                            resizeMode="cover"
-                            accessible={false}
-                        />
-                    ) : (
-                        <Ionicons name="musical-notes" size={30} color={theme.colors.textSecondary} />
-                    )}
-
-
+                    <PlaylistArtwork
+                        thumbnailUrl={thumbnailUrl}
+                        isSystem={isSystem}
+                    />
                 </View>
                 {/* Title & Subtitle */}
                 <View style={{ flex: 1, gap: 1 }}>

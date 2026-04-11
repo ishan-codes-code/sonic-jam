@@ -1,7 +1,8 @@
 {
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "explicit",
-    "source.organizeImports": "explicit",
-    "source.sortMembers": "explicit"
-  }
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/android/**",
+        "**/ios/**"
+    ],
+    "java.compile.nullAnalysis.mode": "disabled"
 }

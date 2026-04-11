@@ -1,19 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
-import { AddSongPayload, musicApi, PlayListReqPayLoad } from "../api/musicApi";
-import { fetchVideoDetails } from "../services/youtube";
+import {
+  AddSongToPlaylistPayload,
+  musicApi,
+  PlayListReqPayLoad,
+} from "../api/musicApi";
+import { getRecommendations } from "../services/recommendationService";
 
 type UseMusicOptions = {
   playlistId?: string | null;
+  recommendationSeed?: { title: string; artist: string } | null;
+  genre?: string | null;
 };
 
 export function useMusic(options: UseMusicOptions = {}) {
   const queryClient = useQueryClient();
   const playlistId = options.playlistId ?? null;
+  const recommendationSeed = options.recommendationSeed ?? null;
+  const genre = options.genre ?? null;
 
-  const allSongsQuery = useQuery({
-    queryKey: ["allSongs"],
-    queryFn: musicApi.getAllSongs,
+
+
+  const getGenreSongsQuery = useQuery({
+    queryKey: ["genreSongs", genre],
+    queryFn: () => musicApi.getGenreTracks(genre as string),
+    enabled: !!genre,
   });
 
   const getUserPlaylistsQuery = useQuery({
@@ -25,6 +35,16 @@ export function useMusic(options: UseMusicOptions = {}) {
     queryKey: ["playlistSongs", playlistId],
     queryFn: () => musicApi.getPlaylistSongs(playlistId as string),
     enabled: !!playlistId,
+  });
+
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommendations", recommendationSeed?.title, recommendationSeed?.artist],
+    queryFn: () => getRecommendations({
+      title: recommendationSeed!.title,
+      artist: recommendationSeed!.artist,
+      limit: 10
+    }),
+    enabled: !!recommendationSeed?.title && !!recommendationSeed?.artist,
   });
 
   const createPlaylistMutation = useMutation({
@@ -45,34 +65,24 @@ export function useMusic(options: UseMusicOptions = {}) {
     },
   });
 
-  // 🚀 Add Song Mutation
-  const addSongMutation = useMutation({
-    mutationFn: async (videoId: string) => {
-      // Step 1: Fetch full details if needed (duration is mandatory for backend)
-      const details = await fetchVideoDetails(videoId);
-      if (!details) throw new Error("Video not found");
-
-      const payload: AddSongPayload = {
-        youtubeId: videoId,
-        title: details.title,
-        duration: details.duration || 180,
-      };
-
-      return musicApi.addSong(payload);
-    },
-    onSuccess: () => {
-      // Invalidate library on success
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-    },
-  });
-
   const removeSongFromPlaylistMutation = useMutation({
-    mutationFn: async ({ playlistId, songId }: { playlistId: string; songId: string }) => {
+    mutationFn: async ({
+      playlistId,
+      songId,
+    }: {
+      playlistId: string;
+      songId: string;
+    }) => {
       return await musicApi.removeSongFromPlaylist(playlistId, songId);
     },
     onMutate: async ({ playlistId, songId }) => {
-      await queryClient.cancelQueries({ queryKey: ["playlistSongs", playlistId] });
-      const previousSongs = queryClient.getQueryData(["playlistSongs", playlistId]);
+      await queryClient.cancelQueries({
+        queryKey: ["playlistSongs", playlistId],
+      });
+      const previousSongs = queryClient.getQueryData([
+        "playlistSongs",
+        playlistId,
+      ]);
 
       queryClient.setQueryData(["playlistSongs", playlistId], (old: any) => {
         return old?.filter((s: any) => s.id !== songId);
@@ -82,37 +92,37 @@ export function useMusic(options: UseMusicOptions = {}) {
     },
     onError: (err, { playlistId }, context) => {
       if (context?.previousSongs) {
-        queryClient.setQueryData(["playlistSongs", playlistId], context.previousSongs);
+        queryClient.setQueryData(
+          ["playlistSongs", playlistId],
+          context.previousSongs,
+        );
       }
     },
     onSettled: (data, err, { playlistId }) => {
-      queryClient.invalidateQueries({ queryKey: ["playlistSongs", playlistId] });
+      queryClient.invalidateQueries({
+        queryKey: ["playlistSongs", playlistId],
+      });
       queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
     },
   });
 
-  // 🎧 Stream URL Mutation (Fetch fresh on play)
-  const streamMutation = useMutation({
-    mutationFn: async (songId: string) => {
-      try {
-        const response = await musicApi.getStreamUrl(songId);
-        return response.streamUrl;
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 403) {
-          throw new Error(
-            "Access Denied: You must add this song to your library first.",
-          );
-        }
-        throw error;
-      }
+  const addSongToPlaylistMutation = useMutation({
+    mutationFn: async (payload: AddSongToPlaylistPayload) => {
+      return await musicApi.addSongToPlaylist(payload);
+    },
+    onSuccess: (_, { playlistId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["playlistSongs", playlistId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
     },
   });
 
+
+
+
   return {
-    allSongs: allSongsQuery.data ?? [],
-    refetchAllSongs: allSongsQuery.refetch,
-    isFetchingSongs: allSongsQuery.isFetching,
-    isLoadingAllSongs: allSongsQuery.isLoading,
+
 
     userPlaylist: getUserPlaylistsQuery.data ?? [],
     refetchUserPlaylists: getUserPlaylistsQuery.refetch,
@@ -130,15 +140,21 @@ export function useMusic(options: UseMusicOptions = {}) {
     deletePlaylist: deletePlaylistMutation.mutateAsync,
     isDeletingPlaylist: deletePlaylistMutation.isPending,
 
-    isAdding: addSongMutation.isPending,
-    addSong: addSongMutation.mutateAsync,
+    addSongToPlaylist: addSongToPlaylistMutation.mutateAsync,
+    isAddingToPlaylist: addSongToPlaylistMutation.isPending,
     removeSongFromPlaylist: removeSongFromPlaylistMutation.mutateAsync,
     isRemoving: removeSongFromPlaylistMutation.isPending,
-    libraryError: allSongsQuery.error,
 
-    // Streaming
-    getStreamUrl: streamMutation.mutateAsync,
-    isStreaming: streamMutation.isPending,
-    streamError: streamMutation.error,
+
+
+    recommendations: recommendationsQuery.data ?? [],
+    isFetchingRecommendations: recommendationsQuery.isFetching,
+    isLoadingRecommendations: recommendationsQuery.isLoading,
+
+    genreSongs: getGenreSongsQuery.data ?? [],
+    isFetchingGenre: getGenreSongsQuery.isFetching,
+    isLoadingGenre: getGenreSongsQuery.isLoading,
+    genreError: getGenreSongsQuery.error,
+    refetchGenre: getGenreSongsQuery.refetch,
   };
 }

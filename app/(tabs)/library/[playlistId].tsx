@@ -5,8 +5,8 @@ import { useConfirm } from '@/src/hooks/useConfirm';
 import { useBottomSheet } from '@/src/hooks/useDrawer';
 import { useToast } from '@/src/hooks/useToast';
 import { useMusic } from '@/src/hooks/useMusic';
-import { formatPlaylistDuration } from '@/src/player/player.helpers';
 import { theme } from '@/src/theme';
+import { createLibrarySongActions } from '@/src/utils/songsActions';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
@@ -45,7 +45,17 @@ const pickHeroGradient = (seed: string) => {
     };
 };
 
-
+const formatDuration = (seconds: number) => {
+    if (!seconds || seconds <= 0) return "0:00";
+    if (seconds > 3600) {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        return `${hrs}h ${mins}m`;
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 
 const SkeletonBlock = ({ w, h, r }: { w: DimensionValue; h: number; r?: number }) => {
     return <View style={[styles.skeleton, { width: w, height: h, borderRadius: r ?? theme.radius.md }]} />;
@@ -63,8 +73,6 @@ export default function PlaylistScreen() {
     const {
         userPlaylist,
         isLoadingUserPlaylists,
-        allSongs,
-        // isLoadingAllSongs,
         playlistSongs,
         isFetchingPlaylistSongs,
         isLoadingPlaylistSongs,
@@ -75,6 +83,18 @@ export default function PlaylistScreen() {
     const confirm = useConfirm();
     const { open: openSheet, close: closeSheet } = useBottomSheet();
     const toast = useToast();
+
+    const handlePlayAll = () => {
+        if (playlistSongs.length === 0) return;
+        // Isolated: old player logic removed.
+        console.log('Play all requested for playlist');
+    };
+
+    const handleShuffleAll = () => {
+        if (playlistSongs.length === 0) return;
+        // Isolated: old player logic removed.
+        console.log('Shuffle all requested for playlist');
+    };
 
     const [isLiked, setLiked] = useState(false);
 
@@ -137,9 +157,6 @@ export default function PlaylistScreen() {
         }
     };
 
-
-
-
     const totalDurationSec = useMemo(
         () => playlistSongs.reduce((acc, cur) => acc + (cur.duration || 0), 0),
         [playlistSongs],
@@ -195,7 +212,7 @@ export default function PlaylistScreen() {
                                     <Text style={styles.metaDot}> • </Text>
                                     {playlistSongs.length} songs
                                     <Text style={styles.metaDot}> • </Text>
-                                    {formatPlaylistDuration(totalDurationSec)}
+                                    {formatDuration(totalDurationSec)}
                                 </Text>
                             </View>
                         </View>
@@ -209,6 +226,7 @@ export default function PlaylistScreen() {
                             scaleTo={0.985}
                             pressedOpacity={0.9}
                             accessibilityLabel="Play playlist"
+                            onPress={handlePlayAll}
                         >
                             <Ionicons name="play" size={18} color={theme.colors.onPrimary} />
                             <Text style={styles.playText}>Play</Text>
@@ -221,6 +239,7 @@ export default function PlaylistScreen() {
                             scaleTo={0.985}
                             pressedOpacity={0.88}
                             accessibilityLabel="Shuffle playlist"
+                            onPress={handleShuffleAll}
                         >
                             <Ionicons name="shuffle" size={18} color={theme.colors.textPrimary} />
                         </AnimatedPressable>
@@ -282,6 +301,7 @@ export default function PlaylistScreen() {
                         scaleTo={0.99}
                         pressedOpacity={0.92}
                         accessibilityLabel="Play"
+                        onPress={handlePlayAll}
                     >
                         <Ionicons name="play" size={14} color={theme.colors.onPrimary} />
                     </AnimatedPressable>
@@ -292,12 +312,19 @@ export default function PlaylistScreen() {
             <Animated.FlatList
                 data={playlistSongs}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-
+                renderItem={({ item, index }) => (
                     <SongListCard
                         playlistSongs={item}
-                        onPress={() => { }}
-                        onRemove={() => handleRemoveSong(item.id)}
+                        onPress={() => {
+                            // Isolated: old player logic removed.
+                            console.log('Song pressed:', item.trackName);
+                        }}
+                        actions={createLibrarySongActions({
+                            onClose: closeSheet,
+                            onRemove: () => {
+                                void handleRemoveSong(item.id);
+                            },
+                        })}
                     />
                 )}
                 contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
@@ -321,18 +348,13 @@ export default function PlaylistScreen() {
     );
 }
 
-function PlaylistSkeleton({ insetsTop }: { insetsTop: number }) {
+export function PlaylistSkeleton({ insetsTop }: { insetsTop: number }) {
     return (
         <View>
             <View style={[styles.heroBg, { paddingTop: insetsTop + 18, paddingHorizontal: theme.spacing.lg }]}>
-                <View style={styles.heroRow}>
+                <View style={[styles.heroRow, { alignItems: "center" }]}>
                     <SkeletonBlock w={152} h={152} r={theme.radius.lg} />
-                    <View style={{ flex: 1, paddingLeft: theme.spacing.lg, gap: 12 }}>
-                        <SkeletonBlock w={72} h={12} r={8} />
-                        <SkeletonBlock w={'85%'} h={36} r={12} />
-                        <SkeletonBlock w={'70%'} h={14} r={10} />
-                        <SkeletonBlock w={'55%'} h={14} r={10} />
-                    </View>
+
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 }}>
                     <SkeletonBlock w={110} h={44} r={999} />
@@ -344,7 +366,6 @@ function PlaylistSkeleton({ insetsTop }: { insetsTop: number }) {
 
             <View style={styles.listSection}>
                 <View style={[styles.tableHeader, styles.tableHeaderCompact]}>
-                    <SkeletonBlock w={24} h={12} r={8} />
                     <SkeletonBlock w={'45%'} h={12} r={8} />
                     <View style={{ flex: 1 }} />
                     <SkeletonBlock w={30} h={12} r={8} />
@@ -353,7 +374,6 @@ function PlaylistSkeleton({ insetsTop }: { insetsTop: number }) {
 
                 {Array.from({ length: 10 }).map((_, idx) => (
                     <View key={idx} style={[styles.skelRow, idx === 0 && { marginTop: theme.spacing.sm }]}>
-                        <SkeletonBlock w={24} h={12} r={8} />
                         <SkeletonBlock w={42} h={42} r={theme.radius.sm} />
                         <View style={{ flex: 1, gap: 8 }}>
                             <SkeletonBlock w={'70%'} h={12} r={8} />
@@ -402,6 +422,7 @@ const styles = StyleSheet.create({
     },
     heroRow: {
         flexDirection: SCREEN_WIDTH < 520 ? 'column' : 'row',
+
         gap: theme.spacing.lg,
         alignItems: SCREEN_WIDTH < 520 ? 'flex-start' : 'flex-end',
     },

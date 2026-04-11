@@ -5,7 +5,9 @@ import axios, {
 } from "axios";
 import { tokenStorage } from "../utils/tokenStorage";
 
-export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+// export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+export const BASE_URL = "http://10.11.125.82:3000";
+
 
 // console.log('BASE_URL', BASE_URL);
 

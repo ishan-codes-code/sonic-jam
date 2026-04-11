@@ -1,90 +1,109 @@
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MonitorSpeaker, Music, Pause, Play, Plus } from 'lucide-react-native';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { usePlaybackStore, usePlayer } from '@/src/playbackCore';
 import { theme } from '../../../theme';
-import { useGlobalPlayerLogic } from './GlobalPlayer.logic';
 import { styles } from './GlobalPlayer.styles';
+import { useRouter } from 'expo-router';
+import { usePathname } from 'expo-router';
 
 export const GlobalPlayer = () => {
-  const {
-    displayTitle,
-    displayYoutubeId,
-    isVisible,
-    status,
-    progressPercent,
-    handleToggle,
-    openFullPlayer,
-  } = useGlobalPlayerLogic();
+    const router = useRouter();
+    const pathname = usePathname();
+    const { pause, resume } = usePlayer();
+    const { currentSong, status, position, duration } = usePlaybackStore();
 
-  if (!isVisible) return null;
+    const isVisible = currentSong !== null && status !== 'idle';
+    const isPlaying = status === 'playing';
 
-  return (
-    <View style={styles.outerContainer}>
-      <TouchableOpacity
-        activeOpacity={0.95}
-        onPress={openFullPlayer}
-        style={styles.miniPlayer}
-      >
-        <LinearGradient
-          colors={[theme.colors.backgroundCard, theme.colors.backgroundSection]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+    const progressPercent = duration > 0 ? (position / duration) * 100 : 0;
 
-        <View style={styles.contentWrap}>
-          {/* Progress Line (bottom) */}
-          <View style={styles.progressBg}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
+    const artworkUri = currentSong?.image
+        ?? (currentSong?.youtubeId
+            ? `https://img.youtube.com/vi/${currentSong.youtubeId}/hqdefault.jpg`
+            : null);
 
-          <View style={styles.playerInfo}>
-            <View style={styles.albumArt}>
-              {displayYoutubeId ? (
-                <Image
-                  source={{ uri: `https://img.youtube.com/vi/${displayYoutubeId}/hqdefault.jpg` }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-              ) : (
+    if (!isVisible || pathname === "/player") return null;
+
+    const handleToggle = () => {
+        if (isPlaying) {
+            pause();
+        } else {
+            resume();
+        }
+    };
+
+
+    return (
+        <View style={styles.outerContainer}>
+            <TouchableOpacity
+                activeOpacity={0.95}
+                onPress={() => router.push("/player" as any)}
+                style={styles.miniPlayer}
+            >
                 <LinearGradient
-                  colors={[theme.colors.backgroundInteractive, theme.colors.backgroundCard]}
-                  style={StyleSheet.absoluteFill}
+                    colors={[theme.colors.backgroundCard, theme.colors.backgroundSection]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
                 />
-              )}
-              {!displayYoutubeId && <Music color="white" size={16} opacity={0.5} />}
-            </View>
 
-            <View style={styles.textStack}>
-              <Text style={styles.title} numberOfLines={1}>
-                {displayTitle}
-              </Text>
-              <Text style={styles.artist} numberOfLines={1}>
-                Sonicjam Music
-              </Text>
-            </View>
+                <View style={styles.contentWrap}>
+                    {/* Progress Line (bottom) */}
+                    <View style={styles.progressBg}>
+                        <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+                    </View>
 
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.actionBtn}>
-                <MonitorSpeaker color="white" size={20} opacity={0.8} />
-              </TouchableOpacity>
+                    <View style={styles.playerInfo}>
+                        <View style={styles.albumArt}>
+                            {artworkUri ? (
+                                <Image
+                                    source={{ uri: artworkUri }}
+                                    style={StyleSheet.absoluteFill}
+                                    resizeMode="cover"
+                                />
+                            ) : (
+                                <>
+                                    <LinearGradient
+                                        colors={[theme.colors.backgroundInteractive, theme.colors.backgroundCard]}
+                                        style={StyleSheet.absoluteFill}
+                                    />
+                                    <Music color={theme.colors.textMuted} size={16} />
+                                </>
+                            )}
+                        </View>
 
-              <TouchableOpacity style={styles.actionBtn}>
-                <Plus color="white" size={24} />
-              </TouchableOpacity>
+                        <View style={styles.textStack}>
+                            <Text style={styles.title} numberOfLines={1}>
+                                {currentSong?.trackName}
+                            </Text>
+                            <Text style={styles.artist} numberOfLines={1}>
+                                {currentSong?.artistName}
+                            </Text>
+                        </View>
 
-              <TouchableOpacity onPress={handleToggle} style={styles.playWrap}>
-                {status === 'playing' ? (
-                  <Pause color="white" fill="white" size={22} />
-                ) : (
-                  <Play color="white" fill="white" size={22} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+                        <View style={styles.actions}>
+                            <TouchableOpacity style={styles.actionBtn}>
+                                <MonitorSpeaker color="white" size={20} opacity={0.8} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.actionBtn}>
+                                <Plus color="white" size={24} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity onPress={handleToggle} style={styles.playWrap}>
+                                {status === 'playing' ? (
+                                    <Pause color="white" fill="white" size={22} />
+                                ) : (
+                                    <Play color="white" fill="white" size={22} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </TouchableOpacity>
         </View>
-      </TouchableOpacity>
-    </View>
-  );
+    );
 };
