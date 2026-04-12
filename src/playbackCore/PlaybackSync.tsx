@@ -61,24 +61,76 @@ export const PlaybackSync = () => {
         const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event: any) => {
             if (event.track) {
                 const store = usePlaybackStore.getState();
-                const track = event.track;
+                let track = event.track;
 
-                // Update store with new track metadata
-                if (track.song) {
-                    store.setCurrentSong(track.song, track);
-                    if (track.url) {
-                        store.setStream(track.url, track.streamUrlExpiresAt || (Date.now() + 300000));
+                // Resolve ONLY if placeholder
+                if (!track.url || track.url.startsWith('placeholder://')) {
+                    try {
+                        const { resolveStream } = await import('./playbackApi');
+
+                        const { streamUrl, streamUrlExpiresAt } = await resolveStream({
+                            songId: track.song.id,
+                        });
+
+                        const currentIndex = await TrackPlayer.getActiveTrackIndex();
+                        if (currentIndex !== event.index) {
+                            // User skipped away while we were loading
+                            return;
+                        }
+
+                        // Note: RNTP natively ignores URL mutations via `updateMetadataForTrack`.
+                        // We must swap the track seamlessly: Add after -> Skip to it -> Remove placeholder
+                        const updatedTrack = {
+                            ...track,
+                            url: streamUrl,
+                            streamUrlExpiresAt,
+                        };
+
+                        await TrackPlayer.add(updatedTrack, event.index + 1);
+                        await TrackPlayer.skip(event.index + 1);
+                        await TrackPlayer.remove(event.index);
+                        
+                        store.notifyQueueUpdate();
+
+                        const { state } = await TrackPlayer.getPlaybackState();
+                        if (state !== State.Playing && state !== State.Paused) {
+                            await TrackPlayer.play();
+                        }
+
+                        // The skip operation emits a new event for the resolved track. Abort here.
+                        return;
+
+                    } catch (error) {
+                        console.error('[PlaybackSync] resolve failed', error);
+                        return;
                     }
                 }
 
-                // Extract artwork colors for dynamic gradient (non-blocking)
-                const artworkUri: string | undefined = track.artwork ?? track.song?.image ?? undefined;
+                // Reset smart queue pointer on track change
+                store.setManualInsertIndex(null);
+
+                // Sync store
+                if (track.song) {
+                    store.setCurrentSong(track.song, track);
+
+                    if (track.url) {
+                        store.setStream(
+                            track.url,
+                            track.streamUrlExpiresAt || (Date.now() + 300000)
+                        );
+                    }
+                }
+
+                // Extract colors
+                const artworkUri = track.artwork ?? track.song?.image ?? undefined;
                 extractTrackColors(artworkUri).then((colors) => {
                     usePlaybackStore.getState().setTrackColors(colors);
                 });
 
-                // Trigger auto-fill if needed
-                extendQueue();
+                // Auto-fill logic
+                if (store.playbackMode === 'radio') {
+                    extendQueue();
+                }
             }
         });
 

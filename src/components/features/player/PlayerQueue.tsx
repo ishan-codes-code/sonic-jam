@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import TrackPlayer from 'react-native-track-player';
 import { theme } from '@/src/theme';
+import { usePlaybackStore } from '@/src/playbackCore';
 import SongListCard from '../Playlist/SongListCard';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -20,6 +21,8 @@ interface PlayerQueueProps {
 }
 
 export const PlayerQueue = ({ queue, activeIndex }: PlayerQueueProps) => {
+    const isPlaying = usePlaybackStore(s => s.status) === 'playing';
+
     if (queue.length === 0) {
         return (
             <View style={styles.queueSection}>
@@ -41,16 +44,18 @@ export const PlayerQueue = ({ queue, activeIndex }: PlayerQueueProps) => {
                 <Text style={styles.queueCount}>{queue.length} tracks</Text>
             </View>
 
-            {queue.map((item, relativeIndex) => {
-                const absoluteIndex = activeIndex + 1 + relativeIndex;
+            {queue.map((item, index) => {
+                const isCurrent = index === activeIndex;
                 const playlistSong = {
-                    id: item.songId || `${item.title}-${item.artist}-${relativeIndex}`,
+                    id: item.songId || `${item.title}-${item.artist}-${index}`,
                     title: item.title || 'Unknown Track',
                     channelName: item.artist,
                     duration: item.duration || 0,
                     youtubeId: item.url || '',
                     position: 0,
                     channelId: '',
+                    trackName: item.title || 'Unknown Track', // mapped to match latest schema
+                    artistName: item.artist,
                 } as any;
 
                 return (
@@ -58,7 +63,9 @@ export const PlayerQueue = ({ queue, activeIndex }: PlayerQueueProps) => {
                         key={playlistSong.id}
                         playlistSongs={playlistSong}
                         artworkUri={item.artwork}
-                        onPress={() => TrackPlayer.skip(absoluteIndex)}
+                        isCurrent={isCurrent}
+                        isPlaying={isPlaying}
+                        onPress={() => TrackPlayer.skip(index)}
                         trailingActions={[
                             {
                                 icon: <Ionicons name="menu" size={20} color="rgba(255,255,255,0.4)" />,

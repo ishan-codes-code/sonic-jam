@@ -14,17 +14,30 @@ export type SongQuickAction = {
 type LibrarySongActionsParams = {
     onClose: () => void;
     onRemove?: () => void;
+    onPlayNext?: () => void;
+    onAddToQueue?: () => void;
 };
 
 type RecentSongActionsParams = {
     onClose: () => void;
     onOpenAddToPlaylist: () => void;
     onRemove: () => void;
+    onPlayNext?: () => void;
+    onAddToQueue?: () => void;
+};
+
+type QueueSongActionsParams = {
+    onClose: () => void;
+    onRemove: () => void;
+    onPlayNext?: () => void;
+    onOpenAddToPlaylist?: () => void;
 };
 
 export const createLibrarySongActions = ({
     onClose,
     onRemove,
+    onPlayNext,
+    onAddToQueue,
 }: LibrarySongActionsParams): ActionItem[] => {
     const actions: ActionItem[] = [
         {
@@ -50,6 +63,20 @@ export const createLibrarySongActions = ({
             onPress: onClose,
         },
         {
+            label: 'Play Next',
+            icon: (
+                <Ionicons
+                    name="play-forward-outline"
+                    size={theme.spacing.lg}
+                    color={theme.colors.textPrimary}
+                />
+            ),
+            onPress: () => {
+                onClose();
+                onPlayNext?.();
+            },
+        },
+        {
             label: 'Add to Queue',
             icon: (
                 <Ionicons
@@ -58,7 +85,10 @@ export const createLibrarySongActions = ({
                     color={theme.colors.textPrimary}
                 />
             ),
-            onPress: onClose,
+            onPress: () => {
+                onClose();
+                onAddToQueue?.();
+            },
         },
         {
             label: 'Go to artist',
@@ -97,6 +127,8 @@ export const createRecentSongActions = ({
     onClose,
     onOpenAddToPlaylist,
     onRemove,
+    onPlayNext,
+    onAddToQueue,
 }: RecentSongActionsParams): {
     actions: ActionItem[];
     trailingActions: SongQuickAction[];
@@ -117,6 +149,34 @@ export const createRecentSongActions = ({
                     setTimeout(() => {
                         onOpenAddToPlaylist();
                     }, 180);
+                },
+            },
+            {
+                label: 'Play Next',
+                icon: (
+                    <Ionicons
+                        name="play-forward-outline"
+                        size={theme.spacing.lg}
+                        color={theme.colors.textPrimary}
+                    />
+                ),
+                onPress: () => {
+                    onClose();
+                    onPlayNext?.();
+                },
+            },
+            {
+                label: 'Add to Queue',
+                icon: (
+                    <Ionicons
+                        name="list-outline"
+                        size={theme.spacing.lg}
+                        color={theme.colors.textPrimary}
+                    />
+                ),
+                onPress: () => {
+                    onClose();
+                    onAddToQueue?.();
                 },
             },
             {
@@ -145,4 +205,60 @@ export const createRecentSongActions = ({
             },
         ],
     };
+};
+
+export const createQueueSongActions = ({
+    onClose,
+    onRemove,
+    onPlayNext,
+    onOpenAddToPlaylist,
+}: QueueSongActionsParams): ActionItem[] => {
+    const actions: ActionItem[] = [
+        {
+            label: 'Play Next',
+            icon: (
+                <Ionicons
+                    name="play-forward-outline"
+                    size={theme.spacing.lg}
+                    color={theme.colors.textPrimary}
+                />
+            ),
+            onPress: () => {
+                onClose();
+                onPlayNext?.();
+            },
+        },
+        {
+            label: 'Add to playlist',
+            icon: (
+                <Ionicons
+                    name="add-circle-outline"
+                    size={theme.spacing.lg}
+                    color={theme.colors.textPrimary}
+                />
+            ),
+            onPress: () => {
+                onClose();
+                setTimeout(() => {
+                    onOpenAddToPlaylist?.();
+                }, 180);
+            },
+        },
+        {
+            label: 'Remove from Queue',
+            icon: (
+                <Ionicons
+                    name="trash-outline"
+                    size={theme.spacing.lg}
+                    color={theme.colors.error}
+                />
+            ),
+            onPress: () => {
+                onClose();
+                onRemove();
+            },
+        },
+    ];
+
+    return actions;
 };

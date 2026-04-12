@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ThemeProvider, DarkTheme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../src/hooks/useAuth';
@@ -67,6 +68,15 @@ const queryClient = new QueryClient();
 // --------------------------------------------------------------------------
 // Root layout
 // --------------------------------------------------------------------------
+
+const customDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: theme.colors.backgroundBase,
+  },
+};
+
 export default function RootLayout() {
   useEffect(() => {
     setupPlayer();
@@ -74,37 +84,40 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <ConfirmProvider>
-          <BottomSheetProvider>
-            <AuthGuard>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: 'fade',
-                  animationDuration: 200,
-                }}
-              >
-                <Stack.Screen name="(tabs)" />
-
-                <Stack.Screen
-                  name="player"
-                  options={{
-                    presentation: 'fullScreenModal',
-                    animation: 'slide_from_bottom',
-                    gestureEnabled: false,
+      <ThemeProvider value={customDarkTheme}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ConfirmProvider>
+            <BottomSheetProvider>
+              <AuthGuard>
+                <Stack
+                  screenOptions={{
                     headerShown: false,
-                    contentStyle: { backgroundColor: 'transparent' }
+                    animation: 'fade',
+                    animationDuration: 200,
+                    contentStyle: { backgroundColor: theme.colors.backgroundBase },
                   }}
-                />
-              </Stack>
-              <GlobalPlayer />
-              <PlaybackSync />
-            </AuthGuard>
-          </BottomSheetProvider>
-        </ConfirmProvider>
-        <Toast config={toastConfig} />
-      </GestureHandlerRootView>
+                >
+                  <Stack.Screen name="(tabs)" />
+
+                  <Stack.Screen
+                    name="player"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_bottom',
+                      gestureEnabled: false,
+                      headerShown: false,
+                      contentStyle: { backgroundColor: 'transparent' }
+                    }}
+                  />
+                </Stack>
+                <GlobalPlayer />
+                <PlaybackSync />
+              </AuthGuard>
+            </BottomSheetProvider>
+          </ConfirmProvider>
+          <Toast config={toastConfig} />
+        </GestureHandlerRootView>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

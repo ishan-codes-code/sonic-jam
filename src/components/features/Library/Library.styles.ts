@@ -12,25 +12,30 @@ export const styles = StyleSheet.create({
   },
   scrollContent: {},
 
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  headerTitle: {
+    ...theme.typography.headline,
+    color: theme.colors.textPrimary,
+    fontSize: 22,
+  },
+  headerSubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    opacity: 0.7,
+  },
+
   section: {
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.lg,
     marginBottom: theme.spacing.xxl,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-  },
-  sectionTitle: {
-    ...theme.typography.title,
-    color: theme.colors.textPrimary,
-    fontWeight: "700",
   },
   headerIconTray: {
     flexDirection: "row",

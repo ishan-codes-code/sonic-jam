@@ -55,7 +55,20 @@ export type TrackColors = {
     secondary: string;
 };
 
+export type PlaybackMode = 'radio' | 'playlist';
+
 export type PlaybackState = {
+    // Mode
+    playbackMode: PlaybackMode;
+    playlistMeta: {
+        playlistId: string;
+        total: number;
+    } | null;
+
+    // Queue Pointer for "Add to Queue"
+    manualInsertIndex: number | null;
+    queueRevision: number;
+
     // Current song
     currentSong: Song | null;
     currentTrack: PlaybackTrack | null;

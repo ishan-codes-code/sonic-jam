@@ -1,7 +1,12 @@
 import { create } from 'zustand';
-import type { PlaybackState, PlaybackStatus, PlaybackTrack, Song, TrackColors } from './types';
+import type { PlaybackMode, PlaybackState, PlaybackStatus, PlaybackTrack, Song, TrackColors } from './types';
 
 type PlaybackActions = {
+    // Mode
+    setPlaybackMode: (mode: PlaybackMode) => void;
+    setPlaylistMeta: (meta: { playlistId: string; total: number }) => void;
+    clearPlaylistMeta: () => void;
+
     // Status
     setStatus: (status: PlaybackStatus) => void;
     setError: (error: string | null) => void;
@@ -18,6 +23,10 @@ type PlaybackActions = {
     setPosition: (position: number) => void;
     setDuration: (duration: number) => void;
 
+    // Queue Pointer
+    setManualInsertIndex: (index: number | null) => void;
+    notifyQueueUpdate: () => void;
+
     // Future: job support
     setPendingJobId: (jobId: string | null) => void;
 
@@ -29,6 +38,10 @@ type PlaybackActions = {
 };
 
 const initialState: PlaybackState = {
+    playbackMode: 'radio',
+    playlistMeta: null,
+    manualInsertIndex: null,
+    queueRevision: 0,
     currentSong: null,
     currentTrack: null,
     status: 'idle',
@@ -43,6 +56,12 @@ const initialState: PlaybackState = {
 
 export const usePlaybackStore = create<PlaybackState & PlaybackActions>((set) => ({
     ...initialState,
+
+    setPlaybackMode: (playbackMode) => set({ playbackMode }),
+
+    setPlaylistMeta: (playlistMeta) => set({ playlistMeta }),
+
+    clearPlaylistMeta: () => set({ playlistMeta: null }),
 
     setStatus: (status) => set({ status, error: null }),
 
@@ -71,6 +90,10 @@ export const usePlaybackStore = create<PlaybackState & PlaybackActions>((set) =>
     setPosition: (position) => set({ position }),
 
     setDuration: (duration) => set({ duration }),
+
+    setManualInsertIndex: (manualInsertIndex) => set({ manualInsertIndex }),
+
+    notifyQueueUpdate: () => set((state) => ({ queueRevision: state.queueRevision + 1 })),
 
     setPendingJobId: (pendingJobId) => set({ pendingJobId }),
 

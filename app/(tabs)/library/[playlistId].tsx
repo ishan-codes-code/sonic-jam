@@ -13,6 +13,8 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { usePlayer } from '@/src/playbackCore/usePlayer';
+import { usePlaybackStore } from '@/src/playbackCore/usePlaybackStore';
 import React, { useMemo, useState } from 'react';
 import { type DimensionValue, Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -70,6 +72,11 @@ export default function PlaylistScreen() {
 
     const id = typeof playlistId === 'string' ? playlistId : String(playlistId ?? '');
 
+    const playbackMode = usePlaybackStore(s => s.playbackMode);
+    const playlistMeta = usePlaybackStore(s => s.playlistMeta);
+    const currentSong = usePlaybackStore(s => s.currentSong);
+    const isPlaying = usePlaybackStore(s => s.status) === 'playing';
+
     const {
         userPlaylist,
         isLoadingUserPlaylists,
@@ -84,10 +91,11 @@ export default function PlaylistScreen() {
     const { open: openSheet, close: closeSheet } = useBottomSheet();
     const toast = useToast();
 
+    const { playPlaylist, playNext, addToQueue } = usePlayer();
+
     const handlePlayAll = () => {
         if (playlistSongs.length === 0) return;
-        // Isolated: old player logic removed.
-        console.log('Play all requested for playlist');
+        playPlaylist(playlistSongs, 0, id);
     };
 
     const handleShuffleAll = () => {
@@ -311,22 +319,33 @@ export default function PlaylistScreen() {
 
             <Animated.FlatList
                 data={playlistSongs}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item, index }) => (
-                    <SongListCard
-                        playlistSongs={item}
-                        onPress={() => {
-                            // Isolated: old player logic removed.
-                            console.log('Song pressed:', item.trackName);
-                        }}
-                        actions={createLibrarySongActions({
-                            onClose: closeSheet,
-                            onRemove: () => {
-                                void handleRemoveSong(item.id);
-                            },
-                        })}
-                    />
-                )}
+                keyExtractor={(item, index) => `${item.id}-${index}`}
+                renderItem={({ item, index }) => {
+                    const isCurrent = playbackMode === 'playlist' && playlistMeta?.playlistId === id && currentSong?.id === item.id;
+                    
+                    return (
+                        <SongListCard
+                            playlistSongs={item}
+                            isCurrent={isCurrent}
+                            isPlaying={isPlaying}
+                            onPress={() => {
+                                playPlaylist(playlistSongs, index, id);
+                            }}
+                            actions={createLibrarySongActions({
+                                onClose: closeSheet,
+                                onRemove: () => {
+                                    void handleRemoveSong(item.id);
+                                },
+                                onPlayNext: () => {
+                                    void playNext({ songId: item.id });
+                                },
+                                onAddToQueue: () => {
+                                    void addToQueue({ songId: item.id });
+                                },
+                            })}
+                        />
+                    );
+                }}
                 contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
                 ListHeaderComponent={isLoading ? <PlaylistSkeleton insetsTop={insets.top} /> : header}
                 ListEmptyComponent={

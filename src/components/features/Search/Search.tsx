@@ -37,7 +37,7 @@ export function Search() {
 
   const listData = showRecentSongs ? recentSongs : results;
 
-  const { play } = usePlayer();
+  const { play, playNext, addToQueue } = usePlayer();
 
   const handlePlay = async (item: SearchTrack) => {
     // Add basic info immediately for quick UI response
@@ -97,6 +97,12 @@ export function Search() {
               },
               onRemove: () => {
                 void removeRecentSong(item.id);
+              },
+              onPlayNext: () => {
+                void playNext({ songId: item.id });
+              },
+              onAddToQueue: () => {
+                void addToQueue({ songId: item.id });
               },
             });
 

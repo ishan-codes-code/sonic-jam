@@ -1,6 +1,6 @@
 # Sonic PR Description
 
-_Generated automatically by `scripts/generate-project-docs.js` on 2026-04-09T22:35:36.937Z._
+> Maintenance rule: update this file before every `git push` whenever routes, workflows, schema, dependencies, or operational assumptions change. This file is intended to be the current single source of truth for agents and developers working in this repository.
 
 ## Project Overview
 

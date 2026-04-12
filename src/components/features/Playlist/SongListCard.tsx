@@ -9,6 +9,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 import { MusicOptionsDrawer } from '../../ui/MusicOptionsDrawer';
 import { SongPlaceholder } from '../../ui/SongPlaceholder';
+import AudioWave from '../../ui/AudioWave';
 
 interface SongListCardProps {
     playlistSongs: PlaylistSongs;
@@ -16,6 +17,8 @@ interface SongListCardProps {
     onPress: () => void;
     actions?: ActionItem[];
     trailingActions?: SongQuickAction[];
+    isCurrent?: boolean;
+    isPlaying?: boolean;
 }
 
 /**
@@ -34,6 +37,8 @@ export default function SongListCard({
     onPress,
     actions = [],
     trailingActions = [],
+    isCurrent = false,
+    isPlaying = true,
 }: SongListCardProps) {
     const [imageError, setImageError] = useState(false);
 
@@ -89,9 +94,26 @@ export default function SongListCard({
                 </View>
 
                 <View style={styles.textWrapper}>
-                    <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-                        {playlistSongs.trackName}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text 
+                            style={[styles.title, isCurrent && { color: theme.colors.actionAccent }, { flexShrink: 1 }]} 
+                            numberOfLines={1} 
+                            ellipsizeMode="tail"
+                        >
+                            {playlistSongs.trackName}
+                        </Text>
+                        {isCurrent && (
+                            <AudioWave 
+                                isPlaying={isPlaying} 
+                                barColor={theme.colors.actionAccent} 
+                                count={3} 
+                                barWidth={2.5} 
+                                maxHeight={12} 
+                                minHeight={3} 
+                                gap={3} 
+                            />
+                        )}
+                    </View>
                     <View style={styles.subTitleWrapper}>
                         <Text style={styles.subTitle} numberOfLines={1}>
                             {playlistSongs.artistName ?? "Unknown"}

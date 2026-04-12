@@ -47,18 +47,25 @@ export const toastConfig: ToastConfig = {
     <BaseToast
       {...props}
       style={{
-        borderLeftColor: theme.colors.actionAccent,
-        backgroundColor: theme.colors.backgroundCard,
-        borderRadius: 25,
-        width: '90%',
-        height: 50,
-        borderLeftWidth: 6,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        width: '92%',
+        height: 54,
+        borderLeftWidth: 0,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
       }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
+      contentContainerStyle={{ paddingHorizontal: 20 }}
       text1Style={{
-        color: theme.colors.textPrimary,
-        fontSize: 14,
-        fontWeight: '600'
+        color: '#000', // Premium Green
+        fontSize: 15,
+        fontWeight: '700',
+        letterSpacing: -0.3,
       }}
     />
   ),
@@ -66,18 +73,25 @@ export const toastConfig: ToastConfig = {
     <ErrorToast
       {...props}
       style={{
-        borderLeftColor: theme.colors.error,
-        backgroundColor: theme.colors.backgroundCard,
-        borderRadius: 25,
-        width: '90%',
-        height: 50,
-        borderLeftWidth: 6,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        width: '92%',
+        height: 54,
+        borderLeftWidth: 0,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
       }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
+      contentContainerStyle={{ paddingHorizontal: 20 }}
       text1Style={{
-        color: theme.colors.textPrimary,
-        fontSize: 14,
-        fontWeight: '600'
+        color: theme.colors.error, // Rose Red
+        fontSize: 15,
+        fontWeight: '700',
+        letterSpacing: -0.3,
       }}
     />
   ),
@@ -85,18 +99,25 @@ export const toastConfig: ToastConfig = {
     <BaseToast
       {...props}
       style={{
-        borderLeftColor: theme.colors.secondaryAccent,
-        backgroundColor: theme.colors.backgroundCard,
-        borderRadius: 25,
-        width: '90%',
-        height: 50,
-        borderLeftWidth: 6,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        width: '92%',
+        height: 54,
+        borderLeftWidth: 0,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
       }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
+      contentContainerStyle={{ paddingHorizontal: 20 }}
       text1Style={{
-        color: theme.colors.textPrimary,
-        fontSize: 14,
-        fontWeight: '600'
+        color: '#000',
+        fontSize: 15,
+        fontWeight: '700',
+        letterSpacing: -0.3,
       }}
     />
   )

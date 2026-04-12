@@ -16,6 +16,7 @@ import { useMusic } from '@/src/hooks/useMusic';
 import { Song } from '@/src/playbackCore/types';
 import { usePlayer } from '@/src/playbackCore/usePlayer';
 import { LinearGradient } from 'expo-linear-gradient';
+import SongListCard from '@/src/components/features/Playlist/SongListCard';
 
 export default function GenreTracksScreen() {
   const { genre } = useLocalSearchParams<{ genre: string }>();
@@ -37,20 +38,18 @@ export default function GenreTracksScreen() {
   };
 
   const renderTrackItem = ({ item }: { item: Song }) => (
-    <TouchableOpacity 
-      style={styles.trackItem} 
+    <SongListCard
+      playlistSongs={{
+        id: item.id,
+        trackName: item.trackName || 'Unknown',
+        artistName: item.artistName || 'Unknown',
+        duration: item.duration || 0,
+        youtubeId: '',
+        image: item.image || null,
+      } as any}
+      artworkUri={item.image}
       onPress={() => handleTrackPress(item)}
-      activeOpacity={0.7}
-    >
-      <Image 
-        source={item.image ? { uri: item.image } : require('@/assets/images/album_analog_dreams.png')} 
-        style={styles.trackImage} 
-      />
-      <View style={styles.trackInfo}>
-        <Text style={styles.trackName} numberOfLines={1}>{item.trackName}</Text>
-        <Text style={styles.artistName} numberOfLines={1}>{item.artistName}</Text>
-      </View>
-    </TouchableOpacity>
+    />
   );
 
   return (
@@ -125,34 +124,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 100,
-  },
-  trackItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  trackImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 6,
-    marginRight: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  trackInfo: {
-    flex: 1,
-  },
-  trackName: {
-    ...theme.typography.body,
-    color: theme.colors.textPrimary,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  artistName: {
-    ...theme.typography.metadata,
-    color: theme.colors.textSecondary,
-    marginTop: 2,
   },
   centered: {
     flex: 1,

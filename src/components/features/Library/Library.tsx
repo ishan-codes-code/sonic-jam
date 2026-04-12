@@ -152,28 +152,28 @@ export const Library = () => {
         isCreating={isCreatingPlaylist}
       />
 
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Your Library</Text>
+          <Text style={styles.headerSubtitle}>Collections and likes</Text>
+        </View>
+        <View style={styles.headerIconTray}>
+          <AnimatedPressable onPress={() => setOpenModal(true)} hitSlop={10} accessibilityLabel="Create playlist" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
+            <Ionicons name={"add"} size={32} color="#fff" />
+          </AnimatedPressable>
+
+          <AnimatedPressable onPress={() => setPlaylistLayout(prev => prev === 'grid' ? 'list' : 'grid')} hitSlop={10} accessibilityLabel="Toggle layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
+            <Ionicons name={playListLayout === 'grid' ? 'list' : 'grid'} size={24} color="#fff" />
+          </AnimatedPressable>
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="library" size={24} color={theme.colors.primaryAccent} />
-              <Text style={styles.sectionTitle}>Your Library</Text>
-            </View>
-            <View style={styles.headerIconTray}>
-              <AnimatedPressable onPress={() => setOpenModal(true)} hitSlop={10} accessibilityLabel="Create playlist" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
-                <Ionicons name={"add"} size={28} color="#fff" />
-              </AnimatedPressable>
-
-              <AnimatedPressable onPress={() => setPlaylistLayout(prev => prev === 'grid' ? 'list' : 'grid')} hitSlop={10} accessibilityLabel="Toggle layout" accessibilityRole="button" feedback="snappy" scaleTo={0.8}>
-                <Ionicons name={playListLayout === 'grid' ? 'list' : 'grid'} size={24} color="#fff" />
-              </AnimatedPressable>
-            </View>
-          </View>
-
           {isLoadingUserPlaylists ? (
             <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ color: theme.colors.textSecondary }}>Sounding the library...</Text>

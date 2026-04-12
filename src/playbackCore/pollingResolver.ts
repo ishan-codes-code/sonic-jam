@@ -7,9 +7,9 @@ import { useJobStore } from './useJobStore';
 export const STREAM_URL_TTL_MS = 5 * 60 * 1000;       // 5 minutes (matches backend)
 export const STREAM_URL_BUFFER_MS = 30 * 1000;
 
-const INITIAL_POLL_INTERVAL = 30000; // start slow (30s)
-const MIN_POLL_INTERVAL = 5000;      // end fast (5s)
-const BACKOFF_STEP = 5000;           // decrease by 5s
+const INITIAL_POLL_INTERVAL = 4000;  // start fast (4s)
+const MAX_POLL_INTERVAL = 10000;     // cap at 10s
+const BACKOFF_STEP = 2000;           // increase by 2s
 const MAX_TIMEOUT = 300000;          // 5 min (important)
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -36,15 +36,15 @@ export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
 
         // First successful poll (that isn't completed/failed yet) marks it as active/processing
         if (response.status !== 'completed' && response.status !== 'failed') {
-            jobStore.updateJob(jobId, { 
+            jobStore.updateJob(jobId, {
                 status: 'active',
-                progress: response.progress 
+                progress: response.progress
             });
         }
 
         if (response.status === 'completed') {
             const res = response as Extract<PlayJobResponse, { status: 'completed' }>;
-            
+
             // Sync to job store
             jobStore.updateJob(jobId, {
                 status: 'completed',
@@ -71,10 +71,10 @@ export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
         // pending/waiting
         await sleep(currentInterval);
 
-        // Progressive backoff
-        currentInterval = Math.max(
-            currentInterval - BACKOFF_STEP,
-            MIN_POLL_INTERVAL
+        // Progressive backoff (start fast, get slower)
+        currentInterval = Math.min(
+            currentInterval + BACKOFF_STEP,
+            MAX_POLL_INTERVAL
         );
     }
 

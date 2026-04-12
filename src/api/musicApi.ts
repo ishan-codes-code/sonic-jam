@@ -51,65 +51,6 @@ export type PlaylistSongs = Song & {
   position?: number;
 };
 
-const readNumericProgress = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (value && typeof value === "object") {
-    const candidate = (value as Record<string, unknown>).percent;
-    if (typeof candidate === "number" && Number.isFinite(candidate)) {
-      return candidate;
-    }
-  }
-
-  return null;
-};
-
-const readStreamUrl = (data: any): string | null => {
-  const candidates = [
-    data?.streamUrl,
-    data?.url,
-    data?.data?.streamUrl,
-    data?.data?.url,
-    data?.result?.streamUrl,
-    data?.result?.url,
-    data?.returnvalue?.streamUrl,
-    data?.returnvalue?.url,
-    data?.returnValue?.streamUrl,
-    data?.returnValue?.url,
-    data?.data?.result?.streamUrl,
-    data?.data?.result?.url,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate;
-    }
-  }
-
-  return null;
-};
-
-const toTitleCase = (value: string): string =>
-  value
-    .trim()
-    .split(/\s+/)
-    .map((part) =>
-      part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part,
-    )
-    .join(" ");
-
-const formatDisplayName = (value?: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  return toTitleCase(trimmed);
-};
-
-
-
-
 
 
 export const musicApi = {

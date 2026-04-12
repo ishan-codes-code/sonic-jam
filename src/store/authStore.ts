@@ -38,8 +38,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       await tokenStorage.saveTokens(data.accessToken, data.refreshToken);
       const user = await authApi.getMe();
       set({ user, status: 'authenticated', error: null });
-    } catch (err: unknown) {
-      const message = extractErrorMessage(err, 'Login failed. Please check your credentials.');
+    } catch (err: any) {
+      let message = extractErrorMessage(err, 'Login failed. Please check your credentials.');
+      
+      // Verification check (401 Unauthorized with unverified message)
+      if (err.response?.status === 401) {
+        const contactEmail = err.response?.data?.contactEmail;
+        if (contactEmail) {
+           message = `Email not verified. Please check your inbox or contact ${contactEmail}.`;
+        }
+      }
+
       set({ status: 'unauthenticated', error: message });
       throw err;
     }
@@ -49,10 +58,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   signup: async (payload) => {
     set({ status: 'loading', error: null });
     try {
-      const data = await authApi.signup(payload);
-      await tokenStorage.saveTokens(data.accessToken, data.refreshToken);
-      const user = await authApi.getMe();
-      set({ user, status: 'authenticated', error: null });
+      await authApi.signup(payload);
+      // No longer logging in automatically. 
+      // User must verify email and log in manually.
+      set({ status: 'unauthenticated', error: null });
     } catch (err: unknown) {
       const message = extractErrorMessage(err, 'Signup failed. Please try again.');
       set({ status: 'unauthenticated', error: message });

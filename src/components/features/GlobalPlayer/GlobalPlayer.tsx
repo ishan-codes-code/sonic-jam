@@ -8,11 +8,14 @@ import { theme } from '../../../theme';
 import { styles } from './GlobalPlayer.styles';
 import { useRouter } from 'expo-router';
 import { usePathname } from 'expo-router';
+import { useBottomSheet } from '@/src/hooks/useDrawer';
+import { RecentSongPlaylistDrawer } from '../Search/RecentSongPlaylistDrawer';
 
 export const GlobalPlayer = () => {
     const router = useRouter();
     const pathname = usePathname();
     const { pause, resume } = usePlayer();
+    const { open } = useBottomSheet();
     const { currentSong, status, position, duration } = usePlaybackStore();
 
     const isVisible = currentSong !== null && status !== 'idle';
@@ -85,11 +88,22 @@ export const GlobalPlayer = () => {
                         </View>
 
                         <View style={styles.actions}>
-                            <TouchableOpacity style={styles.actionBtn}>
-                                <MonitorSpeaker color="white" size={20} opacity={0.8} />
-                            </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.actionBtn}>
+                            <TouchableOpacity
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    if (currentSong) {
+                                        open(
+                                            <RecentSongPlaylistDrawer
+                                                songId={currentSong.id}
+                                                songTitle={currentSong.trackName}
+                                            />,
+                                            ['55%', '82%']
+                                        );
+                                    }
+                                }}
+                                style={styles.actionBtn}
+                            >
                                 <Plus color="white" size={24} />
                             </TouchableOpacity>
 

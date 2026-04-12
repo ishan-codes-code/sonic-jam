@@ -40,6 +40,7 @@ export default function TabLayout() {
         tabBarBackground: () => (
           <View style={{ flex: 1, backgroundColor: '#0A0A0A', borderTopLeftRadius: 20, borderTopRightRadius: 20 }} />
         ),
+
       }}
     >
       <Tabs.Screen
