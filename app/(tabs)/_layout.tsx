@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Compass, Home, Library, User } from 'lucide-react-native';
+import { Download, Home, Library, Search, User } from 'lucide-react-native';
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { theme } from '../../src/theme';
@@ -40,20 +40,21 @@ export default function TabLayout() {
         tabBarBackground: () => (
           <View style={{ flex: 1, backgroundColor: '#0A0A0A', borderTopLeftRadius: 20, borderTopRightRadius: 20 }} />
         ),
+
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => <Home color={color} size={24} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="search"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color, size }) => <Compass color={color} size={24} />,
+          title: 'Search',
+          tabBarIcon: ({ color, size }) => <Search color={color} size={24} />,
         }}
       />
 
@@ -62,6 +63,13 @@ export default function TabLayout() {
         options={{
           title: 'Library',
           tabBarIcon: ({ color, size }) => <Library color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="processing"
+        options={{
+          title: 'Processing',
+          tabBarIcon: ({ color, size }) => <Download color={color} size={24} />,
         }}
       />
       <Tabs.Screen

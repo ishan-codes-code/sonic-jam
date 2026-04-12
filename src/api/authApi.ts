@@ -13,6 +13,7 @@ export interface User {
   name?: string;
   email: string;
   createdAt?: string;
+  favoritesPlaylistId?: string;
 }
 
 export interface SignupPayload {
@@ -31,7 +32,7 @@ export interface LoginPayload {
 // --------------------------------------------------------------------------
 export const authApi = {
   signup: (payload: SignupPayload) =>
-    apiClient.post<AuthTokens>('/auth/signup', payload).then((r) => r.data),
+    apiClient.post<{ message: string }>('/auth/signup', payload).then((r) => r.data),
 
   login: (payload: LoginPayload) =>
     apiClient.post<AuthTokens>('/auth/login', payload).then((r) => r.data),

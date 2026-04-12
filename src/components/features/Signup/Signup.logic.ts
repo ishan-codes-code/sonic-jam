@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useToast } from '../../../hooks/useToast';
+import { useRouter } from 'expo-router';
 
 function validate(name: string, email: string, password: string): string | null {
   if (!name.trim()) return 'Full name is required.';
@@ -12,6 +14,8 @@ function validate(name: string, email: string, password: string): string | null 
 
 export const useSignupLogic = () => {
   const { signup, status, error, clearError } = useAuth();
+  const toast = useToast();
+  const router = useRouter();
   const isLoading = status === 'loading';
 
   const [name, setName] = useState('');
@@ -36,6 +40,8 @@ export const useSignupLogic = () => {
     setFieldError(null);
     try {
       await signup({ name: name.trim(), email: email.trim().toLowerCase(), password });
+      toast.success('Registration successful! Please login.');
+      router.push('/login');
     } catch {
       // Error is in the store
     }

@@ -1,221 +1,225 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 import { theme } from "../../../theme";
-
-const CARD_RADIUS = 34;
-const CARD_HEIGHT = 156;
-
-const { lineHeight, ...headlineWithoutLineHeight } = theme.typography.headline;
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.backgroundBase,
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 160,
-  },
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 44,
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    gap: 16,
   },
-  headerCopy: {
-    flex: 1,
-  },
-  screenTitle: {
-    ...theme.typography.displayMedium,
-    color: theme.colors.primaryAccent,
-    fontSize: 24,
-    lineHeight: 24,
-    letterSpacing: -1,
-  },
-  screenSubtitle: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    marginTop: 2,
-    fontSize: 14,
-    lineHeight: 24,
-  },
-  headerMenu: {
-    width: 32,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  boxCon: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 28,
-    flexWrap: "wrap",
-  },
-  filterChip: {
+  backBtn: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
     backgroundColor: theme.colors.backgroundCard,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
-  filterChipActive: {
-    backgroundColor: theme.colors.primaryAccent,
-  },
-  boxLabel: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontWeight: "600",
+  headerTitle: {
+    ...theme.typography.headline,
     color: theme.colors.textPrimary,
+    fontSize: 22,
   },
-  boxLabelActive: {
-    color: theme.colors.backgroundBase,
+  headerSubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    opacity: 0.7,
   },
-  sectionContent: {
-    gap: 18,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 120,
   },
-  card: {
-    borderRadius: 16,
-    backgroundColor: "#0d0d0d",
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 10,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    ...theme.typography.label,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  badge: {
+    backgroundColor: theme.colors.primaryAccent,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: {
+    ...theme.typography.label,
+    color: theme.colors.backgroundBase,
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  jobList: {
+    gap: 12,
+  },
+  jobCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    backgroundColor: theme.colors.backgroundCard,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.03)",
-  },
-  failedCard: {
-    borderColor: "rgba(255, 110, 132, 0.2)",
-    backgroundColor: "#0b090a",
+    ...Platform.select({
+        ios: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 10,
+        },
+        android: {
+            elevation: 4,
+        }
+    })
   },
   completedCard: {
-    borderColor: "rgba(143, 255, 191, 0.12)",
+    borderColor: "rgba(0, 255, 128, 0.1)",
+  },
+  failedCard: {
+    borderColor: "rgba(255, 69, 58, 0.1)",
+  },
+  jobInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  artworkContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    overflow: "hidden",
   },
   artwork: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    marginRight: 18,
+    width: "100%",
+    height: "100%",
   },
-  artworkFallback: {
+  artworkPlaceholder: {
     backgroundColor: "rgba(255,255,255,0.05)",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardBody: {
+  jobDetails: {
     flex: 1,
-    justifyContent: "center",
-    gap: 6,
+    gap: 2,
   },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  title: {
-    ...headlineWithoutLineHeight,
+  jobTitle: {
+    ...theme.typography.headline,
     color: theme.colors.textPrimary,
     fontSize: 15,
-    flex: 1,
   },
-  duration: {
-    ...theme.typography.label,
-    color: theme.colors.textSecondary,
-    fontSize: 10,
-    marginTop: 2,
-    lineHeight: undefined,
-    position: "absolute",
-    bottom: 5,
-    right: 25,
-  },
-  durationStatic: {
-    ...theme.typography.label,
+  jobSubtitle: {
+    ...theme.typography.body,
     color: theme.colors.textSecondary,
     fontSize: 12,
-    marginTop: 6,
-    lineHeight: undefined,
-  },
-  dismissButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    marginTop: 4,
   },
   statusLabel: {
     ...theme.typography.label,
-    color: theme.colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
   },
-  progressSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 12,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 4,
-    borderRadius: 9999,
-    backgroundColor: "#eeeeee",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: 4,
-    backgroundColor: "purple",
-  },
-  progressValue: {
-    ...theme.typography.label,
-    color: theme.colors.secondaryAccent,
-    fontSize: 13,
-    minWidth: 38,
-    textAlign: "right",
-  },
-  statusText: {
-    ...theme.typography.label,
-    color: "#b5b5b5",
-    letterSpacing: 0.9,
-    lineHeight: undefined,
-  },
-  statusTextDownloaded: {
+  statusLabelCompleted: {
     color: theme.colors.secondaryAccent,
   },
-  statusTextFailed: {
+  statusLabelFailed: {
     color: theme.colors.error,
   },
-  spinnerRow: {
+  progressContainer: {
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    // minHeight: 22,
+    gap: 10,
   },
-  emptyState: {
-    minHeight: 180,
-    borderRadius: 24,
-    backgroundColor: theme.colors.backgroundCard,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.04)",
+  progressBarTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: theme.colors.primaryAccent, // Vibrant Blue
+    borderRadius: 2,
+    // Add a subtle glow
+    shadowColor: theme.colors.primaryAccent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  progressText: {
+    ...theme.typography.label,
+    color: theme.colors.primaryAccent,
+    fontSize: 10,
+    fontWeight: "bold",
+    minWidth: 30,
+  },
+  jobActions: {
+    marginLeft: 12,
+  },
+  actionBtnPrimary: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.textPrimary,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
   },
-  emptyStateText: {
+  actionBtnSecondary: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 100,
+    gap: 16,
+  },
+  emptyTitle: {
+    ...theme.typography.headline,
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+  },
+  emptySubtitle: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
-    fontSize: 16,
+    textAlign: "center",
+    paddingHorizontal: 40,
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.6,
   },
 });

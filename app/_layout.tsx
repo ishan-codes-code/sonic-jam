@@ -1,11 +1,25 @@
-import { FlashMessageProvider } from '@/src/hooks/useFlashMessage';
+import { ConfirmProvider } from '@/src/context/ConfirmProvider';
+import { BottomSheetProvider } from '@/src/hooks/useDrawer';
+import { toastConfig } from '@/src/hooks/useToast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { GlobalPlayer } from '../src/components/features/GlobalPlayer';
+import { ThemeProvider, DarkTheme } from '@react-navigation/native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '../src/hooks/useAuth';
 import { theme } from '../src/theme';
+import TrackPlayer from 'react-native-track-player';
+import { PlaybackService, setupPlayer, PlaybackSync } from '@/src/playbackCore';
+import { GlobalPlayer } from '@/src/components/features/GlobalPlayer/GlobalPlayer';
+
+
+
+
+
+
+TrackPlayer.registerPlaybackService(() => PlaybackService);
 
 // --------------------------------------------------------------------------
 // Guard: redirects based on auth state after it is known
@@ -25,14 +39,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (status === 'idle' || status === 'loading') return;
 
     const inAuthGroup = segments[0] === '(tabs)';
-    const isPlayer = segments[0] === 'player';
     const isAuthPath = segments[0] === 'login' || segments[0] === 'signup';
 
     if (status === 'authenticated' && isAuthPath) {
       // Logged in folk shouldn't be at login/signup 
-      router.replace('/(tabs)');
-    } else if (status === 'unauthenticated' && (inAuthGroup || isPlayer)) {
-      // Not logged in folk shouldn't be in tabs or player
+      router.replace('/(tabs)/home');
+    } else if (status === 'unauthenticated' && inAuthGroup) {
+      // Not logged in folk shouldn't be in tabs
       router.replace('/login');
     }
   }, [status, segments]);
@@ -51,55 +64,61 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 const queryClient = new QueryClient();
 
+
 // --------------------------------------------------------------------------
 // Root layout
 // --------------------------------------------------------------------------
+
+const customDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: theme.colors.backgroundBase,
+  },
+};
+
 export default function RootLayout() {
+  useEffect(() => {
+    setupPlayer();
+  }, []);
+
   return (
-    <FlashMessageProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthGuard>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'fade',
-              animationDuration: 200,
-            }}
-          >
-            {/* Tabs group */}
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="processing"
-            />
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider value={customDarkTheme}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ConfirmProvider>
+            <BottomSheetProvider>
+              <AuthGuard>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: 'fade',
+                    animationDuration: 200,
+                    contentStyle: { backgroundColor: theme.colors.backgroundBase },
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" />
 
-            <Stack.Screen
-              name="addSection"
-              options={{
-                presentation: 'formSheet',
-                sheetAllowedDetents: [0.8, 0.9],
-                animation: 'slide_from_bottom',
-                gestureEnabled: true,
-                sheetGrabberVisible: true,
-                contentStyle: { backgroundColor: 'transparent' }
-              }}
-            />
-
-
-            {/* Player screen (custom config) */}
-            <Stack.Screen
-              name="player"
-              options={{
-                presentation: 'formSheet', // 🔥 key part
-                animation: 'slide_from_bottom', // nice for player UI
-                gestureEnabled: true,
-                // sheetGrabberVisible: true
-              }}
-            />
-          </Stack>
-          <GlobalPlayer />
-        </AuthGuard>
-      </QueryClientProvider>
-    </FlashMessageProvider>
+                  <Stack.Screen
+                    name="player"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_bottom',
+                      gestureEnabled: false,
+                      headerShown: false,
+                      contentStyle: { backgroundColor: 'transparent' }
+                    }}
+                  />
+                </Stack>
+                <GlobalPlayer />
+                <PlaybackSync />
+              </AuthGuard>
+            </BottomSheetProvider>
+          </ConfirmProvider>
+          <Toast config={toastConfig} />
+        </GestureHandlerRootView>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

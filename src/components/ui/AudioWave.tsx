@@ -22,8 +22,9 @@ export default function AudioWave({
     minHeight = 5,
     gap = 2,
 }: Props) {
+    // We animate a value between 0 and 1, mapping it to scaleY.
     const animations = useRef(
-        Array.from({ length: count }, () => new Animated.Value(minHeight))
+        Array.from({ length: count }, () => new Animated.Value(minHeight / maxHeight))
     ).current;
 
     useEffect(() => {
@@ -32,14 +33,14 @@ export default function AudioWave({
                 Animated.loop(
                     Animated.sequence([
                         Animated.timing(anim, {
-                            toValue: Math.random() * (maxHeight - minHeight) + minHeight,
+                            toValue: Math.random() * 0.5 + 0.5, // scale between 50% and 100% of maxHeight
                             duration: 250 + index * 80,
-                            useNativeDriver: false,
+                            useNativeDriver: true,
                         }),
                         Animated.timing(anim, {
-                            toValue: minHeight,
+                            toValue: minHeight / maxHeight,
                             duration: 250 + index * 80,
-                            useNativeDriver: false,
+                            useNativeDriver: true,
                         }),
                     ])
                 )
@@ -51,7 +52,7 @@ export default function AudioWave({
         } else {
             animations.forEach((anim) => {
                 anim.stopAnimation();
-                Animated.timing(anim, { toValue: minHeight, duration: 250, useNativeDriver: false }).start();
+                Animated.timing(anim, { toValue: minHeight / maxHeight, duration: 250, useNativeDriver: true }).start();
             });
         }
     }, [isPlaying, maxHeight, minHeight]);
@@ -69,9 +70,11 @@ export default function AudioWave({
                             styles.bar,
                             {
                                 width: barWidth,
-                                height: anim,
+                                height: maxHeight, // Base height is max, we scale it down visually
                                 backgroundColor: color,
                                 borderRadius: barWidth / 2,
+                                transform: [{ scaleY: anim }],
+                                transformOrigin: 'bottom', // Requires RN 0.73+ OR anchor point wrapper
                             },
                         ]}
                     />
