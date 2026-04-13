@@ -9,14 +9,14 @@ import { theme } from '@/src/theme';
 import { createLibrarySongActions } from '@/src/utils/songsActions';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { usePlayer } from '@/src/playbackCore/usePlayer';
-import { usePlaybackStore } from '@/src/playbackCore/usePlaybackStore';
+ import { usePlaybackStore } from '@/src/playbackCore/usePlaybackStore';
 import React, { useMemo, useState } from 'react';
-import { type DimensionValue, Dimensions, StyleSheet, Text, View } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
+import { type DimensionValue, Dimensions, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import Animated, {
     Extrapolation,
     interpolate,
@@ -72,7 +72,7 @@ export default function PlaylistScreen() {
 
     const id = typeof playlistId === 'string' ? playlistId : String(playlistId ?? '');
 
-    const playbackMode = usePlaybackStore(s => s.playbackMode);
+    const queueType = usePlaybackStore(s => s.queueType);
     const playlistMeta = usePlaybackStore(s => s.playlistMeta);
     const currentSong = usePlaybackStore(s => s.currentSong);
     const isPlaying = usePlaybackStore(s => s.status) === 'playing';
@@ -91,17 +91,28 @@ export default function PlaylistScreen() {
     const { open: openSheet, close: closeSheet } = useBottomSheet();
     const toast = useToast();
 
-    const { playPlaylist, playNext, addToQueue } = usePlayer();
+    const { playPlaylist, playNext, addToQueue, shufflePlay, toggleShuffle } = usePlayer();
 
     const handlePlayAll = () => {
         if (playlistSongs.length === 0) return;
         playPlaylist(playlistSongs, 0, id);
     };
 
+    const isShuffling = usePlaybackStore(s => s.isShuffling);
+    const isThisPlaylistActive = queueType === 'playlist' && playlistMeta?.playlistId === id;
+    const isThisPlaylistShuffling = isThisPlaylistActive && isShuffling;
+
     const handleShuffleAll = () => {
         if (playlistSongs.length === 0) return;
-        // Isolated: old player logic removed.
-        console.log('Shuffle all requested for playlist');
+        
+        // If this playlist is already the active queue, just toggle the shuffle state
+        // of the live queue without restarting playback.
+        if (isThisPlaylistActive) {
+            toggleShuffle();
+        } else {
+            // Otherwise, start a fresh shuffled queue
+            shufflePlay(playlistSongs, id);
+        }
     };
 
     const [isLiked, setLiked] = useState(false);
@@ -249,7 +260,12 @@ export default function PlaylistScreen() {
                             accessibilityLabel="Shuffle playlist"
                             onPress={handleShuffleAll}
                         >
-                            <Ionicons name="shuffle" size={18} color={theme.colors.textPrimary} />
+                            <Ionicons 
+                                name="shuffle" 
+                                size={18} 
+                                color={isThisPlaylistShuffling ? theme.colors.actionAccent : theme.colors.textPrimary} 
+                            />
+                            {isThisPlaylistShuffling && <View style={styles.activeDot} />}
                         </AnimatedPressable>
 
                         <AnimatedPressable
@@ -285,22 +301,21 @@ export default function PlaylistScreen() {
 
     return (
         <View style={styles.root}>
-            <Animated.View style={[styles.sticky, { paddingTop: insets.top }, stickyStyle]} pointerEvents="box-none">
-                <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
+            <Animated.View style={[styles.sticky, { paddingTop: insets.top, backgroundColor: theme.colors.backgroundBase }, stickyStyle]} pointerEvents="box-none">
                 <View style={styles.stickyInner}>
-                    <AnimatedPressable
+                    <TouchableOpacity
                         onPress={() => router.back()}
-                        hitSlopSize={12}
-                        scaleTo={0.9}
-                        feedback="snappy"
-                        accessibilityLabel="Go back"
+                        style={styles.backButton}
                     >
-                        <Ionicons name="chevron-back" size={20} color={theme.colors.textPrimary} />
-                    </AnimatedPressable>
-
-                    <Text style={styles.stickyTitle} numberOfLines={1}>
-                        {playlist?.name ?? 'Playlist'}
-                    </Text>
+                        <ArrowLeft color={theme.colors.textPrimary} size={24} />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.headerTextWrapper}>
+                        <Text style={styles.stickyTitle} numberOfLines={1}>
+                            {playlist?.name ?? 'Playlist'}
+                        </Text>
+                        <Text style={styles.headerSubtitle}>{playlistSongs.length} tracks</Text>
+                    </View>
 
                     <AnimatedPressable
                         style={styles.stickyPlayWrap}
@@ -321,7 +336,7 @@ export default function PlaylistScreen() {
                 data={playlistSongs}
                 keyExtractor={(item, index) => `${item.id}-${index}`}
                 renderItem={({ item, index }) => {
-                    const isCurrent = playbackMode === 'playlist' && playlistMeta?.playlistId === id && currentSong?.id === item.id;
+                    const isCurrent = queueType === 'playlist' && playlistMeta?.playlistId === id && currentSong?.id === item.id;
                     
                     return (
                         <SongListCard
@@ -538,6 +553,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: theme.colors.outlineVariantAlpha,
     },
+    activeDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: theme.colors.actionAccent,
+        position: 'absolute',
+        bottom: 8,
+    },
     iconWrap: {},
     iconBtn: {
         width: 44,
@@ -597,6 +620,25 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.outlineVariantAlpha,
     },
 
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: theme.colors.backgroundCard,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.05)",
+    },
+    headerTextWrapper: {
+        flex: 1,
+    },
+    headerSubtitle: {
+        ...theme.typography.body,
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        opacity: 0.7,
+    },
     sticky: {
         position: 'absolute',
         left: 0,
@@ -605,14 +647,14 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     stickyInner: {
-        height: 52,
-        paddingHorizontal: theme.spacing.lg,
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 20,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 16,
     },
     stickyTitle: {
-        flex: 1,
         color: theme.colors.textPrimary,
         fontSize: 14,
         fontWeight: '800',

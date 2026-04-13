@@ -1,11 +1,15 @@
 import { create } from 'zustand';
-import type { PlaybackMode, PlaybackState, PlaybackStatus, PlaybackTrack, Song, TrackColors } from './types';
+import type { QueueType, PlaybackState, PlaybackStatus, PlaybackTrack, Song, TrackColors } from './types';
 
 type PlaybackActions = {
     // Mode
-    setPlaybackMode: (mode: PlaybackMode) => void;
+    setQueueType: (type: QueueType) => void;
     setPlaylistMeta: (meta: { playlistId: string; total: number }) => void;
     clearPlaylistMeta: () => void;
+
+    // Shuffle
+    setShuffling: (isShuffling: boolean) => void;
+    setOriginalQueue: (queue: PlaybackTrack[]) => void;
 
     // Status
     setStatus: (status: PlaybackStatus) => void;
@@ -38,8 +42,10 @@ type PlaybackActions = {
 };
 
 const initialState: PlaybackState = {
-    playbackMode: 'radio',
+    queueType: 'manual',
     playlistMeta: null,
+    isShuffling: false,
+    originalQueue: [],
     manualInsertIndex: null,
     queueRevision: 0,
     currentSong: null,
@@ -57,11 +63,15 @@ const initialState: PlaybackState = {
 export const usePlaybackStore = create<PlaybackState & PlaybackActions>((set) => ({
     ...initialState,
 
-    setPlaybackMode: (playbackMode) => set({ playbackMode }),
+    setQueueType: (queueType) => set({ queueType }),
 
     setPlaylistMeta: (playlistMeta) => set({ playlistMeta }),
 
     clearPlaylistMeta: () => set({ playlistMeta: null }),
+
+    setShuffling: (isShuffling) => set({ isShuffling }),
+
+    setOriginalQueue: (originalQueue) => set({ originalQueue }),
 
     setStatus: (status) => set({ status, error: null }),
 

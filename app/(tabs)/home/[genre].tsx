@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { theme } from '@/src/theme';
 import { useMusic } from '@/src/hooks/useMusic';
 import { Song } from '@/src/playbackCore/types';
@@ -56,9 +56,12 @@ export default function GenreTracksScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ChevronLeft color={theme.colors.textPrimary} size={28} />
+          <ArrowLeft color={theme.colors.textPrimary} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{genre?.charAt(0).toUpperCase() + genre?.slice(1)}</Text>
+        <View style={styles.headerTextWrapper}>
+          <Text style={styles.headerTitle}>{genre?.charAt(0).toUpperCase() + genre?.slice(1)}</Text>
+          <Text style={styles.headerSubtitle}>{tracks.length} curated tracks</Text>
+        </View>
       </View>
 
       {loading ? (
@@ -85,10 +88,7 @@ export default function GenreTracksScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <LinearGradient
-              colors={['rgba(255,255,255,0.05)', 'transparent']}
-              style={styles.listHeaderGradient}
-            />
+            <View style={styles.listHeaderGradientPlaceholder} />
           }
         />
       )}
@@ -104,22 +104,34 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    gap: 16,
   },
   backButton: {
-    marginRight: 16,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: theme.colors.backgroundCard,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  headerTextWrapper: {
+    flex: 1,
   },
   headerTitle: {
     ...theme.typography.headline,
     color: theme.colors.textPrimary,
-    fontSize: 24,
+    fontSize: 22,
+  },
+  headerSubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    opacity: 0.7,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -152,8 +164,8 @@ const styles = StyleSheet.create({
     ...theme.typography.label,
     color: 'white',
   },
-  listHeaderGradient: {
-    height: 20,
-    marginBottom: 10,
+  listHeaderGradientPlaceholder: {
+    height: 10,
   }
 });
+

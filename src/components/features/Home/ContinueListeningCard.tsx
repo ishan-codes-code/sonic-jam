@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions, Animated } from 'react-native';
 import { usePlaybackStore } from '@/src/playbackCore/usePlaybackStore';
 import { usePlayer } from '@/src/playbackCore/usePlayer';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/src/theme';
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,7 +11,7 @@ import { useProgress } from 'react-native-track-player';
 import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
-const LAST_PLAYED_KEY = 'last_played_track';
+const LAST_PLAYED_KEY = 'last_played_track_';
 
 const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -33,7 +33,7 @@ export default function ContinueListeningCard() {
     useEffect(() => {
         const loadLastPlayed = async () => {
             try {
-                const data = await SecureStore.getItemAsync(LAST_PLAYED_KEY);
+                const data = await AsyncStorage.getItem(LAST_PLAYED_KEY);
                 if (data) {
                     const parsed = JSON.parse(data);
                     setLastPlayed(parsed);
@@ -48,7 +48,8 @@ export default function ContinueListeningCard() {
     // Save current song to last played when it changes
     useEffect(() => {
         if (currentSong) {
-            SecureStore.setItemAsync(LAST_PLAYED_KEY, JSON.stringify(currentSong));
+            AsyncStorage.setItem(LAST_PLAYED_KEY, JSON.stringify(currentSong));
+            setLastPlayed(currentSong);
         }
     }, [currentSong]);
 

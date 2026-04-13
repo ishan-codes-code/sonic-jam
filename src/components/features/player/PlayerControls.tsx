@@ -15,6 +15,8 @@ import { Song } from '@/src/playbackCore/types';
 import PlayerSeek from './playerSeek';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 
+import { usePlaybackStore, usePlayer } from '@/src/playbackCore';
+
 interface PlayerControlsProps {
     currentSong: Song;
     isPlaying: boolean;
@@ -32,6 +34,9 @@ export const PlayerControls = ({
     onPrev,
     animatedStyle
 }: PlayerControlsProps) => {
+    const { isShuffling, queueType } = usePlaybackStore();
+    const { toggleShuffle } = usePlayer();
+
     return (
         <Animated.View style={[styles.container, animatedStyle]}>
             {/* Meta Info: Title and Artist Only */}
@@ -49,8 +54,16 @@ export const PlayerControls = ({
 
             {/* Core Playback Controls */}
             <View style={styles.mainControls}>
-                <TouchableOpacity style={styles.secondaryAction} disabled>
-                    <Shuffle color={theme.colors.textMuted} size={22} />
+                <TouchableOpacity 
+                    onPress={toggleShuffle} 
+                    style={[styles.secondaryAction, { opacity: queueType === 'playlist' ? 1 : 0.3 }]}
+                    disabled={queueType !== 'playlist'}
+                >
+                    <Shuffle 
+                        color={isShuffling ? theme.colors.actionAccent : theme.colors.textMuted} 
+                        size={22} 
+                    />
+                    {isShuffling && <View style={styles.activeDot} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={onPrev} style={styles.skipBtn}>
@@ -85,6 +98,14 @@ export const PlayerControls = ({
 };
 
 const styles = StyleSheet.create({
+    activeDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: theme.colors.actionAccent,
+        position: 'absolute',
+        bottom: 2,
+    },
     container: {
         gap: theme.spacing.lg,
     },
