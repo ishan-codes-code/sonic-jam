@@ -5,10 +5,7 @@ import axios, {
 } from "axios";
 import { tokenStorage } from "../utils/tokenStorage";
 
-// export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
-export const BASE_URL = "http://10.11.125.82:3000";
-
-
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // console.log('BASE_URL', BASE_URL);
 
@@ -35,7 +32,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-import Toast from 'react-native-toast-message';
+import Toast from "react-native-toast-message";
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -58,13 +55,20 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // Show success toast for non-GET mutations if backend provides a specific message
     const method = response.config.method?.toLowerCase();
-    const isMutation = ['post', 'put', 'patch', 'delete'].includes(method || '');
-    const isAuthRefresh = response.config.url?.includes('/auth/refresh');
+    const isMutation = ["post", "put", "patch", "delete"].includes(
+      method || "",
+    );
+    const isAuthRefresh = response.config.url?.includes("/auth/refresh");
 
-    if (isMutation && !isAuthRefresh && response.data?.message && typeof response.data.message === 'string') {
+    if (
+      isMutation &&
+      !isAuthRefresh &&
+      response.data?.message &&
+      typeof response.data.message === "string"
+    ) {
       Toast.show({
-        type: 'success',
-        text1: 'Success',
+        type: "success",
+        text1: "Success",
         text2: response.data.message,
       });
     }
@@ -79,19 +83,31 @@ apiClient.interceptors.response.use(
     if (error.response?.status !== 401 || originalRequest._retry) {
       // Global error handler for failed requests (ignoring pending 401 retries)
       const method = originalRequest?.method?.toLowerCase();
-      const isMutation = ['post', 'put', 'patch', 'delete'].includes(method || '');
-      const isAuthRefresh = originalRequest?.url?.includes('/auth/refresh');
+      const isMutation = ["post", "put", "patch", "delete"].includes(
+        method || "",
+      );
+      const isAuthRefresh = originalRequest?.url?.includes("/auth/refresh");
 
       // Show toast if it's a mutation OR a severe server error, but ignore background refresh
-      if (!isAuthRefresh && (isMutation || (error.response && error.response.status >= 500))) {
+      if (
+        !isAuthRefresh &&
+        (isMutation || (error.response && error.response.status >= 500))
+      ) {
         const errData = error.response?.data;
-        const msg = errData?.message || errData?.error || error.message || 'An unexpected error occurred';
+        const msg =
+          errData?.message ||
+          errData?.error ||
+          error.message ||
+          "An unexpected error occurred";
         const displayMsg = Array.isArray(msg) ? msg[0] : msg; // handle class-validator arrays
 
         Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: typeof displayMsg === 'string' ? displayMsg : 'Failed to complete request',
+          type: "error",
+          text1: "Error",
+          text2:
+            typeof displayMsg === "string"
+              ? displayMsg
+              : "Failed to complete request",
         });
       }
 
