@@ -55,15 +55,19 @@ export type TrackColors = {
     secondary: string;
 };
 
-export type PlaybackMode = 'radio' | 'playlist';
+export type QueueType = 'playlist' | 'radio' | 'manual';
 
 export type PlaybackState = {
     // Mode
-    playbackMode: PlaybackMode;
+    queueType: QueueType;
     playlistMeta: {
         playlistId: string;
         total: number;
     } | null;
+
+    // Shuffle
+    isShuffling: boolean;
+    originalQueue: PlaybackTrack[];
 
     // Queue Pointer for "Add to Queue"
     manualInsertIndex: number | null;

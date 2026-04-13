@@ -16,9 +16,25 @@ const PlayerSeek = React.memo(() => {
     const duration = usePlaybackStore(s => s.duration);
     const { seek } = usePlayer();
 
-    const handleSeek = useCallback((value: number) => {
+    // Local state for immediate UI feedback during dragging
+    const [isSliding, setIsSliding] = React.useState(false);
+    const [slidingValue, setSlidingValue] = React.useState(0);
+
+    const handleSlidingStart = useCallback(() => {
+        setIsSliding(true);
+    }, []);
+
+    const handleValueChange = useCallback((value: number) => {
+        setSlidingValue(value);
+    }, []);
+
+    const handleSlidingComplete = useCallback((value: number) => {
+        setIsSliding(false);
         seek(value);
     }, [seek]);
+
+    // Use slidingValue when user is dragging, otherwise fallback to playback position
+    const displayedPosition = isSliding ? slidingValue : position;
 
     return (
         <View style={styles.seekContainer}>
@@ -27,13 +43,15 @@ const PlayerSeek = React.memo(() => {
                 minimumValue={0}
                 maximumValue={duration > 0 ? duration : 1}
                 value={position}
-                onSlidingComplete={handleSeek}
+                onSlidingStart={handleSlidingStart}
+                onValueChange={handleValueChange}
+                onSlidingComplete={handleSlidingComplete}
                 minimumTrackTintColor={theme.colors.textPrimary}
                 maximumTrackTintColor="rgba(255,255,255,0.15)"
                 thumbTintColor={theme.colors.textPrimary}
             />
             <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatTime(position)}</Text>
+                <Text style={styles.timeText}>{formatTime(displayedPosition)}</Text>
                 <Text style={styles.timeText}>{formatTime(duration)}</Text>
             </View>
         </View>

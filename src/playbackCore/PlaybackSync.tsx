@@ -3,6 +3,7 @@ import { usePlaybackState, useProgress, State, default as TrackPlayer, Event } f
 import { usePlaybackStore } from './usePlaybackStore';
 import { usePlayer } from './usePlayer';
 import { extractTrackColors } from '../services/trackColorService';
+import { PlayHistoryService } from '../services/playHistoryService';
 
 /**
  * Background component that synchronizes React Native Track Player state
@@ -109,9 +110,10 @@ export const PlaybackSync = () => {
                 // Reset smart queue pointer on track change
                 store.setManualInsertIndex(null);
 
-                // Sync store
+                // Sync store and history
                 if (track.song) {
                     store.setCurrentSong(track.song, track);
+                    void PlayHistoryService.addToHistory(track.song);
 
                     if (track.url) {
                         store.setStream(
@@ -128,7 +130,7 @@ export const PlaybackSync = () => {
                 });
 
                 // Auto-fill logic
-                if (store.playbackMode === 'radio') {
+                if (store.queueType === 'radio') {
                     extendQueue();
                 }
             }

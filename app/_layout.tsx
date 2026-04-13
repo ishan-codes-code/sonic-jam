@@ -11,8 +11,12 @@ import Toast from 'react-native-toast-message';
 import { useAuth } from '../src/hooks/useAuth';
 import { theme } from '../src/theme';
 import TrackPlayer from 'react-native-track-player';
-import { PlaybackService, setupPlayer, PlaybackSync } from '@/src/playbackCore';
+import { PlaybackService, setupPlayer, PlaybackSync, usePlayer } from '@/src/playbackCore';
 import { GlobalPlayer } from '@/src/components/features/GlobalPlayer/GlobalPlayer';
+import { useVersionCheck } from '../src/hooks/useVersionCheck';
+import { useVersionStore } from '../src/store/versionStore';
+import { ForceUpdateScreen } from '../src/components/VersionControl/ForceUpdateScreen';
+import { OptionalUpdateModal } from '../src/components/VersionControl/OptionalUpdateModal';
 
 
 
@@ -28,6 +32,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { status, checkAuth } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const { stop } = usePlayer();
 
   // Run once on app boot
   useEffect(() => {
@@ -38,15 +43,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status === 'idle' || status === 'loading') return;
 
-    const inAuthGroup = segments[0] === '(tabs)';
     const isAuthPath = segments[0] === 'login' || segments[0] === 'signup';
 
     if (status === 'authenticated' && isAuthPath) {
-      // Logged in folk shouldn't be at login/signup 
+      // Logged in users should be moved to the app
       router.replace('/(tabs)/home');
-    } else if (status === 'unauthenticated' && inAuthGroup) {
-      // Not logged in folk shouldn't be in tabs
-      router.replace('/login');
+    } else if (status === 'unauthenticated') {
+      // Stop playback on logout
+      stop();
+
+      if (!isAuthPath) {
+        // Unauthenticated users are only allowed on login/signup
+        router.replace('/login');
+      }
     }
   }, [status, segments]);
 
@@ -59,7 +68,48 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {status === 'authenticated' && (
+        <>
+          <GlobalPlayer />
+          <PlaybackSync />
+        </>
+      )}
+    </>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Guard: checks for app version and forces update if necessary
+// --------------------------------------------------------------------------
+function VersionGuard({ children }: { children: React.ReactNode }) {
+  useVersionCheck();
+  const isForce = useVersionStore((s) => s.isForce);
+  const hasChecked = useVersionStore((s) => s.hasChecked);
+
+  // If force update is required, block everything else
+  if (isForce) {
+    return <ForceUpdateScreen />;
+  }
+
+  // We only show the content after the first version check is done
+  // to prevent a flash of old content if a force update is pending.
+  if (!hasChecked) {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color={theme.colors.secondaryAccent} />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      {children}
+      <OptionalUpdateModal />
+    </>
+  );
 }
 
 const queryClient = new QueryClient();
@@ -88,31 +138,31 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ConfirmProvider>
             <BottomSheetProvider>
-              <AuthGuard>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    animation: 'fade',
-                    animationDuration: 200,
-                    contentStyle: { backgroundColor: theme.colors.backgroundBase },
-                  }}
-                >
-                  <Stack.Screen name="(tabs)" />
-
-                  <Stack.Screen
-                    name="player"
-                    options={{
-                      presentation: 'fullScreenModal',
-                      animation: 'slide_from_bottom',
-                      gestureEnabled: false,
+              <VersionGuard>
+                <AuthGuard>
+                  <Stack
+                    screenOptions={{
                       headerShown: false,
-                      contentStyle: { backgroundColor: 'transparent' }
+                      animation: 'fade',
+                      animationDuration: 200,
+                      contentStyle: { backgroundColor: theme.colors.backgroundBase },
                     }}
-                  />
-                </Stack>
-                <GlobalPlayer />
-                <PlaybackSync />
-              </AuthGuard>
+                  >
+                    <Stack.Screen name="(tabs)" />
+
+                    <Stack.Screen
+                      name="player"
+                      options={{
+                        presentation: 'fullScreenModal',
+                        animation: 'slide_from_bottom',
+                        gestureEnabled: false,
+                        headerShown: false,
+                        contentStyle: { backgroundColor: 'transparent' }
+                      }}
+                    />
+                  </Stack>
+                </AuthGuard>
+              </VersionGuard>
             </BottomSheetProvider>
           </ConfirmProvider>
           <Toast config={toastConfig} />

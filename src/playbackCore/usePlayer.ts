@@ -5,6 +5,19 @@ import { resolveStream, isStreamExpired } from './playbackApi';
 import { usePlaybackStore } from './usePlaybackStore';
 import { useJobStore } from './useJobStore';
 import type { PlaySongDto, PlaybackTrack, Song } from './types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const SHUFFLE_STORAGE_KEY = '@sonic_is_shuffling';
+
+// Fisher-Yates Shuffle Algorithm
+function shuffleArray<T>(array: T[]): T[] {
+    const fresh = [...array];
+    for (let i = fresh.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [fresh[i], fresh[j]] = [fresh[j], fresh[i]];
+    }
+    return fresh;
+}
 
 const isExtendingRef = { current: false };
 
@@ -13,6 +26,21 @@ export function usePlayer() {
 
     // ── Helper: Get Store ───────────────────────────────────────
     const getStore = () => usePlaybackStore.getState();
+
+    // ── Persistence: Load Shuffle State ──────────────────────────
+    useEffect(() => {
+        const loadShuffle = async () => {
+            try {
+                const stored = await AsyncStorage.getItem(SHUFFLE_STORAGE_KEY);
+                if (stored !== null) {
+                    getStore().setShuffling(JSON.parse(stored));
+                }
+            } catch (e) {
+                console.error('[usePlayer] Failed to load shuffle state', e);
+            }
+        };
+        loadShuffle();
+    }, []);
 
     // ── Setup ────────────────────────────────────────────────────
     const ensureSetup = useCallback(async (): Promise<boolean> => {
@@ -102,6 +130,150 @@ export function usePlayer() {
             return undefined;
         }
     }, [ensureSetup]);
+
+    // ── Shuffle Logic ─────────────────────────────────────────────
+    const toggleShuffle = useCallback(async () => {
+        const store = getStore();
+        
+        // Guard: Only for playlists
+        if (store.queueType !== 'playlist') return;
+
+        const nextShuffling = !store.isShuffling;
+        
+        try {
+            const currentQueue = await TrackPlayer.getQueue() as PlaybackTrack[];
+            const activeIndex = await TrackPlayer.getActiveTrackIndex();
+            
+            if (activeIndex === undefined || activeIndex === null) return;
+            const currentTrack = currentQueue[activeIndex];
+
+            if (nextShuffling) {
+                // TURN ON SHUFFLE
+                store.setOriginalQueue(currentQueue);
+                
+                // 1. Prepare shuffled array of everything EXCEPT the current track
+                const others = currentQueue.filter((_, i) => i !== activeIndex);
+                const shuffled = shuffleArray(others);
+                
+                // 2. Batch remove all OTHER tracks
+                // Identifying all indices except activeIndex
+                const indicesToRemove = currentQueue
+                    .map((_, i) => i)
+                    .filter(i => i !== activeIndex);
+                
+                if (indicesToRemove.length > 0) {
+                    await TrackPlayer.remove(indicesToRemove);
+                }
+                
+                // Now currentTrack is at index 0
+                // 3. Append shuffled tracks
+                await TrackPlayer.add(shuffled as any);
+                
+            } else {
+                // TURN OFF SHUFFLE
+                const original = store.originalQueue;
+                if (original.length > 0) {
+                    const originalIdx = original.findIndex(t => t.songId === currentTrack.songId);
+                    
+                    if (originalIdx !== -1) {
+                        const before = original.slice(0, originalIdx);
+                        const after = original.slice(originalIdx + 1);
+                        
+                        const nativeIdx = await TrackPlayer.getActiveTrackIndex() ?? 0;
+                        const nativeQueue = await TrackPlayer.getQueue();
+
+                        // 1. Batch remove everything except current
+                        const indicesToRemove = nativeQueue
+                            .map((_, i) => i)
+                            .filter(i => i !== nativeIdx);
+
+                        if (indicesToRemove.length > 0) {
+                            await TrackPlayer.remove(indicesToRemove);
+                        }
+
+                        // Current track is at index 0 now
+                        // 2. Re-insert original 'before' tracks at index 0 (pushes current track down)
+                        if (before.length > 0) await TrackPlayer.add(before as any, 0);
+                        
+                        // 3. Append original 'after' tracks at the end
+                        if (after.length > 0) await TrackPlayer.add(after as any);
+                    }
+                }
+            }
+
+            store.setShuffling(nextShuffling);
+            await AsyncStorage.setItem(SHUFFLE_STORAGE_KEY, JSON.stringify(nextShuffling));
+            store.notifyQueueUpdate();
+
+        } catch (error) {
+            console.error('[usePlayer] toggleShuffle error:', error);
+        }
+    }, []);
+
+    const shufflePlay = useCallback(async (songs: Song[], playlistId: string) => {
+        const store = getStore();
+        try {
+            store.setStatus('loading');
+            store.setQueueType('playlist');
+            store.setPlaylistMeta({ playlistId, total: songs.length });
+
+            const shuffledSongs = shuffleArray(songs);
+            
+            await ensureSetup();
+            await TrackPlayer.reset();
+
+            // 1. Resolve first track of the shuffled set
+            const startSong = shuffledSongs[0];
+            const { streamUrl, streamUrlExpiresAt, song: resolvedStartSong } = await resolveStream({ songId: startSong.id });
+
+            // 2. Prepare the Shuffled Queue
+            const shuffledTracks = shuffledSongs.map((song, index) => {
+                const isStartItem = index === 0;
+                return {
+                    url: isStartItem ? streamUrl : 'placeholder://pending',
+                    title: song.trackName,
+                    artist: song.artistName,
+                    artwork: song.image ?? undefined,
+                    duration: song.duration,
+                    songId: song.id,
+                    song,
+                    streamUrlExpiresAt: isStartItem ? streamUrlExpiresAt : undefined,
+                } as PlaybackTrack;
+            });
+
+            // 3. Prepare the Original Queue (so we can un-shuffle later)
+            const originalTracks = songs.map((song) => {
+                // Check if this song was the one we just resolved to avoid double-resolving later
+                const isStartItem = song.id === startSong.id;
+                return {
+                    url: isStartItem ? streamUrl : 'placeholder://pending',
+                    title: song.trackName,
+                    artist: song.artistName,
+                    artwork: song.image ?? undefined,
+                    duration: song.duration,
+                    songId: song.id,
+                    song,
+                    streamUrlExpiresAt: isStartItem ? streamUrlExpiresAt : undefined,
+                } as PlaybackTrack;
+            });
+
+            await TrackPlayer.add(shuffledTracks as any);
+            await TrackPlayer.play();
+
+            store.setShuffling(true);
+            store.setOriginalQueue(originalTracks);
+            await AsyncStorage.setItem(SHUFFLE_STORAGE_KEY, JSON.stringify(true));
+            
+            store.setCurrentSong(resolvedStartSong, shuffledTracks[0]);
+            store.setStream(streamUrl, streamUrlExpiresAt);
+            store.notifyQueueUpdate();
+
+        } catch (error) {
+            console.error('[usePlayer] shufflePlay error:', error);
+            store.setError('Failed to shuffle play');
+        }
+    }, [ensureSetup]);
+
 
     // ── Queue: Play Next ───────────────────────────────────────────
     const playNext = useCallback(async (payload: PlaySongDto) => {
@@ -222,7 +394,7 @@ export function usePlayer() {
     // ── Extended: Auto-fill ────────────────────────────────────────
     const extendQueue = useCallback(async () => {
         const store = getStore();
-        if (store.playbackMode === 'playlist') {
+        if (store.queueType === 'playlist') {
             return;
         }
 
@@ -314,9 +486,13 @@ export function usePlayer() {
 
             // Fresh start: Clear queue and add new track if not preserving queue
             if (!options?.preserveQueue) {
-                store.setPlaybackMode('radio');
+                store.setQueueType('radio');
                 store.clearPlaylistMeta();
+                store.setShuffling(false);
+                await AsyncStorage.setItem(SHUFFLE_STORAGE_KEY, JSON.stringify(false));
                 await TrackPlayer.reset();
+            } else if (store.queueType !== 'playlist') {
+                store.setQueueType('manual');
             }
             const track = await enqueue(payload);
             
@@ -345,7 +521,9 @@ export function usePlayer() {
 
         try {
             store.setStatus('loading');
-            store.setPlaybackMode('playlist');
+            store.setQueueType('playlist');
+            store.setShuffling(false);
+            await AsyncStorage.setItem(SHUFFLE_STORAGE_KEY, JSON.stringify(false));
             store.setPlaylistMeta({
                 playlistId,
                 total: songs.length,
@@ -445,5 +623,7 @@ export function usePlayer() {
         stop,
         skipToNext,
         skipToPrevious,
+        toggleShuffle,
+        shufflePlay,
     };
 }

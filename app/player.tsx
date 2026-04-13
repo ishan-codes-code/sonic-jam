@@ -47,8 +47,7 @@ export default function PlayerScreen() {
             const idx = (await TrackPlayer.getActiveTrackIndex()) ?? 0;
             if (!cancelled) {
                 setActiveIndex(idx);
-                // Prevent deep array re-allocations if the queue hasn't structurally changed
-                setQueue((prev) => (prev.length !== q.length || prev[0]?.id !== q[0]?.id ? q : prev));
+                setQueue(q);
             }
         };
         fetchQueue();
@@ -69,6 +68,10 @@ export default function PlayerScreen() {
                 : null);
     }, [currentSong]);
 
+    const displayedQueue = useMemo(() => {
+        return queue.slice(activeIndex, activeIndex + 10);
+    }, [queue, activeIndex]);
+
     const handleToggle = useCallback(() => {
         isPlaying ? pause() : resume();
     }, [isPlaying]);
@@ -80,8 +83,8 @@ export default function PlayerScreen() {
             <PlayerBackground />
 
             <FlatList
-                data={queue}
-                keyExtractor={(item, index) => `${item.songId || item.title}-${index}`}
+                data={displayedQueue}
+                keyExtractor={(item, index) => `${item.songId || item.title}-${activeIndex + index}`}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
                 ListHeaderComponent={
@@ -123,10 +126,10 @@ export default function PlayerScreen() {
                             }}>
                                 <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>Up Next</Text>
                                 <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: '600' }}>
-                                    {queue.length} tracks
+                                    {Math.max(0, queue.length - activeIndex - 1)} up next
                                 </Text>
                             </View>
-                            {queue.length === 0 && (
+                            {displayedQueue.length === 0 && (
                                 <View style={{ alignItems: 'center', paddingVertical: 48, gap: 12 }}>
                                     <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Recommendations loading…</Text>
                                 </View>
@@ -135,9 +138,10 @@ export default function PlayerScreen() {
                     </>
                 }
                 renderItem={({ item, index }) => {
-                    const isCurrent = index === activeIndex;
+                    const globalIndex = activeIndex + index;
+                    const isCurrent = index === 0;
                     const playlistSong = {
-                        id: `${item.songId || item.title}-${index}`,
+                        id: `${item.songId || item.title}-${globalIndex}`,
                         title: item.title || 'Unknown Track',
                         channelName: item.artist,
                         duration: item.duration || 0,
@@ -155,14 +159,14 @@ export default function PlayerScreen() {
                                 artworkUri={item.artwork}
                                 isCurrent={isCurrent}
                                 isPlaying={isPlaying}
-                                onPress={() => TrackPlayer.skip(index)}
+                                onPress={() => TrackPlayer.skip(globalIndex)}
                                 actions={createQueueSongActions({
                                     onClose: close,
                                     onPlayNext: () => {
                                         void playNext({ songId: item.songId });
                                     },
                                     onRemove: () => {
-                                        void removeFromQueue(index);
+                                        void removeFromQueue(globalIndex);
                                     },
                                     onOpenAddToPlaylist: () => {
                                         open(
@@ -178,6 +182,7 @@ export default function PlayerScreen() {
                         </View>
                     );
                 }}
+
                 extraData={activeIndex} // Ensure it rerenders the highlight when activeIndex changes
                 initialNumToRender={8}
                 windowSize={5}
