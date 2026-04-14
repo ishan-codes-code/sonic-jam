@@ -1,11 +1,9 @@
 import { compareVersions } from "compare-versions";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 
-const CONFIG_URL = `https://cdn.jsdelivr.net/gh/ishan-codes-code/sonic-app-config/app-config.json?t=${Date.now()}`;
-
-console.log("[VersionService]", CONFIG_URL);
-
-const currentVersion = Constants.expoConfig?.version || "0.0.0";
+const CONFIG_URL = `https://raw.githubusercontent.com/ishan-codes-code/sonic-app-config/main/app-config.json?t=${Date.now()}`;
+const CONFIG_KEY = "REMOTE_CONFIG";
 
 export interface VersionConfig {
   latestVersion: string;
@@ -22,12 +20,42 @@ export interface VersionStatus {
   message: string | null;
 }
 
-export const checkAppVersion = async (): Promise<VersionStatus> => {
+export const fetchRemoteConfig = async (): Promise<VersionConfig | null> => {
   try {
-    const res = await fetch(`${CONFIG_URL}?t=${Date.now()}`);
-    if (!res.ok) throw new Error("Failed to fetch config");
+    const res = await fetch(CONFIG_URL);
+
+    if (!res.ok) {
+      throw new Error("Failed to fetch config");
+    }
 
     const config: VersionConfig = await res.json();
+    return config;
+  } catch (err) {
+    console.log("Config fetch error:", err);
+    return null;
+  }
+};
+
+export const getConfig = async (): Promise<VersionConfig | null> => {
+  const remote = await fetchRemoteConfig();
+
+  if (remote) {
+    await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(remote));
+    return remote;
+  }
+
+  const local = await AsyncStorage.getItem(CONFIG_KEY);
+  return local ? JSON.parse(local) : null;
+};
+
+export const checkAppVersion = async (): Promise<VersionStatus> => {
+  try {
+    const currentVersion = Constants.expoConfig?.version ?? "0.0.0";
+    const config = await getConfig();
+
+    if (!config) {
+      throw new Error("Failed to load config");
+    }
 
     const {
       latestVersion,
@@ -37,11 +65,9 @@ export const checkAppVersion = async (): Promise<VersionStatus> => {
       message,
     } = config;
 
-    // isForce: if current < minRequired OR forceUpdate is explicitly true
     const isForce =
-      compareVersions(currentVersion, minRequiredVersion) < 0 || forceUpdate;
+      forceUpdate || compareVersions(currentVersion, minRequiredVersion) < 0;
 
-    // isOptional: if current < latest and not a forced update
     const isOptional =
       !isForce && compareVersions(currentVersion, latestVersion) < 0;
 

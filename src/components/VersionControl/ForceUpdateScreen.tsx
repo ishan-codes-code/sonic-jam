@@ -3,10 +3,8 @@ import { View, Text, StyleSheet, Linking, TouchableOpacity, StatusBar } from 're
 import { LinearGradient } from 'expo-linear-gradient';
 import { Download, AlertCircle, Rocket } from 'lucide-react-native';
 import { useVersionStore } from '../../store/versionStore';
-import { Colors } from '../../theme/colors';
-import { Typography } from '../../theme/typography';
-import { Gradients } from '../../theme/gradients';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { theme } from '../../theme';
 
 export const ForceUpdateScreen = () => {
   const { updateUrl, message } = useVersionStore();
@@ -26,15 +24,24 @@ export const ForceUpdateScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <LinearGradient
-        colors={['#0F172A', '#1E293B', '#020617']}
+        colors={[
+          theme.colors.backgroundBase,
+          theme.colors.backgroundSection,
+          theme.colors.backgroundInteractive,
+        ]}
         style={StyleSheet.absoluteFill}
       />
 
       <SafeAreaView style={styles.content}>
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Rocket color="#FCD34D" size={48} />
-          </View>
+          <LinearGradient
+            colors={[theme.colors.primaryAccent, theme.colors.secondaryAccent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.iconContainer}
+          >
+            <Rocket color={theme.colors.onPrimary} size={48} />
+          </LinearGradient>
           <Text style={styles.title}>Update Required</Text>
           <Text style={styles.subtitle}>
             {message || "We've released a new version with critical improvements and new features."}
@@ -42,7 +49,7 @@ export const ForceUpdateScreen = () => {
         </View>
 
         <View style={styles.card}>
-          <AlertCircle color="#94A3B8" size={24} style={styles.cardIcon} />
+          <AlertCircle color={theme.colors.textSecondary} size={24} style={styles.cardIcon} />
           <Text style={styles.cardText}>
             Your current version is no longer supported. Please update to continue using Sonic.
           </Text>
@@ -55,12 +62,12 @@ export const ForceUpdateScreen = () => {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['#3B82F6', '#2563EB']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              colors={theme.gradients.primary.colors}
+              start={theme.gradients.primary.start}
+              end={theme.gradients.primary.end}
               style={styles.buttonGradient}
             >
-              <Download color="#FFFFFF" size={20} />
+              <Download color={theme.colors.onPrimary} size={20} />
               <Text style={styles.buttonText}>Update Now</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -77,12 +84,12 @@ export const ForceUpdateScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.backgroundBase,
   },
   content: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: theme.spacing.lg,
     paddingVertical: 40,
   },
   header: {
@@ -92,45 +99,43 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    borderRadius: theme.radius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.2)',
+    borderColor: theme.colors.outlineVariant,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    ...theme.typography.displayMedium,
+    color: theme.colors.textPrimary,
     marginBottom: 12,
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#94A3B8',
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: 20,
   },
   card: {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
-    borderRadius: 20,
+    ...theme.elevation.card,
+    borderRadius: theme.radius.md,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: theme.colors.outlineVariantAlpha,
   },
   cardIcon: {
-    marginRight: 16,
+    marginRight: theme.spacing.md,
   },
   cardText: {
     flex: 1,
+    ...theme.typography.body,
     fontSize: 14,
-    color: '#CBD5E1',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   footer: {
@@ -141,13 +146,9 @@ const styles = StyleSheet.create({
   button: {
     width: '100%',
     height: 60,
-    borderRadius: 16,
+    borderRadius: theme.radius.md,
     overflow: 'hidden',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
+    ...theme.elevation.floatingShadow,
   },
   buttonGradient: {
     flex: 1,
@@ -157,14 +158,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    ...theme.typography.title,
+    color: theme.colors.onPrimary,
   },
   versionInfo: {
+    ...theme.typography.metadata,
     marginTop: 20,
-    fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },

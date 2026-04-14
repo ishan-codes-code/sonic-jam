@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Linking } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Sparkles, X } from 'lucide-react-native';
 import { useVersionStore } from '../../store/versionStore';
+import { theme } from '../../theme';
 
 export const OptionalUpdateModal = () => {
-  const { isOptional, updateUrl, message } = useVersionStore();
-  const [visible, setVisible] = useState(true);
+  const { isOptional, updateUrl, message, hasDismissedOptional, dismissOptional } = useVersionStore();
 
-  if (!isOptional || !visible) return null;
+  if (!isOptional || hasDismissedOptional) return null;
 
   const handleUpdate = () => {
     if (updateUrl) {
       Linking.openURL(updateUrl).catch(console.error);
+    } else {
+      alert("Update link unavailable. Please contact support.");
     }
   };
 
@@ -20,23 +23,36 @@ export const OptionalUpdateModal = () => {
     <Modal
       transparent
       animationType="fade"
-      visible={visible}
-      onRequestClose={() => setVisible(false)}
+      visible={true}
+      onRequestClose={dismissOptional}
     >
       <View style={styles.overlay}>
         <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
         
-        <View style={styles.modalContent}>
+        <LinearGradient
+          colors={[
+            theme.colors.backgroundCard,
+            theme.colors.backgroundInteractive,
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.modalContent}
+        >
           <TouchableOpacity 
             style={styles.closeButton} 
-            onPress={() => setVisible(false)}
+            onPress={dismissOptional}
           >
-            <X color="#94A3B8" size={20} />
+            <X color={theme.colors.textSecondary} size={20} />
           </TouchableOpacity>
 
-          <View style={styles.iconContainer}>
-            <Sparkles color="#3B82F6" size={32} />
-          </View>
+          <LinearGradient
+            colors={[theme.colors.primaryAccent, theme.colors.secondaryAccent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.iconContainer}
+          >
+            <Sparkles color={theme.colors.onPrimary} size={32} />
+          </LinearGradient>
 
           <Text style={styles.title}>Update Available</Text>
           <Text style={styles.description}>
@@ -46,7 +62,7 @@ export const OptionalUpdateModal = () => {
           <View style={styles.actions}>
             <TouchableOpacity 
               style={styles.maybeLater} 
-              onPress={() => setVisible(false)}
+              onPress={dismissOptional}
             >
               <Text style={styles.maybeLaterText}>Maybe Later</Text>
             </TouchableOpacity>
@@ -58,7 +74,7 @@ export const OptionalUpdateModal = () => {
               <Text style={styles.updateButtonText}>Update</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </LinearGradient>
       </View>
     </Modal>
   );
@@ -69,45 +85,44 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: theme.spacing.lg,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   modalContent: {
     width: '100%',
-    backgroundColor: '#1E293B',
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: theme.colors.outlineVariantAlpha,
+    ...theme.elevation.floatingShadow,
   },
   closeButton: {
     position: 'absolute',
-    right: 16,
-    top: 16,
-    padding: 4,
+    right: theme.spacing.md,
+    top: theme.spacing.md,
+    padding: theme.spacing.xs,
   },
   iconContainer: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: theme.radius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
+    ...theme.typography.headline,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.sm,
   },
   description: {
+    ...theme.typography.body,
     fontSize: 15,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 24,
+    marginBottom: theme.spacing.lg,
   },
   actions: {
     flexDirection: 'row',
@@ -119,25 +134,25 @@ const styles = StyleSheet.create({
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.backgroundInteractive,
   },
   maybeLaterText: {
-    color: '#94A3B8',
+    ...theme.typography.body,
     fontSize: 15,
-    fontWeight: '600',
+    color: theme.colors.textSecondary,
   },
   updateButton: {
     flex: 1,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
-    backgroundColor: '#3B82F6',
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primaryAccent,
   },
   updateButtonText: {
-    color: '#FFFFFF',
+    ...theme.typography.body,
     fontSize: 15,
-    fontWeight: '600',
+    color: theme.colors.onPrimary,
   },
 });

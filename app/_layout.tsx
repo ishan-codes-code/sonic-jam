@@ -87,6 +87,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function VersionGuard({ children }: { children: React.ReactNode }) {
   useVersionCheck();
   const isForce = useVersionStore((s) => s.isForce);
+  const isOptional = useVersionStore((s) => s.isOptional);
   const hasChecked = useVersionStore((s) => s.hasChecked);
 
   // If force update is required, block everything else
@@ -107,7 +108,7 @@ function VersionGuard({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <OptionalUpdateModal />
+      {isOptional && <OptionalUpdateModal />}
     </>
   );
 }

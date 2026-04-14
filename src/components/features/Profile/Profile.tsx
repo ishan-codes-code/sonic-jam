@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import Constants from 'expo-constants';
 import { 
   LogOut, 
   User as UserIcon, 
@@ -19,6 +20,7 @@ import { styles } from './Profile.styles';
 
 export const Profile = () => {
   const { user, logout } = useProfileLogic();
+  const appVersion = Constants.expoConfig?.version ?? '0.0.0';
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -73,7 +75,7 @@ export const Profile = () => {
         </View>
 
         {/* Version Footer */}
-        <Text style={styles.versionText}>SONIC v2.5.0</Text>
+        <Text style={styles.versionText}>SONIC v{appVersion}</Text>
       </ScrollView>
     </SafeAreaView>
   );
