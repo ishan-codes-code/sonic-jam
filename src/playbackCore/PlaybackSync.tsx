@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { usePlaybackState, useProgress, State, default as TrackPlayer, Event } from 'react-native-track-player';
 import { usePlaybackStore } from './usePlaybackStore';
-import { usePlayer } from './usePlayer';
+import { isStreamExpired } from './playbackApi';
 import { extractTrackColors } from '../services/trackColorService';
 import { PlayHistoryService } from '../services/playHistoryService';
 
@@ -11,7 +11,9 @@ import { PlayHistoryService } from '../services/playHistoryService';
  *
  * Also handles:
  * - Track change → update currentSong & extract artwork colors
- * - Queue extension (radio mode auto-fill)
+ *
+ * Queue extension (radio mode auto-fill) is handled by trackPlayerService
+ * so it runs in background regardless of component lifecycle.
  *
  * Rendered at the root of the app so sync runs everywhere.
  */
@@ -26,29 +28,35 @@ export const PlaybackSync = () => {
 
     // ── Position & Duration ──────────────────────────────────────
     useEffect(() => {
-        setPosition(position);
+        if (usePlaybackStore.getState().position !== position) {
+            setPosition(position);
+        }
     }, [position, setPosition]);
 
     useEffect(() => {
-        setDuration(duration);
+        if (usePlaybackStore.getState().duration !== duration) {
+            setDuration(duration);
+        }
     }, [duration, setDuration]);
 
     // ── Playback Status ──────────────────────────────────────────
     useEffect(() => {
         if (rnkpState === undefined) return;
 
+        const { status } = usePlaybackStore.getState();
+
         switch (rnkpState) {
             case State.Playing:
-                setStatus('playing');
+                if (status !== 'playing') setStatus('playing');
                 break;
             case State.Paused:
-                setStatus('paused');
+                if (status !== 'paused') setStatus('paused');
                 break;
             case State.Stopped:
-                setStatus('stopped');
+                if (status !== 'stopped') setStatus('stopped');
                 break;
             case State.Error:
-                setError('Playback error occurred');
+                if (status !== 'error') setError('Playback error occurred');
                 break;
             default:
                 break;
@@ -56,16 +64,20 @@ export const PlaybackSync = () => {
     }, [rnkpState, setStatus, setError]);
 
     // ── Track Change → Sync metadata + Extract colors ────────────
-    const { extendQueue } = usePlayer();
-
     useEffect(() => {
         const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event: any) => {
             if (event.track) {
                 const store = usePlaybackStore.getState();
                 let track = event.track;
 
-                // Resolve ONLY if placeholder
-                if (!track.url || track.url.startsWith('placeholder://')) {
+                // Resolve if: placeholder URL, missing URL, or stream TTL has expired.
+                // This fires for every track activation — auto-advance, skip, remote controls.
+                const needsResolve =
+                    !track.url ||
+                    track.url.startsWith('placeholder://') ||
+                    isStreamExpired(track.streamUrlExpiresAt ?? null);
+
+                if (needsResolve) {
                     try {
                         const { resolveStream } = await import('./playbackApi');
 
@@ -75,12 +87,12 @@ export const PlaybackSync = () => {
 
                         const currentIndex = await TrackPlayer.getActiveTrackIndex();
                         if (currentIndex !== event.index) {
-                            // User skipped away while we were loading
+                            // User skipped away while we were resolving
                             return;
                         }
 
                         // Note: RNTP natively ignores URL mutations via `updateMetadataForTrack`.
-                        // We must swap the track seamlessly: Add after -> Skip to it -> Remove placeholder
+                        // We must swap the track seamlessly: Add after → Skip to it → Remove stale
                         const updatedTrack = {
                             ...track,
                             url: streamUrl,
@@ -90,7 +102,7 @@ export const PlaybackSync = () => {
                         await TrackPlayer.add(updatedTrack, event.index + 1);
                         await TrackPlayer.skip(event.index + 1);
                         await TrackPlayer.remove(event.index);
-                        
+
                         store.notifyQueueUpdate();
 
                         const { state } = await TrackPlayer.getPlaybackState();
@@ -98,11 +110,29 @@ export const PlaybackSync = () => {
                             await TrackPlayer.play();
                         }
 
-                        // The skip operation emits a new event for the resolved track. Abort here.
+                        // The skip operation emits a new event for the refreshed track. Abort here.
                         return;
 
                     } catch (error) {
-                        console.error('[PlaybackSync] resolve failed', error);
+                        console.error('[PlaybackSync] resolve/refresh failed', error);
+                        
+                        // Self-healing: Skip to next track if this one fails to resolve
+                        await TrackPlayer.skipToNext().catch(() => {});
+                        
+                        // Show notification so user knows why it skipped
+                        try {
+                            const { default: Toast } = await import('react-native-toast-message');
+                            Toast.show({
+                                type: 'info',
+                                text1: 'Skipping unavailable track',
+                                text2: 'This song couldn\'t be loaded',
+                                position: 'bottom',
+                                visibilityTime: 3000,
+                            });
+                        } catch (tErr) {
+                            // ignore toast errors
+                        }
+                        
                         return;
                     }
                 }
@@ -129,15 +159,11 @@ export const PlaybackSync = () => {
                     usePlaybackStore.getState().setTrackColors(colors);
                 });
 
-                // Auto-fill logic
-                if (store.queueType === 'radio') {
-                    extendQueue();
-                }
             }
         });
 
         return () => sub.remove();
-    }, [extendQueue]);
+    }, []);
 
     return null;
 };

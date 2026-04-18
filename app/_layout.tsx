@@ -17,11 +17,7 @@ import { useVersionCheck } from '../src/hooks/useVersionCheck';
 import { useVersionStore } from '../src/store/versionStore';
 import { ForceUpdateScreen } from '../src/components/VersionControl/ForceUpdateScreen';
 import { OptionalUpdateModal } from '../src/components/VersionControl/OptionalUpdateModal';
-
-
-
-
-
+import { MaintenanceScreen } from '../src/components/VersionControl/MaintenanceScreen';
 
 TrackPlayer.registerPlaybackService(() => PlaybackService);
 
@@ -86,11 +82,20 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 // --------------------------------------------------------------------------
 function VersionGuard({ children }: { children: React.ReactNode }) {
   useVersionCheck();
+  
+  const isMaintenance = useVersionStore(s => s.isMaintenance);
   const isForce = useVersionStore((s) => s.isForce);
   const isOptional = useVersionStore((s) => s.isOptional);
+  const isOtaForce = useVersionStore(s => s.isOtaForce);
+  const isOtaOptional = useVersionStore(s => s.isOtaOptional);
   const hasChecked = useVersionStore((s) => s.hasChecked);
 
-  // If force update is required, block everything else
+  // Priority 1: Maintenance
+  if (isMaintenance) {
+    return <MaintenanceScreen />;
+  }
+
+  // Priority 2: Native force update
   if (isForce) {
     return <ForceUpdateScreen />;
   }
@@ -105,10 +110,16 @@ function VersionGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Priority 3: OTA force (non-dismissible nudge)
+  if (isOtaForce) {
+    return <ForceUpdateScreen isOta />;
+  }
+
   return (
     <>
       {children}
       {isOptional && <OptionalUpdateModal />}
+      {isOtaOptional && !isOptional && <OptionalUpdateModal isOta />}
     </>
   );
 }

@@ -6,10 +6,15 @@ import { Sparkles, X } from 'lucide-react-native';
 import { useVersionStore } from '../../store/versionStore';
 import { theme } from '../../theme';
 
-export const OptionalUpdateModal = () => {
-  const { isOptional, updateUrl, message, hasDismissedOptional, dismissOptional } = useVersionStore();
+interface OptionalUpdateModalProps {
+  isOta?: boolean;
+}
 
-  if (!isOptional || hasDismissedOptional) return null;
+export const OptionalUpdateModal = ({ isOta }: OptionalUpdateModalProps) => {
+  const { isOptional, isOtaOptional, otaMessage, updateUrl, message, hasDismissedOptional, dismissOptional } = useVersionStore();
+
+  const isVisible = (isOta ? isOtaOptional : isOptional) && !hasDismissedOptional;
+  if (!isVisible) return null;
 
   const handleUpdate = () => {
     if (updateUrl) {
@@ -54,9 +59,11 @@ export const OptionalUpdateModal = () => {
             <Sparkles color={theme.colors.onPrimary} size={32} />
           </LinearGradient>
 
-          <Text style={styles.title}>Update Available</Text>
+          <Text style={styles.title}>{isOta ? "App Update Ready" : "Update Available"}</Text>
           <Text style={styles.description}>
-            {message || "A new version of Sonic is available with new features and improvements."}
+            {isOta 
+              ? (otaMessage || "A new update has been downloaded. Restart to apply.")
+              : (message || "A new version of Sonic is available with new features and improvements.")}
           </Text>
 
           <View style={styles.actions}>
@@ -67,12 +74,14 @@ export const OptionalUpdateModal = () => {
               <Text style={styles.maybeLaterText}>Maybe Later</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.updateButton} 
-              onPress={handleUpdate}
-            >
-              <Text style={styles.updateButtonText}>Update</Text>
-            </TouchableOpacity>
+            {!isOta && (
+              <TouchableOpacity 
+                style={styles.updateButton} 
+                onPress={handleUpdate}
+              >
+                <Text style={styles.updateButtonText}>Update</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </LinearGradient>
       </View>

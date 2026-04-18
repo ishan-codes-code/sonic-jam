@@ -54,8 +54,8 @@ export const PlayerQueue = ({ queue, activeIndex }: PlayerQueueProps) => {
                     youtubeId: item.url || '',
                     position: 0,
                     channelId: '',
-                    trackName: item.title || 'Unknown Track', // mapped to match latest schema
-                    artistName: item.artist,
+                    trackName: item.title || 'Unknown Track',
+                    artists: (item as any).song?.artists || [{ name: item.artist || 'Unknown', id: "unknown", normalizedName: "unknown" }],
                 } as any;
 
                 return (

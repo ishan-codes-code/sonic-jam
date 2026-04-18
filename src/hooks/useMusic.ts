@@ -4,11 +4,12 @@ import {
   musicApi,
   PlayListReqPayLoad,
 } from "../api/musicApi";
+import { Artist } from "../playbackCore/types";
 import { getRecommendations } from "../services/recommendationService";
 
 type UseMusicOptions = {
   playlistId?: string | null;
-  recommendationSeed?: { title: string; artist: string } | null;
+  recommendationSeed?: { title: string; artists: Artist[] } | null;
   genre?: string | null;
 };
 
@@ -38,13 +39,13 @@ export function useMusic(options: UseMusicOptions = {}) {
   });
 
   const recommendationsQuery = useQuery({
-    queryKey: ["recommendations", recommendationSeed?.title, recommendationSeed?.artist],
+    queryKey: ["recommendations", recommendationSeed?.title, recommendationSeed?.artists],
     queryFn: () => getRecommendations({
       title: recommendationSeed!.title,
-      artist: recommendationSeed!.artist,
+      artists: recommendationSeed!.artists,
       limit: 10
     }),
-    enabled: !!recommendationSeed?.title && !!recommendationSeed?.artist,
+    enabled: !!recommendationSeed?.title && !!recommendationSeed?.artists,
   });
 
   const createPlaylistMutation = useMutation({

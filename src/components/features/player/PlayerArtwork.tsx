@@ -6,7 +6,7 @@ import { theme } from '@/src/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Artwork fills 80% of screen width for dominance
-const ARTWORK_SIZE = SCREEN_WIDTH * 0.82;
+const ARTWORK_SIZE = SCREEN_WIDTH * 0.88;
 
 interface PlayerArtworkProps {
     artworkUri: string | null;
@@ -31,18 +31,12 @@ export const PlayerArtwork = ({ artworkUri, animatedStyle }: PlayerArtworkProps)
 
 const styles = StyleSheet.create({
     artworkContainer: {
-        // Deep ambient shadow
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 20 },
-        shadowOpacity: 0.6,
-        shadowRadius: 40,
-        elevation: 20,
         alignSelf: 'center',
     },
     artworkInner: {
         width: ARTWORK_SIZE,
         height: ARTWORK_SIZE,
-        borderRadius: 20,
+        borderRadius: 8,
         overflow: 'hidden',
         backgroundColor: theme.colors.backgroundCard,
     },

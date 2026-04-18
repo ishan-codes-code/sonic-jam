@@ -104,7 +104,7 @@ export function usePlayer() {
             const track: PlaybackTrack = {
                 url: streamUrl,
                 title: song.trackName,
-                artist: song.artistName,
+                artist: song.artists?.map((a: any) => a.name).join(', '),
                 artwork: song.image ?? undefined,
                 duration: song.duration,
                 songId: song.id,
@@ -232,7 +232,7 @@ export function usePlayer() {
                 return {
                     url: isStartItem ? streamUrl : 'placeholder://pending',
                     title: song.trackName,
-                    artist: song.artistName,
+                    artist: song.artists?.map((a: any) => a.name).join(', '),
                     artwork: song.image ?? undefined,
                     duration: song.duration,
                     songId: song.id,
@@ -248,7 +248,7 @@ export function usePlayer() {
                 return {
                     url: isStartItem ? streamUrl : 'placeholder://pending',
                     title: song.trackName,
-                    artist: song.artistName,
+                    artist: song.artists?.map((a: any) => a.name).join(', '),
                     artwork: song.image ?? undefined,
                     duration: song.duration,
                     songId: song.id,
@@ -291,7 +291,7 @@ export function usePlayer() {
             const track: PlaybackTrack = {
                 url: streamUrl,
                 title: song.trackName,
-                artist: song.artistName,
+                artist: song.artists?.map((a: any) => a.name).join(', '),
                 artwork: song.image ?? undefined,
                 duration: song.duration,
                 songId: song.id,
@@ -339,7 +339,7 @@ export function usePlayer() {
             const track: PlaybackTrack = {
                 url: streamUrl,
                 title: song.trackName,
-                artist: song.artistName,
+                artist: song.artists?.map((a: any) => a.name).join(', '),
                 artwork: song.image ?? undefined,
                 duration: song.duration,
                 songId: song.id,
@@ -398,6 +398,9 @@ export function usePlayer() {
             return;
         }
 
+        // Skip if background service is already filling
+        if ((globalThis as any).__sonicIsExtending) return;
+
         if (isExtendingRef.current) return;
         
         if (!store.currentSong) return;
@@ -411,11 +414,11 @@ export function usePlayer() {
 
             // Increase threshold to 3 tracks remaining to be more proactive
             if (queue.length - activeIndex <= 3) {
-                console.log(`[usePlayer] 🚀 Fetching recommendations based on: ${store.currentSong.trackName} by ${store.currentSong.artistName}...`);
+                console.log(`[usePlayer] 🚀 Fetching recommendations based on: ${store.currentSong.trackName} by ${store.currentSong.artists?.map((a: any) => a.name).join(', ')}...`);
                 const { getRecommendations } = await import('../services/recommendationService');
                 const recommendations = await getRecommendations({
                     title: store.currentSong.trackName,
-                    artist: store.currentSong.artistName,
+                    artists: store.currentSong.artists || [],
                     limit: 5,
                 });
 
@@ -474,7 +477,7 @@ export function usePlayer() {
                 'songId' in payload
                     ? store.currentSong?.id === payload.songId
                     : store.currentSong?.trackName === payload.trackName &&
-                    store.currentSong?.artistName === payload.artistName;
+                    store.currentSong?.artists?.map((a: any) => a.name).join(', ') === payload.artistName;
 
             if (isSameSong && !isStreamExpired(store.streamUrlExpiresAt)) {
                 const { state } = await TrackPlayer.getPlaybackState();
@@ -544,7 +547,7 @@ export function usePlayer() {
                     id: song.id,
                     url: isStartItem ? streamUrl : 'placeholder://pending',
                     title: song.trackName,
-                    artist: song.artistName,
+                    artist: song.artists?.map((a: any) => a.name).join(', '),
                     artwork: song.image ?? undefined,
                     duration: song.duration,
                     songId: song.id,
@@ -581,13 +584,58 @@ export function usePlayer() {
         const store = getStore();
         try {
             if (isStreamExpired(store.streamUrlExpiresAt) && store.currentSong) {
-                await TrackPlayer.reset();
-                const track = await enqueue({ songId: store.currentSong.id });
-                if (track) await TrackPlayer.play();
+                // ── Expired stream: refresh URL without destroying the queue ──
+                // 1. Snapshot the paused position so we can seek back after the swap
+                const savedPosition = store.position;
+
+                const activeIndex = await TrackPlayer.getActiveTrackIndex();
+
+                if (activeIndex === null || activeIndex === undefined) {
+                    // No active track — can't swap, nothing to resume
+                    return;
+                }
+
+                // 2. Fetch a fresh stream URL for the current song
+                const { streamUrl, streamUrlExpiresAt } = await resolveStream({
+                    songId: store.currentSong.id,
+                });
+
+                // 3. Swap the stale track seamlessly (same pattern as PlaybackSync).
+                //    RNTP ignores URL mutations on an active track, so we must:
+                //    add refreshed copy → skip to it → remove the stale one.
+                const staleTrack = await TrackPlayer.getTrack(activeIndex) as any;
+                const refreshedTrack = {
+                    ...staleTrack,
+                    url: streamUrl,
+                    streamUrlExpiresAt,
+                };
+
+                await TrackPlayer.add(refreshedTrack, activeIndex + 1);
+                await TrackPlayer.skip(activeIndex + 1);
+                await TrackPlayer.remove(activeIndex);
+
+                // 4. Update store with the new expiry
+                store.setStream(streamUrl, streamUrlExpiresAt);
+
+                // 5. Seek back to where the user paused
+                if (savedPosition > 0) {
+                    await TrackPlayer.seekTo(savedPosition);
+                }
+
+                await TrackPlayer.play();
             } else {
                 await TrackPlayer.play();
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('[usePlayer] resume error:', e);
+            import('react-native-toast-message').then(({ default: Toast }) => {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Playback failed',
+                    text2: 'Could not resume this track',
+                });
+            });
+        }
     }, [enqueue]);
 
     const seek = useCallback(async (seconds: number) => {

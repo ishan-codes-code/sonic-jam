@@ -45,6 +45,11 @@ export const useJobStore = create<JobStore>((set) => ({
     updateJob: (jobId, data) => set((state) => {
         const existing = state.jobs[jobId];
         if (!existing) return state;
+
+        const hasChanges = Object.entries(data).some(([key, value]) => (
+            existing[key as keyof JobItem] !== value
+        ));
+        if (!hasChanges) return state;
         
         return {
             jobs: {

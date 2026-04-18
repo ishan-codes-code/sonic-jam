@@ -78,11 +78,13 @@ export function Search() {
         keyExtractor={(item, index) => `${item.id}_${index}`}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        ListHeaderComponentStyle={{ marginHorizontal: -theme.spacing.md }}
+
         renderItem={({ item: rawItem, index }) => {
           if (showRecentSongs) {
             const item = rawItem as RecentSong;
             const title = item.trackName || item.title || 'Unknown';
-            const artist = item.artistName || item.artist || 'Unknown';
+            const artist = item.artists?.map((a: any) => a.name).join(', ') || item.artistName || item.artist || 'Unknown';
 
             const recentActions = createRecentSongActions({
               onClose: close,
@@ -111,7 +113,7 @@ export function Search() {
                 playlistSongs={{
                   ...item,
                   trackName: title,
-                  artistName: artist,
+                  artists: [{ name: artist, id: "unknown", normalizedName: "unknown" }],
                   duration: item.duration ?? 0,
                   youtubeId: item.youtubeId ?? item.id,
                 } as any}
@@ -128,7 +130,7 @@ export function Search() {
                 playlistSongs={{
                   id: item.id,
                   trackName: item.title,
-                  artistName: item.artist,
+                  artists: [{ name: item.artist, id: "unknown", normalizedName: "unknown" }],
                   duration: 0,
                   youtubeId: item.id,
                 } as any}

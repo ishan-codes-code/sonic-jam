@@ -1,5 +1,7 @@
 import { apiClient } from '../api/apiClient';
 
+import { Artist } from '../playbackCore/types';
+
 export interface SearchTrack {
   id: string;
   title: string;

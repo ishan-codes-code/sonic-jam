@@ -1,5 +1,5 @@
-import { StyleSheet } from 'react-native';
-import { theme } from '../../../theme';
+import { StyleSheet } from "react-native";
+import { theme } from "../../../theme";
 
 export const styles = StyleSheet.create({
   container: {
@@ -8,10 +8,11 @@ export const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 120,
+    paddingHorizontal: theme.spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.xs,
@@ -24,7 +25,7 @@ export const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.8,
     color: theme.colors.textPrimary,
   },
@@ -34,8 +35,8 @@ export const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     backgroundColor: theme.colors.backgroundInteractive,
     borderRadius: theme.radius.md,
@@ -46,13 +47,13 @@ export const styles = StyleSheet.create({
     flex: 1,
     color: theme.colors.textPrimary,
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: "400",
     paddingVertical: 0,
   },
   emptyState: {
     minHeight: 320,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   emptyTitle: {
@@ -63,7 +64,7 @@ export const styles = StyleSheet.create({
   emptyText: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   loader: {
     marginTop: theme.spacing.xl,

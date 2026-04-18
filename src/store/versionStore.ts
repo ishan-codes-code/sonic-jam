@@ -6,13 +6,19 @@ interface VersionState extends VersionStatus {
   hasDismissedOptional: boolean;
   setVersionState: (data: Partial<VersionState>) => void;
   dismissOptional: () => void;
+  message?: string | null;
 }
 
 export const useVersionStore = create<VersionState>((set) => ({
+  isMaintenance: false,
+  maintenanceMessage: null,
   isForce: false,
   isOptional: false,
   updateUrl: null,
-  message: null,
+  nativeMessage: null,
+  isOtaForce: false,
+  isOtaOptional: false,
+  otaMessage: null,
   hasChecked: false,
   hasDismissedOptional: false,
 

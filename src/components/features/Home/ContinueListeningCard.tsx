@@ -7,7 +7,6 @@ import { theme } from '@/src/theme';
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Song } from '@/src/playbackCore/types';
-import { useProgress } from 'react-native-track-player';
 import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -23,8 +22,9 @@ export default function ContinueListeningCard() {
     const router = useRouter();
     const currentSong = usePlaybackStore(state => state.currentSong);
     const status = usePlaybackStore(state => state.status);
+    const position = usePlaybackStore(state => state.position);
+    const duration = usePlaybackStore(state => state.duration);
     const { play, pause, resume, skipToNext, skipToPrevious } = usePlayer();
-    const { position, duration } = useProgress();
 
     const [lastPlayed, setLastPlayed] = useState<Song | null>(null);
     const [fadeAnim] = useState(new Animated.Value(0));
@@ -114,7 +114,7 @@ export default function ContinueListeningCard() {
                         <Image source={{ uri: activeSong.image || '' }} style={styles.artwork} />
                         <View style={styles.info}>
                             <Text style={styles.title} numberOfLines={1}>{activeSong.trackName}</Text>
-                            <Text style={styles.artist} numberOfLines={1}>{activeSong.artistName}</Text>
+                            <Text style={styles.artist} numberOfLines={1}>{activeSong.artists?.map((a: any) => a.name).join(', ')}</Text>
                         </View>
                     </View>
 

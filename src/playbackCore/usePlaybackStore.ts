@@ -63,49 +63,84 @@ const initialState: PlaybackState = {
 export const usePlaybackStore = create<PlaybackState & PlaybackActions>((set) => ({
     ...initialState,
 
-    setQueueType: (queueType) => set({ queueType }),
+    setQueueType: (queueType) => set((state) => (
+        state.queueType === queueType ? state : { queueType }
+    )),
 
-    setPlaylistMeta: (playlistMeta) => set({ playlistMeta }),
+    setPlaylistMeta: (playlistMeta) => set((state) => (
+        state.playlistMeta?.playlistId === playlistMeta.playlistId &&
+        state.playlistMeta?.total === playlistMeta.total
+            ? state
+            : { playlistMeta }
+    )),
 
-    clearPlaylistMeta: () => set({ playlistMeta: null }),
+    clearPlaylistMeta: () => set((state) => (
+        state.playlistMeta === null ? state : { playlistMeta: null }
+    )),
 
-    setShuffling: (isShuffling) => set({ isShuffling }),
+    setShuffling: (isShuffling) => set((state) => (
+        state.isShuffling === isShuffling ? state : { isShuffling }
+    )),
 
     setOriginalQueue: (originalQueue) => set({ originalQueue }),
 
-    setStatus: (status) => set({ status, error: null }),
+    setStatus: (status) => set((state) => (
+        state.status === status && state.error === null
+            ? state
+            : { status, error: null }
+    )),
 
-    setError: (error) => set({ error, status: 'error' }),
+    setError: (error) => set((state) => (
+        state.error === error && state.status === 'error'
+            ? state
+            : { error, status: 'error' }
+    )),
 
     setCurrentSong: (song, track) => set({
         currentSong: song,
         currentTrack: track,
     }),
 
-    clearCurrentSong: () => set({
-        currentSong: null,
-        currentTrack: null,
-    }),
+    clearCurrentSong: () => set((state) => (
+        state.currentSong === null && state.currentTrack === null
+            ? state
+            : {
+                currentSong: null,
+                currentTrack: null,
+            }
+    )),
 
     setStream: (streamUrl, streamUrlExpiresAt) => set({
         streamUrl,
         streamUrlExpiresAt,
     }),
 
-    clearStream: () => set({
-        streamUrl: null,
-        streamUrlExpiresAt: null,
-    }),
+    clearStream: () => set((state) => (
+        state.streamUrl === null && state.streamUrlExpiresAt === null
+            ? state
+            : {
+                streamUrl: null,
+                streamUrlExpiresAt: null,
+            }
+    )),
 
-    setPosition: (position) => set({ position }),
+    setPosition: (position) => set((state) => (
+        state.position === position ? state : { position }
+    )),
 
-    setDuration: (duration) => set({ duration }),
+    setDuration: (duration) => set((state) => (
+        state.duration === duration ? state : { duration }
+    )),
 
-    setManualInsertIndex: (manualInsertIndex) => set({ manualInsertIndex }),
+    setManualInsertIndex: (manualInsertIndex) => set((state) => (
+        state.manualInsertIndex === manualInsertIndex ? state : { manualInsertIndex }
+    )),
 
     notifyQueueUpdate: () => set((state) => ({ queueRevision: state.queueRevision + 1 })),
 
-    setPendingJobId: (pendingJobId) => set({ pendingJobId }),
+    setPendingJobId: (pendingJobId) => set((state) => (
+        state.pendingJobId === pendingJobId ? state : { pendingJobId }
+    )),
 
     setTrackColors: (trackColors) => set({ trackColors }),
 

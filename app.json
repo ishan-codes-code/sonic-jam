@@ -2,24 +2,21 @@
   "expo": {
     "name": "sonic",
     "slug": "sonic",
-    "version": "1.1.1",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sonic",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "icon": "./assets/images/icon.png",
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0F0F2B",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "versionCode": 3,
+      "versionCode": 4,
       "package": "com.itsishandev.sonic"
     },
     "web": {
@@ -46,6 +43,14 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7cefc623-c5dc-4d02-8a7f-af9d2865e177",
+      "enabled": true,
+      "checkAutomatically": "OFF"
     },
     "extra": {
       "router": {},
