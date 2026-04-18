@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 import { ChevronDown, MoreVertical } from 'lucide-react-native';
 import { theme } from '@/src/theme';
 
@@ -15,10 +15,12 @@ export const PlayerHeader = ({ onBack, insetsTop }: PlayerHeaderProps) => {
     return (
         <View style={[styles.header, { paddingTop: insetsTop }]}>
             <TouchableOpacity onPress={onBack} style={styles.headerBtn}>
-                <ChevronDown color={theme.colors.textPrimary} size={28} />
+                <ChevronDown color={theme.colors.textPrimary} size={32} />
             </TouchableOpacity>
             
-            <View style={{ flex: 1 }} />
+            <View style={styles.titleContainer}>
+                <Text style={styles.headerTitle}>RECOMMENDED FOR YOU</Text>
+            </View>
 
             <TouchableOpacity style={styles.headerBtn}>
                 <MoreVertical color={theme.colors.textPrimary} size={24} />
@@ -30,17 +32,27 @@ export const PlayerHeader = ({ onBack, insetsTop }: PlayerHeaderProps) => {
 const styles = StyleSheet.create({
     header: {
         width: '100%',
-        height: 100,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: theme.spacing.lg,
+        justifyContent: 'space-between',
+        paddingHorizontal: theme.spacing.lg - 4,
+        height: 64, 
     },
     headerBtn: {
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 22,
+    },
+    titleContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    headerTitle: {
+        color: 'white',
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 0.8,
+        opacity: 0.8,
     },
 });

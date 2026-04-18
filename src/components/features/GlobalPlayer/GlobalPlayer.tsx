@@ -16,7 +16,10 @@ export const GlobalPlayer = () => {
     const pathname = usePathname();
     const { pause, resume } = usePlayer();
     const { open } = useBottomSheet();
-    const { currentSong, status, position, duration } = usePlaybackStore();
+    const currentSong = usePlaybackStore((s) => s.currentSong);
+    const status = usePlaybackStore((s) => s.status);
+    const position = usePlaybackStore((s) => s.position);
+    const duration = usePlaybackStore((s) => s.duration);
 
     const isVisible = currentSong !== null && status !== 'idle';
     const isPlaying = status === 'playing';
@@ -83,7 +86,7 @@ export const GlobalPlayer = () => {
                                 {currentSong?.trackName}
                             </Text>
                             <Text style={styles.artist} numberOfLines={1}>
-                                {currentSong?.artistName}
+                                {currentSong?.artists?.map((a: any) => a.name).join(', ')}
                             </Text>
                         </View>
 

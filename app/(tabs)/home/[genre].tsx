@@ -22,27 +22,27 @@ export default function GenreTracksScreen() {
   const { genre } = useLocalSearchParams<{ genre: string }>();
   const router = useRouter();
   const { play } = usePlayer();
-  
-  const { 
-    genreSongs: tracks, 
-    isLoadingGenre: loading, 
+
+  const {
+    genreSongs: tracks,
+    isLoadingGenre: loading,
     genreError: error,
     refetchGenre
   } = useMusic({ genre });
 
-  const handleTrackPress = (track: Song) => {
+  const handleTrackPress = (track: any) => {
     play({
       trackName: track.trackName,
-      artistName: track.artistName,
+      artistName: track.artistName || track.artist,
     });
   };
 
-  const renderTrackItem = ({ item }: { item: Song }) => (
+  const renderTrackItem = ({ item }: { item: any }) => (
     <SongListCard
       playlistSongs={{
         id: item.id,
         trackName: item.trackName || 'Unknown',
-        artistName: item.artistName || 'Unknown',
+        artists: [{ name: item.artistName || item.artist || 'Unknown', id: "unknown", normalizedName: "unknown" }],
         duration: item.duration || 0,
         youtubeId: '',
         image: item.image || null,
@@ -84,7 +84,7 @@ export default function GenreTracksScreen() {
         <FlatList
           data={tracks}
           renderItem={renderTrackItem}
-          keyExtractor={(item) => item.id || item.trackName + item.artistName}
+          keyExtractor={(item: any) => item.id || item.trackName + (item.artistName || item.artist)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={

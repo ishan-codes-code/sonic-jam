@@ -4,8 +4,9 @@ import { theme } from '@/src/theme';
 import { ActionItem, SongQuickAction } from '@/src/utils/songsActions';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 import { MusicOptionsDrawer } from '../../ui/MusicOptionsDrawer';
 import { SongPlaceholder } from '../../ui/SongPlaceholder';
@@ -19,11 +20,10 @@ interface SongListCardProps {
     trailingActions?: SongQuickAction[];
     isCurrent?: boolean;
     isPlaying?: boolean;
+    disableLongPress?: boolean;
+    rightElement?: React.ReactNode;
 }
 
-/**
- * Minimal duration formatter for display purposes.
- */
 const formatDuration = (seconds: number) => {
     if (!seconds || seconds <= 0) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -31,7 +31,7 @@ const formatDuration = (seconds: number) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export default function SongListCard({
+function SongListCard({
     playlistSongs,
     artworkUri,
     onPress,
@@ -39,84 +39,95 @@ export default function SongListCard({
     trailingActions = [],
     isCurrent = false,
     isPlaying = true,
+    disableLongPress = false,
+    rightElement,
 }: SongListCardProps) {
     const [imageError, setImageError] = useState(false);
+    const { open } = useBottomSheet();
 
-    const resolvedArtworkUri = artworkUri || playlistSongs.image;
+    const resolvedArtworkUri = useMemo(
+        () => artworkUri || playlistSongs.image,
+        [artworkUri, playlistSongs.image]
+    );
+    const hasContextMenu = actions.length > 0;
+    const subtitle = useMemo(
+        () => `${playlistSongs.artists?.map((a: any) => a.name).join(', ') ?? "Unknown"} • ${playlistSongs.duration ? formatDuration(playlistSongs.duration) : "0:00"}`,
+        [playlistSongs.artists?.map((a: any) => a.name).join(', '), playlistSongs.duration]
+    );
 
     useEffect(() => {
         setImageError(false);
     }, [resolvedArtworkUri]);
 
-    const { open } = useBottomSheet();
-    const hasContextMenu = actions.length > 0;
-
-    const handleOpen = () => {
+    const handleOpen = useCallback(() => {
         if (!hasContextMenu) return;
 
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         open(
             <MusicOptionsDrawer
                 image={resolvedArtworkUri}
                 title={playlistSongs.trackName}
-                subtitle={`${playlistSongs.artistName ?? "Unknown"} • ${playlistSongs.duration ? formatDuration(playlistSongs.duration) : "0:00"}`}
+                subtitle={subtitle}
                 actions={actions}
             />
         );
-    };
+    }, [actions, hasContextMenu, open, playlistSongs.trackName, resolvedArtworkUri, subtitle]);
 
     return (
         <AnimatedPressable
-            key={playlistSongs.id}
             pressableStyle={styles.wrapper}
             scaleTo={0.985}
             pressedOpacity={0.89}
             onPress={onPress}
-            onLongPress={hasContextMenu ? handleOpen : undefined}
-            feedback='snappy'>
+            onLongPress={(!hasContextMenu || disableLongPress) ? undefined : handleOpen}
+            feedback='snappy'
+        >
             <View style={styles.leftSec}>
                 <View style={styles.artWorkWrapper}>
                     {resolvedArtworkUri && !imageError ? (
                         <Image
                             source={{ uri: resolvedArtworkUri }}
-                            style={{ width: '100%', height: '100%' }}
-                            resizeMode="cover"
+                            style={styles.fullSize}
+                            contentFit="cover"
+                            transition={120}
+                            cachePolicy="memory-disk"
                             onError={() => setImageError(true)}
                         />
                     ) : (
                         <SongPlaceholder
                             title={playlistSongs.trackName}
-                            artist={playlistSongs.artistName}
-                            style={{ width: '100%', height: '100%' }}
+                            artist={playlistSongs.artists?.map((a: any) => a.name).join(', ')}
+                            style={styles.fullSize}
                             borderRadius={styles.artWorkWrapper.borderRadius}
                         />
                     )}
                 </View>
 
                 <View style={styles.textWrapper}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text 
-                            style={[styles.title, isCurrent && { color: theme.colors.actionAccent }, { flexShrink: 1 }]} 
-                            numberOfLines={1} 
+                    <View style={styles.titleRow}>
+                        <Text
+                            style={[styles.title, isCurrent && styles.titleCurrent]}
+                            numberOfLines={1}
                             ellipsizeMode="tail"
                         >
                             {playlistSongs.trackName}
                         </Text>
                         {isCurrent && (
-                            <AudioWave 
-                                isPlaying={isPlaying} 
-                                barColor={theme.colors.actionAccent} 
-                                count={3} 
-                                barWidth={2.5} 
-                                maxHeight={12} 
-                                minHeight={3} 
-                                gap={3} 
+                            <AudioWave
+                                isPlaying={isPlaying}
+                                barColor={theme.colors.actionAccent}
+                                count={3}
+                                barWidth={2.5}
+                                maxHeight={12}
+                                minHeight={3}
+                                gap={3}
                             />
                         )}
                     </View>
+
                     <View style={styles.subTitleWrapper}>
                         <Text style={styles.subTitle} numberOfLines={1}>
-                            {playlistSongs.artistName ?? "Unknown"}
+                            {playlistSongs.artists?.map((a: any) => a.name).join(', ') ?? "Unknown"}
                         </Text>
                         {playlistSongs.duration > 0 && (
                             <Text style={styles.subTitle}>
@@ -128,14 +139,17 @@ export default function SongListCard({
             </View>
 
             <View style={styles.actions}>
-                {hasContextMenu ? (
+                {rightElement ? (
+                    rightElement
+                ) : hasContextMenu ? (
                     <AnimatedPressable
                         onPress={handleOpen}
                         hitSlopSize={12}
                         scaleTo={0.82}
                         feedback="snappy"
                         accessibilityLabel="Open song menu"
-                        style={{ marginLeft: theme.spacing.md }}>
+                        style={styles.menuTrigger}
+                    >
                         <Ionicons
                             name="ellipsis-vertical"
                             size={theme.spacing.lg - 2}
@@ -151,7 +165,8 @@ export default function SongListCard({
                         hitSlopSize={12}
                         scaleTo={0.82}
                         feedback="snappy"
-                        accessibilityLabel={action.accessibilityLabel}>
+                        accessibilityLabel={action.accessibilityLabel}
+                    >
                         {action.icon}
                     </AnimatedPressable>
                 ))}
@@ -160,14 +175,29 @@ export default function SongListCard({
     );
 }
 
+export default memo(
+    SongListCard,
+    (prevProps, nextProps) =>
+        prevProps.playlistSongs === nextProps.playlistSongs &&
+        prevProps.artworkUri === nextProps.artworkUri &&
+        prevProps.onPress === nextProps.onPress &&
+        prevProps.actions === nextProps.actions &&
+        prevProps.trailingActions === nextProps.trailingActions &&
+        prevProps.isCurrent === nextProps.isCurrent &&
+        prevProps.isPlaying === nextProps.isPlaying
+);
+
 const styles = StyleSheet.create({
+    fullSize: {
+        width: '100%',
+        height: '100%',
+    },
     wrapper: {
         width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 12,
-        paddingHorizontal: theme.spacing.md,
         position: 'relative',
     },
     actions: {
@@ -195,6 +225,11 @@ const styles = StyleSheet.create({
         flex: 1,
         flexShrink: 1,
     },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     subTitleWrapper: {
         flexDirection: "row",
         flexWrap: "wrap",
@@ -207,8 +242,14 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         flexShrink: 1,
     },
+    titleCurrent: {
+        color: theme.colors.actionAccent,
+    },
     subTitle: {
         color: theme.colors.textSecondary,
         fontSize: theme.spacing.sm + theme.spacing.xs,
+    },
+    menuTrigger: {
+        marginLeft: theme.spacing.md,
     },
 });

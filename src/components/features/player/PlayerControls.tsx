@@ -1,20 +1,20 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     Pause,
     Play,
-    Repeat,
     Shuffle,
     SkipBack,
     SkipForward,
-    ChevronDown,
+    X,
+    PlusCircle,
+    Timer,
 } from 'lucide-react-native';
 import Animated from 'react-native-reanimated';
 import { theme } from '@/src/theme';
 import { Song } from '@/src/playbackCore/types';
 import PlayerSeek from './playerSeek';
 import AnimatedPressable from '../../ui/AnimatedPressable';
-
 import { usePlaybackStore, usePlayer } from '@/src/playbackCore';
 
 interface PlayerControlsProps {
@@ -26,7 +26,11 @@ interface PlayerControlsProps {
     animatedStyle: any;
 }
 
-export const PlayerControls = ({
+/**
+ * Pixel-perfect Player Controls matching the Spotify/Premium UI.
+ * Isolated logic to minimize re-renders.
+ */
+export const PlayerControls = memo(({
     currentSong,
     isPlaying,
     onToggle,
@@ -34,40 +38,49 @@ export const PlayerControls = ({
     onPrev,
     animatedStyle
 }: PlayerControlsProps) => {
-    const { isShuffling, queueType } = usePlaybackStore();
+    const isShuffling = usePlaybackStore((s) => s.isShuffling);
     const { toggleShuffle } = usePlayer();
 
     return (
         <Animated.View style={[styles.container, animatedStyle]}>
-            {/* Meta Info: Title and Artist Only */}
-            <View style={styles.metaContainer}>
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={styles.trackName} numberOfLines={1}>{currentSong.trackName}</Text>
-                    <Text style={styles.artistName} numberOfLines={1}>{currentSong.artistName}</Text>
+            {/* 1. Meta Info & Action Row */}
+            <View style={styles.infoRow}>
+                <View style={styles.titleContainer}>
+                    <Text style={styles.trackName} numberOfLines={1}>
+                        {currentSong.trackName}
+                    </Text>
+                    <Text style={styles.artistName} numberOfLines={1}>
+                        {currentSong.artists?.map((a: any) => a.name).join(', ')}
+                    </Text>
+                </View>
+                
+                <View style={styles.infoActions}>
+                    <TouchableOpacity style={styles.infoActionBtn}>
+                        <X color="white" size={30} strokeWidth={1.5} opacity={0.8} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.infoActionBtn}>
+                        <PlusCircle color="white" size={30} strokeWidth={1.5} opacity={0.8} />
+                    </TouchableOpacity>
                 </View>
             </View>
 
-            {/* Seek Bar */}
-            <View style={styles.seekContainer}>
+            {/* 2. Seek Bar */}
+            <View style={styles.seekSection}>
                 <PlayerSeek />
             </View>
 
-            {/* Core Playback Controls */}
-            <View style={styles.mainControls}>
-                <TouchableOpacity 
-                    onPress={toggleShuffle} 
-                    style={[styles.secondaryAction, { opacity: queueType === 'playlist' ? 1 : 0.3 }]}
-                    disabled={queueType !== 'playlist'}
-                >
+            {/* 3. Main Playback Controls */}
+            <View style={styles.controlsRow}>
+                <TouchableOpacity onPress={toggleShuffle} style={styles.secondaryBtn}>
                     <Shuffle 
-                        color={isShuffling ? theme.colors.actionAccent : theme.colors.textMuted} 
+                        color={isShuffling ? theme.colors.actionAccent : 'white'} 
                         size={22} 
+                        opacity={isShuffling ? 1 : 0.7}
                     />
-                    {isShuffling && <View style={styles.activeDot} />}
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={onPrev} style={styles.skipBtn}>
-                    <SkipBack color="white" fill="white" size={36} />
+                    <SkipBack color="white" fill="white" size={30} />
                 </TouchableOpacity>
 
                 <AnimatedPressable
@@ -82,107 +95,81 @@ export const PlayerControls = ({
                 </AnimatedPressable>
 
                 <TouchableOpacity onPress={onNext} style={styles.skipBtn}>
-                    <SkipForward color="white" fill="white" size={36} />
+                    <SkipForward color="white" fill="white" size={30} />
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.secondaryAction} disabled>
-                    <Repeat color={theme.colors.textMuted} size={22} />
+                <TouchableOpacity style={styles.secondaryBtn}>
+                    <Timer color="white" size={22} opacity={0.7} />
                 </TouchableOpacity>
             </View>
-
-            {/* Clear spacer to focus purely on "Up Next" below */}
-            <View style={{ height: 30 }} />
-
         </Animated.View>
     );
-};
+});
 
 const styles = StyleSheet.create({
-    activeDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: theme.colors.actionAccent,
-        position: 'absolute',
-        bottom: 2,
-    },
     container: {
-        gap: theme.spacing.lg,
+        width: '100%',
+        paddingTop: 8,
     },
-    metaContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    trackName: {
-        color: 'white',
-        fontSize: 28,
-        fontWeight: '900',
-        letterSpacing: -0.5,
-        textAlign: 'center',
-    },
-    artistName: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 18,
-        fontWeight: '500',
-        marginTop: 4,
-        textAlign: 'center',
-    },
-    seekContainer: {
-        marginTop: 20,
-    },
-    mainControls: {
+    infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginTop: 20,
-        paddingHorizontal: 10,
+        marginBottom: 8,
+        paddingHorizontal: 4,
+    },
+    titleContainer: {
+        flex: 1,
+        paddingRight: 10,
+    },
+    trackName: {
+        color: 'white',
+        fontSize: 22,
+        fontWeight: 'bold',
+        letterSpacing: -0.4,
+    },
+    artistName: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 15,
+        fontWeight: '500',
+        marginTop: 2,
+    },
+    infoActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    infoActionBtn: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    seekSection: {
+        marginTop: 4,
+    },
+    controlsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 8,
     },
     playBtn: {
-        width: 84,
-        height: 84,
-        borderRadius: 42,
+        width: 72,
+        height: 72,
+        borderRadius: 36,
         backgroundColor: 'white',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 15,
-        elevation: 10,
     },
     skipBtn: {
-        width: 50,
-        height: 50,
+        width: 48,
+        height: 48,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    secondaryAction: {
+    secondaryBtn: {
         width: 44,
         height: 44,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: 0.6,
-    },
-    scrollHint: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        marginTop: 10,
-        paddingVertical: 12,
-    },
-    scrollHintPill: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: 'rgba(255,255,255,0.4)',
-    },
-    scrollHintText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 13,
-        fontWeight: '600',
-        letterSpacing: 2,
-        textTransform: 'uppercase',
     },
 });

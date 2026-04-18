@@ -4,18 +4,23 @@ import type { Track } from 'react-native-track-player';
 // Backend Types (mirror your backend exactly)
 // ─────────────────────────────────────────
 
+export interface Artist {
+    id: string;
+    name: string;
+    normalizedName: string;
+}
+
 export type Song = {
     duration: number;
     id: string;
     youtubeId: string;
     r2Key: string;
     trackName: string;
-    artistName: string;
+    artists: Artist[];
     albumName: string | null;
     image: string | null;
     lastfmId: string | null;
     normalizedTrackName: string;
-    normalizedArtistName: string;
     youtubeTitle: string | null;
     createdAt: Date;
 };

@@ -49,7 +49,7 @@ export default function HistoryScreen() {
             playlistSongs={{
                 id: item.song.id,
                 trackName: item.song.trackName || 'Unknown',
-                artistName: item.song.artistName || 'Unknown',
+                artists: item.song.artists || [{ name: 'Unknown', id: "unknown", normalizedName: "unknown" }],
                 duration: item.song.duration || 0,
                 youtubeId: item.song.youtubeId,
                 image: item.song.image || null,

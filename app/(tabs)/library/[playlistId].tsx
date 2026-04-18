@@ -1,10 +1,15 @@
+import { usePlayer } from '@/src/playbackCore/usePlayer';
+import { usePlaybackStore } from '@/src/playbackCore/usePlaybackStore';
+import { PlaylistEmptyState } from '@/src/components/features/Playlist/PlaylistEmptyState';
+import { PlaylistSkeleton } from '@/src/components/features/Playlist/PlaylistSkeleton';
+import { playlistScreenStyles as styles } from '@/src/components/features/Playlist/PlaylistScreen.styles';
 import SongListCard from '@/src/components/features/Playlist/SongListCard';
 import AnimatedPressable from '@/src/components/ui/AnimatedPressable';
 import { MusicOptionsDrawer } from '@/src/components/ui/MusicOptionsDrawer';
 import { useConfirm } from '@/src/hooks/useConfirm';
 import { useBottomSheet } from '@/src/hooks/useDrawer';
-import { useToast } from '@/src/hooks/useToast';
 import { useMusic } from '@/src/hooks/useMusic';
+import { useToast } from '@/src/hooks/useToast';
 import { theme } from '@/src/theme';
 import { createLibrarySongActions } from '@/src/utils/songsActions';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,11 +17,9 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { usePlayer } from '@/src/playbackCore/usePlayer';
- import { usePlaybackStore } from '@/src/playbackCore/usePlaybackStore';
-import React, { useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react-native';
-import { type DimensionValue, Dimensions, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Dimensions, ListRenderItem, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Extrapolation,
     interpolate,
@@ -27,6 +30,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const ROW_HEIGHT = SCREEN_WIDTH < 520 ? 62 : 64;
 
 const hashString = (value: string) => {
     let hash = 0;
@@ -59,29 +63,22 @@ const formatDuration = (seconds: number) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const SkeletonBlock = ({ w, h, r }: { w: DimensionValue; h: number; r?: number }) => {
-    return <View style={[styles.skeleton, { width: w, height: h, borderRadius: r ?? theme.radius.md }]} />;
-};
-
 export default function PlaylistScreen() {
     const router = useRouter();
     const { playlistId } = useLocalSearchParams();
-
-
     const insets = useSafeAreaInsets();
-
     const id = typeof playlistId === 'string' ? playlistId : String(playlistId ?? '');
 
-    const queueType = usePlaybackStore(s => s.queueType);
-    const playlistMeta = usePlaybackStore(s => s.playlistMeta);
-    const currentSong = usePlaybackStore(s => s.currentSong);
-    const isPlaying = usePlaybackStore(s => s.status) === 'playing';
+    const queueType = usePlaybackStore((s) => s.queueType);
+    const playlistMeta = usePlaybackStore((s) => s.playlistMeta);
+    const currentSong = usePlaybackStore((s) => s.currentSong);
+    const isPlaying = usePlaybackStore((s) => s.status) === 'playing';
+    const isShuffling = usePlaybackStore((s) => s.isShuffling);
 
     const {
         userPlaylist,
         isLoadingUserPlaylists,
         playlistSongs,
-        isFetchingPlaylistSongs,
         isLoadingPlaylistSongs,
         deletePlaylist,
         removeSongFromPlaylist,
@@ -90,42 +87,53 @@ export default function PlaylistScreen() {
     const confirm = useConfirm();
     const { open: openSheet, close: closeSheet } = useBottomSheet();
     const toast = useToast();
-
     const { playPlaylist, playNext, addToQueue, shufflePlay, toggleShuffle } = usePlayer();
+    const [isLiked, setLiked] = useState(false);
 
-    const handlePlayAll = () => {
-        if (playlistSongs.length === 0) return;
-        playPlaylist(playlistSongs, 0, id);
-    };
+    const playlist = useMemo(
+        () => userPlaylist.find((p) => p.id === id) ?? null,
+        [id, userPlaylist]
+    );
+    const hero = useMemo(() => pickHeroGradient(id), [id]);
+    const cover = playlist?.thumbnailUrl?.[0] ?? null;
+    const totalDurationSec = useMemo(
+        () => playlistSongs.reduce((acc, cur) => acc + (cur.duration || 0), 0),
+        [playlistSongs]
+    );
 
-    const isShuffling = usePlaybackStore(s => s.isShuffling);
+    const isLoading = isLoadingUserPlaylists || isLoadingPlaylistSongs;
+    const isEmpty = !isLoading && playlistSongs.length === 0;
     const isThisPlaylistActive = queueType === 'playlist' && playlistMeta?.playlistId === id;
     const isThisPlaylistShuffling = isThisPlaylistActive && isShuffling;
 
-    const handleShuffleAll = () => {
+    const handlePlayAll = useCallback(() => {
         if (playlistSongs.length === 0) return;
-        
-        // If this playlist is already the active queue, just toggle the shuffle state
-        // of the live queue without restarting playback.
+        void playPlaylist(playlistSongs, 0, id);
+    }, [id, playPlaylist, playlistSongs]);
+
+    const handleShuffleAll = useCallback(() => {
+        if (playlistSongs.length === 0) return;
+
         if (isThisPlaylistActive) {
-            toggleShuffle();
-        } else {
-            // Otherwise, start a fresh shuffled queue
-            shufflePlay(playlistSongs, id);
+            void toggleShuffle();
+            return;
         }
-    };
 
-    const [isLiked, setLiked] = useState(false);
+        void shufflePlay(playlistSongs, id);
+    }, [id, isThisPlaylistActive, playlistSongs, shufflePlay, toggleShuffle]);
 
-    const playlist = useMemo(() => {
-        return userPlaylist.find((p) => p.id === id) ?? null;
-    }, [id, userPlaylist]);
+    const handleRemoveSong = useCallback(async (songId: string) => {
+        try {
+            await removeSongFromPlaylist({ playlistId: id, songId });
+            toast.success('Removed from playlist');
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (error) {
+            toast.error('Failed to remove song');
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+    }, [id, removeSongFromPlaylist, toast]);
 
-    const hero = useMemo(() => pickHeroGradient(id), [id]);
-
-    const cover = playlist?.thumbnailUrl?.[0] ?? null;
-
-    const handleMoreOptions = () => {
+    const handleMoreOptions = useCallback(() => {
         openSheet(
             <MusicOptionsDrawer
                 image={cover}
@@ -148,41 +156,23 @@ export default function PlaylistScreen() {
                                 confirmText: 'DELETE',
                                 cancelText: 'CANCEL',
                             });
-                            if (ok) {
-                                try {
-                                    await deletePlaylist(id);
-                                    toast.success('Playlist deleted');
-                                    router.back();
-                                } catch (error) {
-                                    console.error('Delete failed:', error);
-                                    toast.error('Failed to delete playlist');
-                                }
+
+                            if (!ok) return;
+
+                            try {
+                                await deletePlaylist(id);
+                                toast.success('Playlist deleted');
+                                router.back();
+                            } catch (error) {
+                                console.error('Delete failed:', error);
+                                toast.error('Failed to delete playlist');
                             }
                         },
                     },
                 ]}
             />
         );
-    };
-
-    const handleRemoveSong = async (songId: string) => {
-        try {
-            await removeSongFromPlaylist({ playlistId: id, songId });
-            toast.success('Removed from playlist');
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (error) {
-            toast.error('Failed to remove song');
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
-    };
-
-    const totalDurationSec = useMemo(
-        () => playlistSongs.reduce((acc, cur) => acc + (cur.duration || 0), 0),
-        [playlistSongs],
-    );
-
-    const isLoading = isLoadingUserPlaylists || isLoadingPlaylistSongs;
-    const isEmpty = !isLoading && playlistSongs.length === 0;
+    }, [closeSheet, confirm, cover, deletePlaylist, id, openSheet, playlist?.description, playlist?.name, router, toast]);
 
     const scrollY = useSharedValue(0);
     const onScroll = useAnimatedScrollHandler({
@@ -197,119 +187,158 @@ export default function PlaylistScreen() {
         return { opacity, transform: [{ translateY }] };
     });
 
-    const showCompactColumns = SCREEN_WIDTH < 520;
+    const header = useMemo(() => (
+        isLoading ? (
+            <PlaylistSkeleton insetsTop={insets.top} />
+        ) : (
+            <View>
+                <LinearGradient colors={hero.colors} locations={hero.locations} style={styles.heroBg}>
+                    <View style={[styles.heroContent, { paddingTop: insets.top + 18 }]}>
+                        <View style={styles.heroRow}>
+                            <View style={styles.cover}>
+                                {cover ? (
+                                    <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} />
+                                ) : (
+                                    <View style={[styles.coverFallback, { backgroundColor: hero.base + '26' }]}>
+                                        <Ionicons name="musical-notes" size={36} color={theme.colors.textSecondary} />
+                                    </View>
+                                )}
+                            </View>
 
-    const header = (
-        <View>
-            <LinearGradient colors={hero.colors} locations={hero.locations} style={styles.heroBg}>
-                <View style={[styles.heroContent, { paddingTop: insets.top + 18 }]}>
-                    <View style={styles.heroRow}>
-                        <View style={styles.cover}>
-                            {cover ? (
-                                <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} />
-                            ) : (
-                                <View style={[styles.coverFallback, { backgroundColor: hero.base + '26' }]}>
-                                    <Ionicons name="musical-notes" size={36} color={theme.colors.textSecondary} />
+                            <View style={styles.heroRight}>
+                                <Text style={styles.label}>PLAYLIST</Text>
+                                <Text style={styles.title} numberOfLines={2}>
+                                    {playlist?.name ?? 'Playlist'}
+                                </Text>
+                                {!!playlist?.description && (
+                                    <Text style={styles.desc} numberOfLines={2}>
+                                        {playlist.description}
+                                    </Text>
+                                )}
+
+                                <View style={styles.metaRow}>
+                                    <Text style={styles.metaText}>
+                                        {!playlist?.isPublic && <Text style={styles.metaStrong}>You</Text>}
+                                        <Text style={styles.metaDot}> • </Text>
+                                        {playlistSongs.length} songs
+                                        <Text style={styles.metaDot}> • </Text>
+                                        {formatDuration(totalDurationSec)}
+                                    </Text>
                                 </View>
-                            )}
-                        </View>
-
-                        <View style={styles.heroRight}>
-                            <Text style={styles.label}>PLAYLIST</Text>
-                            <Text style={styles.title} numberOfLines={2}>
-                                {playlist?.name ?? 'Playlist'}
-                            </Text>
-                            {!!playlist?.description && (
-                                <Text style={styles.desc} numberOfLines={2}>
-                                    {playlist.description}
-                                </Text>
-                            )}
-
-                            <View style={styles.metaRow}>
-                                <Text style={styles.metaText}>
-                                    {!playlist?.isPublic && <Text style={styles.metaStrong}>You</Text>}
-                                    <Text style={styles.metaDot}> • </Text>
-                                    {playlistSongs.length} songs
-                                    <Text style={styles.metaDot}> • </Text>
-                                    {formatDuration(totalDurationSec)}
-                                </Text>
                             </View>
                         </View>
+
+                        <View style={styles.actionsRow}>
+                            <AnimatedPressable
+                                style={styles.playWrap}
+                                pressableStyle={styles.playBtn}
+                                feedback="snappy"
+                                scaleTo={0.985}
+                                pressedOpacity={0.9}
+                                accessibilityLabel="Play playlist"
+                                onPress={handlePlayAll}
+                            >
+                                <Ionicons name="play" size={18} color={theme.colors.onPrimary} />
+                                <Text style={styles.playText}>Play</Text>
+                            </AnimatedPressable>
+
+                            <AnimatedPressable
+                                style={styles.secondaryWrap}
+                                pressableStyle={styles.secondaryBtn}
+                                feedback="snappy"
+                                scaleTo={0.985}
+                                pressedOpacity={0.88}
+                                accessibilityLabel="Shuffle playlist"
+                                onPress={handleShuffleAll}
+                            >
+                                <Ionicons
+                                    name="shuffle"
+                                    size={18}
+                                    color={isThisPlaylistShuffling ? theme.colors.actionAccent : theme.colors.textPrimary}
+                                />
+                                {isThisPlaylistShuffling && <View style={styles.activeDot} />}
+                            </AnimatedPressable>
+
+                            <AnimatedPressable
+                                style={styles.iconWrap}
+                                pressableStyle={styles.iconBtn}
+                                feedback="snappy"
+                                scaleTo={0.9}
+                                accessibilityLabel={isLiked ? 'Unlike playlist' : 'Like playlist'}
+                                onPress={() => setLiked((prev) => !prev)}
+                            >
+                                <Ionicons
+                                    name={isLiked ? 'heart' : 'heart-outline'}
+                                    size={18}
+                                    color={isLiked ? theme.colors.actionAccent : theme.colors.textSecondary}
+                                />
+                            </AnimatedPressable>
+
+                            <AnimatedPressable
+                                style={styles.iconWrap}
+                                pressableStyle={styles.iconBtn}
+                                feedback="snappy"
+                                scaleTo={0.9}
+                                accessibilityLabel="More options"
+                                onPress={handleMoreOptions}
+                            >
+                                <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
+                            </AnimatedPressable>
+                        </View>
                     </View>
+                </LinearGradient>
+            </View>
+        )
+    ), [cover, handleMoreOptions, handlePlayAll, handleShuffleAll, hero.base, hero.colors, hero.locations, insets.top, isLiked, isLoading, isThisPlaylistShuffling, playlist?.description, playlist?.isPublic, playlist?.name, playlistSongs.length, totalDurationSec]);
 
-                    <View style={styles.actionsRow}>
-                        <AnimatedPressable
-                            style={styles.playWrap}
-                            pressableStyle={styles.playBtn}
-                            feedback="snappy"
-                            scaleTo={0.985}
-                            pressedOpacity={0.9}
-                            accessibilityLabel="Play playlist"
-                            onPress={handlePlayAll}
-                        >
-                            <Ionicons name="play" size={18} color={theme.colors.onPrimary} />
-                            <Text style={styles.playText}>Play</Text>
-                        </AnimatedPressable>
+    const renderItem = useCallback<ListRenderItem<(typeof playlistSongs)[number]>>(
+        ({ item, index }) => {
+            const isCurrent = isThisPlaylistActive && currentSong?.id === item.id;
 
-                        <AnimatedPressable
-                            style={styles.secondaryWrap}
-                            pressableStyle={styles.secondaryBtn}
-                            feedback="snappy"
-                            scaleTo={0.985}
-                            pressedOpacity={0.88}
-                            accessibilityLabel="Shuffle playlist"
-                            onPress={handleShuffleAll}
-                        >
-                            <Ionicons 
-                                name="shuffle" 
-                                size={18} 
-                                color={isThisPlaylistShuffling ? theme.colors.actionAccent : theme.colors.textPrimary} 
-                            />
-                            {isThisPlaylistShuffling && <View style={styles.activeDot} />}
-                        </AnimatedPressable>
-
-                        <AnimatedPressable
-                            style={styles.iconWrap}
-                            pressableStyle={styles.iconBtn}
-                            feedback="snappy"
-                            scaleTo={0.9}
-                            accessibilityLabel={isLiked ? 'Unlike playlist' : 'Like playlist'}
-                            onPress={() => setLiked((s) => !s)}
-                        >
-                            <Ionicons
-                                name={isLiked ? 'heart' : 'heart-outline'}
-                                size={18}
-                                color={isLiked ? theme.colors.actionAccent : theme.colors.textSecondary}
-                            />
-                        </AnimatedPressable>
-
-                        <AnimatedPressable
-                            style={styles.iconWrap}
-                            pressableStyle={styles.iconBtn}
-                            feedback="snappy"
-                            scaleTo={0.9}
-                            accessibilityLabel="More options"
-                            onPress={handleMoreOptions}
-                        >
-                            <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
-                        </AnimatedPressable>
-                    </View>
-                </View>
-            </LinearGradient>
-        </View>
+            return (
+                <SongListCard
+                    playlistSongs={item}
+                    isCurrent={isCurrent}
+                    isPlaying={isPlaying}
+                    onPress={() => {
+                        void playPlaylist(playlistSongs, index, id);
+                    }}
+                    actions={createLibrarySongActions({
+                        onClose: closeSheet,
+                        onRemove: () => {
+                            void handleRemoveSong(item.id);
+                        },
+                        onPlayNext: () => {
+                            void playNext({ songId: item.id });
+                        },
+                        onAddToQueue: () => {
+                            void addToQueue({ songId: item.id });
+                        },
+                    })}
+                />
+            );
+        },
+        [addToQueue, closeSheet, currentSong?.id, handleRemoveSong, id, isPlaying, isThisPlaylistActive, playNext, playPlaylist, playlistSongs]
     );
+
+    const keyExtractor = useCallback((item: (typeof playlistSongs)[number]) => item.id, []);
+    const getItemLayout = useCallback((_: ArrayLike<(typeof playlistSongs)[number]> | null | undefined, index: number) => ({
+        length: ROW_HEIGHT,
+        offset: ROW_HEIGHT * index,
+        index,
+    }), []);
 
     return (
         <View style={styles.root}>
-            <Animated.View style={[styles.sticky, { paddingTop: insets.top, backgroundColor: theme.colors.backgroundBase }, stickyStyle]} pointerEvents="box-none">
+            <Animated.View
+                style={[styles.sticky, { paddingTop: insets.top, backgroundColor: theme.colors.backgroundBase }, stickyStyle]}
+                pointerEvents="box-none"
+            >
                 <View style={styles.stickyInner}>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        style={styles.backButton}
-                    >
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <ArrowLeft color={theme.colors.textPrimary} size={24} />
                     </TouchableOpacity>
-                    
+
                     <View style={styles.headerTextWrapper}>
                         <Text style={styles.stickyTitle} numberOfLines={1}>
                             {playlist?.name ?? 'Playlist'}
@@ -334,397 +363,22 @@ export default function PlaylistScreen() {
 
             <Animated.FlatList
                 data={playlistSongs}
-                keyExtractor={(item, index) => `${item.id}-${index}`}
-                renderItem={({ item, index }) => {
-                    const isCurrent = queueType === 'playlist' && playlistMeta?.playlistId === id && currentSong?.id === item.id;
-                    
-                    return (
-                        <SongListCard
-                            playlistSongs={item}
-                            isCurrent={isCurrent}
-                            isPlaying={isPlaying}
-                            onPress={() => {
-                                playPlaylist(playlistSongs, index, id);
-                            }}
-                            actions={createLibrarySongActions({
-                                onClose: closeSheet,
-                                onRemove: () => {
-                                    void handleRemoveSong(item.id);
-                                },
-                                onPlayNext: () => {
-                                    void playNext({ songId: item.id });
-                                },
-                                onAddToQueue: () => {
-                                    void addToQueue({ songId: item.id });
-                                },
-                            })}
-                        />
-                    );
-                }}
-                contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
-                ListHeaderComponent={isLoading ? <PlaylistSkeleton insetsTop={insets.top} /> : header}
-                ListEmptyComponent={
-                    isLoading ? null : isEmpty ? (
-                        <EmptyState />
-                    ) : null
-                }
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 120, paddingHorizontal: theme.spacing.md }}
+                ListHeaderComponentStyle={{ marginHorizontal: -16 }}
+                ListHeaderComponent={header}
+                ListEmptyComponent={isLoading ? null : isEmpty ? <PlaylistEmptyState /> : null}
                 onScroll={onScroll}
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 removeClippedSubviews
-                initialNumToRender={16}
-                windowSize={12}
-                maxToRenderPerBatch={18}
-                updateCellsBatchingPeriod={40}
-                getItemLayout={(_, index) => ({ length: showCompactColumns ? 62 : 64, offset: (showCompactColumns ? 62 : 64) * index, index })}
+                initialNumToRender={12}
+                windowSize={10}
+                maxToRenderPerBatch={12}
+                updateCellsBatchingPeriod={32}
+                getItemLayout={getItemLayout}
             />
         </View>
     );
 }
-
-export function PlaylistSkeleton({ insetsTop }: { insetsTop: number }) {
-    return (
-        <View>
-            <View style={[styles.heroBg, { paddingTop: insetsTop + 18, paddingHorizontal: theme.spacing.lg }]}>
-                <View style={[styles.heroRow, { alignItems: "center" }]}>
-                    <SkeletonBlock w={152} h={152} r={theme.radius.lg} />
-
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 }}>
-                    <SkeletonBlock w={110} h={44} r={999} />
-                    <SkeletonBlock w={44} h={44} r={999} />
-                    <SkeletonBlock w={44} h={44} r={999} />
-                    <SkeletonBlock w={44} h={44} r={999} />
-                </View>
-            </View>
-
-            <View style={styles.listSection}>
-                <View style={[styles.tableHeader, styles.tableHeaderCompact]}>
-                    <SkeletonBlock w={'45%'} h={12} r={8} />
-                    <View style={{ flex: 1 }} />
-                    <SkeletonBlock w={30} h={12} r={8} />
-                </View>
-                <View style={styles.divider} />
-
-                {Array.from({ length: 10 }).map((_, idx) => (
-                    <View key={idx} style={[styles.skelRow, idx === 0 && { marginTop: theme.spacing.sm }]}>
-                        <SkeletonBlock w={42} h={42} r={theme.radius.sm} />
-                        <View style={{ flex: 1, gap: 8 }}>
-                            <SkeletonBlock w={'70%'} h={12} r={8} />
-                            <SkeletonBlock w={'40%'} h={10} r={8} />
-                        </View>
-                        <SkeletonBlock w={38} h={12} r={8} />
-                    </View>
-                ))}
-            </View>
-        </View>
-    );
-}
-
-function EmptyState() {
-    return (
-        <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>This playlist is empty</Text>
-            <Text style={styles.emptyDesc}>Add a few songs to start the vibe. Explore and save what you love.</Text>
-            <AnimatedPressable
-                style={{ marginTop: 14 }}
-                pressableStyle={styles.emptyCta}
-                feedback="snappy"
-                scaleTo={0.985}
-                pressedOpacity={0.9}
-                accessibilityLabel="Explore songs"
-            >
-                <Text style={styles.emptyCtaText}>Explore songs</Text>
-                <Ionicons name="arrow-forward" size={16} color={theme.colors.onPrimary} />
-            </AnimatedPressable>
-        </View>
-    );
-}
-
-const styles = StyleSheet.create({
-    root: {
-        flex: 1,
-        backgroundColor: theme.colors.backgroundBase,
-    },
-
-    heroBg: {
-        paddingHorizontal: theme.spacing.md,
-        paddingBottom: theme.spacing.lg,
-    },
-    heroContent: {
-        gap: 16,
-    },
-    heroRow: {
-        flexDirection: SCREEN_WIDTH < 520 ? 'column' : 'row',
-
-        gap: theme.spacing.lg,
-        alignItems: SCREEN_WIDTH < 520 ? 'flex-start' : 'flex-end',
-    },
-    cover: {
-        width: SCREEN_WIDTH < 520 ? 150 : 172,
-        height: SCREEN_WIDTH < 520 ? 150 : 172,
-        borderRadius: theme.radius.lg,
-        overflow: 'hidden',
-        backgroundColor: theme.colors.backgroundCard,
-        ...theme.elevation.floatingShadow,
-        alignSelf: SCREEN_WIDTH < 520 ? "center" : "auto",
-    },
-    coverFallback: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    heroRight: {
-        flex: 1,
-        minWidth: 0,
-    },
-    label: {
-        color: theme.colors.textMuted,
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 1.1,
-        marginBottom: 6,
-    },
-    title: {
-        color: theme.colors.textPrimary,
-        fontSize: SCREEN_WIDTH < 520 ? 34 : 44,
-        fontWeight: '900',
-        letterSpacing: -0.6,
-        lineHeight: SCREEN_WIDTH < 520 ? 38 : 48,
-    },
-    desc: {
-        marginTop: 10,
-        color: theme.colors.textSecondary,
-        fontSize: 13,
-        fontWeight: '500',
-        lineHeight: 18,
-        maxWidth: 640,
-    },
-    metaRow: {
-        marginTop: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    metaText: {
-        color: theme.colors.textMuted,
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    metaStrong: {
-        color: theme.colors.textPrimary,
-        fontWeight: '800',
-    },
-    metaDot: {
-        color: theme.colors.textMuted,
-    },
-
-    actionsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        marginTop: 4,
-    },
-    playWrap: {},
-    playBtn: {
-        backgroundColor: theme.colors.actionAccent,
-        paddingHorizontal: 18,
-        height: 44,
-        borderRadius: 999,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        ...theme.elevation.floatingShadow,
-        shadowColor: theme.colors.actionAccent,
-    },
-    playText: {
-        color: theme.colors.onPrimary,
-        fontSize: 14,
-        fontWeight: '900',
-        letterSpacing: 0.2,
-    },
-    secondaryWrap: {},
-    secondaryBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 999,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: theme.colors.glassSurface,
-        borderWidth: 1,
-        borderColor: theme.colors.outlineVariantAlpha,
-    },
-    activeDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: theme.colors.actionAccent,
-        position: 'absolute',
-        bottom: 8,
-    },
-    iconWrap: {},
-    iconBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 999,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: theme.colors.outlineVariantAlpha,
-    },
-
-    listSection: {
-        paddingHorizontal: theme.spacing.lg,
-        paddingTop: theme.spacing.md,
-        backgroundColor: theme.colors.backgroundBase,
-    },
-    tableHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: 10,
-    },
-    tableHeaderCompact: {
-        paddingHorizontal: theme.spacing.sm,
-    },
-    th: {
-        color: theme.colors.textMuted,
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 0.8,
-        textTransform: 'uppercase',
-    },
-    thIndex: {
-        width: 34,
-        textAlign: 'center',
-        marginRight: 8,
-    },
-    thTitle: {
-        flex: 1,
-    },
-    thAlbum: {
-        flex: 0.38,
-        paddingHorizontal: 12,
-    },
-    thDate: {
-        flex: 0.24,
-        paddingHorizontal: 12,
-    },
-    thDuration: {
-        width: 76,
-        alignItems: 'flex-end',
-        paddingRight: 2,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: theme.colors.outlineVariantAlpha,
-    },
-
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: theme.colors.backgroundCard,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.05)",
-    },
-    headerTextWrapper: {
-        flex: 1,
-    },
-    headerSubtitle: {
-        ...theme.typography.body,
-        color: theme.colors.textSecondary,
-        fontSize: 12,
-        opacity: 0.7,
-    },
-    sticky: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        zIndex: 10,
-    },
-    stickyInner: {
-        paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    stickyTitle: {
-        color: theme.colors.textPrimary,
-        fontSize: 14,
-        fontWeight: '800',
-        letterSpacing: 0.1,
-    },
-    stickyPlayWrap: {},
-    stickyPlayBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 999,
-        backgroundColor: theme.colors.actionAccent,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    stickyDivider: {
-        height: 1,
-        backgroundColor: theme.colors.outlineVariantAlpha,
-    },
-
-    skeleton: {
-        backgroundColor: theme.colors.backgroundInteractive,
-        opacity: 0.8,
-    },
-    skelRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingVertical: 12,
-        paddingHorizontal: theme.spacing.md,
-    },
-
-    empty: {
-        paddingHorizontal: theme.spacing.lg,
-        paddingVertical: 28,
-        alignItems: 'flex-start',
-        gap: 10,
-    },
-    emptyIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: theme.colors.outlineVariantAlpha,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emptyTitle: {
-        color: theme.colors.textPrimary,
-        fontSize: 18,
-        fontWeight: '900',
-        letterSpacing: -0.2,
-    },
-    emptyDesc: {
-        color: theme.colors.textSecondary,
-        fontSize: 13,
-        fontWeight: '500',
-        lineHeight: 18,
-        maxWidth: 560,
-    },
-    emptyCta: {
-        height: 42,
-        paddingHorizontal: 14,
-        borderRadius: 999,
-        backgroundColor: theme.colors.primaryAccent,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    emptyCtaText: {
-        color: theme.colors.onPrimary,
-        fontSize: 13,
-        fontWeight: '900',
-    },
-});

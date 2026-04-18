@@ -30,7 +30,9 @@ export const BottomSheetProvider = ({ children }: { children: React.ReactNode })
     const open = useCallback((node: React.ReactNode, points?: string[]) => {
         setContent(node);
         if (points) setSnapPoints(points);
-        sheetRef.current?.expand();
+        // snapToIndex(0) ensures the drawer opens to the first snap point (e.g., 50%) 
+        // instead of expand() which forces it directly to the max snap point (100%).
+        sheetRef.current?.snapToIndex(0);
     }, []);
 
     const close = useCallback(() => {

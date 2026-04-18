@@ -1,28 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, Linking, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Download, AlertCircle, Rocket } from 'lucide-react-native';
+import { Wrench, AlertCircle } from 'lucide-react-native';
 import { useVersionStore } from '../../store/versionStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../theme';
 
-interface ForceUpdateScreenProps {
-  isOta?: boolean;
-}
-
-export const ForceUpdateScreen = ({ isOta }: ForceUpdateScreenProps) => {
-  const { updateUrl, message } = useVersionStore();
-
-  const handleUpdate = () => {
-    if (updateUrl) {
-      Linking.openURL(updateUrl).catch((err) => {
-        console.error('Failed to open update URL:', err);
-      });
-    } else {
-      // Fallback message if URL is missing
-      alert("Please contact the support team to get the latest version.");
-    }
-  };
+export const MaintenanceScreen = () => {
+  const { maintenanceMessage } = useVersionStore();
 
   return (
     <View style={styles.container}>
@@ -44,48 +29,24 @@ export const ForceUpdateScreen = ({ isOta }: ForceUpdateScreenProps) => {
             end={{ x: 1, y: 1 }}
             style={styles.iconContainer}
           >
-            <Rocket color={theme.colors.onPrimary} size={48} />
+            <Wrench color={theme.colors.onPrimary} size={48} />
           </LinearGradient>
-          <Text style={styles.title}>
-            {isOta ? "Update Available" : "Update Required"}
-          </Text>
+          <Text style={styles.title}>Down for Maintenance</Text>
           <Text style={styles.subtitle}>
-            {isOta 
-              ? "A new version is ready. Restart the app to apply it." 
-              : message || "We've released a new version with critical improvements and new features."}
+            {maintenanceMessage || "We're currently upgrading our systems. Please check back soon."}
           </Text>
         </View>
 
         <View style={styles.card}>
           <AlertCircle color={theme.colors.textSecondary} size={24} style={styles.cardIcon} />
           <Text style={styles.cardText}>
-            {isOta 
-              ? "Close and reopen the application to finish installing the latest updates." 
-              : "Your current version is no longer supported. Please update to continue using Sonic."}
+            The app is temporarily unavailable. We are working hard to bring it back online shortly. Thank you for your patience!
           </Text>
         </View>
 
         <View style={styles.footer}>
-          {!isOta && (
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleUpdate}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={theme.gradients.primary.colors}
-                start={theme.gradients.primary.start}
-                end={theme.gradients.primary.end}
-                style={styles.buttonGradient}
-              >
-                <Download color={theme.colors.onPrimary} size={20} />
-                <Text style={styles.buttonText}>Update Now</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-
           <Text style={styles.versionInfo}>
-            Instant update • Better Performance • New Features
+            Upgrading • Better Performance • New Features
           </Text>
         </View>
       </SafeAreaView>
@@ -154,24 +115,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginBottom: 20,
-  },
-  button: {
-    width: '100%',
-    height: 60,
-    borderRadius: theme.radius.md,
-    overflow: 'hidden',
-    ...theme.elevation.floatingShadow,
-  },
-  buttonGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  buttonText: {
-    ...theme.typography.title,
-    color: theme.colors.onPrimary,
   },
   versionInfo: {
     ...theme.typography.metadata,
