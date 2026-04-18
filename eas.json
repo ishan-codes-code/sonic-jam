@@ -20,7 +20,7 @@
       "distribution": "internal",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://10.165.75.82:3000"
+      "EXPO_PUBLIC_API_URL": "https://backend-sonic.onrender.com"
       },
       "android": {
         "buildType": "apk",
