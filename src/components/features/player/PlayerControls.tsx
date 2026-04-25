@@ -16,6 +16,10 @@ import { Song } from '@/src/playbackCore/types';
 import PlayerSeek from './playerSeek';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 import { usePlaybackStore, usePlayer } from '@/src/playbackCore';
+import { RecentSongPlaylistDrawer } from '../Search/RecentSongPlaylistDrawer';
+import { useBottomSheet } from '@/src/hooks/useDrawer';
+
+
 
 interface PlayerControlsProps {
     currentSong: Song;
@@ -40,6 +44,8 @@ export const PlayerControls = memo(({
 }: PlayerControlsProps) => {
     const isShuffling = usePlaybackStore((s) => s.isShuffling);
     const { toggleShuffle } = usePlayer();
+    const { open } = useBottomSheet();
+
 
     return (
         <Animated.View style={[styles.container, animatedStyle]}>
@@ -53,12 +59,22 @@ export const PlayerControls = memo(({
                         {currentSong.artists?.map((a: any) => a.name).join(', ')}
                     </Text>
                 </View>
-                
+
                 <View style={styles.infoActions}>
                     <TouchableOpacity style={styles.infoActionBtn}>
                         <X color="white" size={30} strokeWidth={1.5} opacity={0.8} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.infoActionBtn}>
+                    <TouchableOpacity style={styles.infoActionBtn} onPress={() => {
+                        if (currentSong) {
+                            open(
+                                <RecentSongPlaylistDrawer
+                                    songId={currentSong.id}
+                                    songTitle={currentSong.trackName}
+                                />,
+                                ['55%', '82%']
+                            );
+                        }
+                    }}>
                         <PlusCircle color="white" size={30} strokeWidth={1.5} opacity={0.8} />
                     </TouchableOpacity>
                 </View>
@@ -72,9 +88,9 @@ export const PlayerControls = memo(({
             {/* 3. Main Playback Controls */}
             <View style={styles.controlsRow}>
                 <TouchableOpacity onPress={toggleShuffle} style={styles.secondaryBtn}>
-                    <Shuffle 
-                        color={isShuffling ? theme.colors.actionAccent : 'white'} 
-                        size={22} 
+                    <Shuffle
+                        color={isShuffling ? theme.colors.actionAccent : 'white'}
+                        size={22}
                         opacity={isShuffling ? 1 : 0.7}
                     />
                 </TouchableOpacity>

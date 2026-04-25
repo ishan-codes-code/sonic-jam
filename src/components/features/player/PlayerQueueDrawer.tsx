@@ -62,8 +62,9 @@ export const PlayerQueueDrawer = () => {
             </View>
 
             <BottomSheetFlatList
+                style={{ flex: 1 }}
                 data={nextQueue}
-                keyExtractor={(item, index) => `${item.songId || item.title}-${activeIndex + 1 + index}`}
+                keyExtractor={(item, index) => `${item.id || item.songId || item.title}-${index}`}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={
@@ -117,20 +118,22 @@ export const PlayerQueueDrawer = () => {
             />
 
             {/* 4. Footer Actions */}
-            <View style={styles.footer}>
-                <TouchableOpacity 
-                    style={[styles.footerBtn, isShuffling && styles.footerBtnActive]} 
-                    onPress={toggleShuffle}
-                >
-                    <Shuffle size={20} color={isShuffling ? theme.colors.actionAccent : 'white'} />
-                    <Text style={[styles.footerBtnText, isShuffling && styles.footerBtnTextActive]}>Shuffle</Text>
-                </TouchableOpacity>
+            {(currentSong || nextQueue.length > 0) && (
+                <View style={styles.footer}>
+                    <TouchableOpacity 
+                        style={[styles.footerBtn, isShuffling && styles.footerBtnActive]} 
+                        onPress={toggleShuffle}
+                    >
+                        <Shuffle size={20} color={isShuffling ? theme.colors.actionAccent : 'white'} />
+                        <Text style={[styles.footerBtnText, isShuffling && styles.footerBtnTextActive]}>Shuffle</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity style={styles.footerBtn}>
-                    <Timer size={20} color="white" />
-                    <Text style={styles.footerBtnText}>Timer</Text>
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity style={styles.footerBtn}>
+                        <Timer size={20} color="white" />
+                        <Text style={styles.footerBtnText}>Timer</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </View>
     );
 };
@@ -172,7 +175,7 @@ const styles = StyleSheet.create({
     },
     listContent: {
         paddingHorizontal: 16,
-        paddingBottom: 120, 
+        paddingBottom: 16, 
     },
     footer: {
         flexDirection: 'row',
@@ -182,10 +185,6 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.backgroundCard,
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: 'rgba(255,255,255,0.1)',
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
     },
     footerBtn: {
         flex: 1,

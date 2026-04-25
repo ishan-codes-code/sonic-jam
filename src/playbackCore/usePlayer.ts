@@ -393,71 +393,65 @@ export function usePlayer() {
 
     // ── Extended: Auto-fill ────────────────────────────────────────
     const extendQueue = useCallback(async () => {
-        const store = getStore();
-        if (store.queueType === 'playlist') {
-            return;
-        }
-
-        // Skip if background service is already filling
         if ((globalThis as any).__sonicIsExtending) return;
-
-        if (isExtendingRef.current) return;
-        
-        if (!store.currentSong) return;
+        (globalThis as any).__sonicIsExtending = true;
 
         try {
-            isExtendingRef.current = true;
-            const queue = await TrackPlayer.getQueue();
-            const activeIndex = (await TrackPlayer.getActiveTrackIndex()) ?? 0;
-            
-            console.log(`[usePlayer] 🔄 Checking extension (Queue: ${queue.length}, Active: ${activeIndex})`);
+            while (true) {
+                const store = getStore();
+                if (store.queueType === 'playlist') break;
+                if (!store.currentSong) break;
 
-            // Increase threshold to 3 tracks remaining to be more proactive
-            if (queue.length - activeIndex <= 3) {
-                console.log(`[usePlayer] 🚀 Fetching recommendations based on: ${store.currentSong.trackName} by ${store.currentSong.artists?.map((a: any) => a.name).join(', ')}...`);
+                const queue = await TrackPlayer.getQueue();
+                const activeIndex = (await TrackPlayer.getActiveTrackIndex()) ?? 0;
+                const remaining = queue.length - (activeIndex + 1);
+
+                if (remaining >= 3) break;
+
+                console.log(`[usePlayer] 🚀 Fetching recommendations based on: ${store.currentSong.trackName}...`);
                 const { getRecommendations } = await import('../services/recommendationService');
                 const recommendations = await getRecommendations({
                     title: store.currentSong.trackName,
                     artists: store.currentSong.artists || [],
-                    limit: 5,
+                    limit: 20,
                 });
 
-                console.log(`[usePlayer] ✨ Got ${recommendations.length} recommendations`);
+                if (!recommendations || recommendations.length === 0) break;
 
-                for (const rec of recommendations) {
-                    if (!rec.title || !rec.artist) {
-                        console.log(`[usePlayer] ⚠️ Skipping rec due to missing metadata: ${rec.title}`);
-                        continue;
-                    }
+                let addedCount = 0;
+                const currentQueue = await TrackPlayer.getQueue();
 
-                    // Case-insensitive, trimmed comparison
-                    const alreadyInQueue = queue.some(t => {
+                const uniqueRecs = recommendations.filter(rec => {
+                    if (!rec.title || !rec.artist) return false;
+                    return !currentQueue.some(t => {
                         const tTitle = (t.title || '').trim().toLowerCase();
                         const tArtist = (t.artist || '').trim().toLowerCase();
                         const rTitle = rec.title.trim().toLowerCase();
                         const rArtist = rec.artist.trim().toLowerCase();
                         return tTitle === rTitle && tArtist === rArtist;
                     });
-                    
-                    if (!alreadyInQueue) {
-                        console.log(`[usePlayer] ➕ Enqueueing: ${rec.title} by ${rec.artist}`);
-                        await enqueue({
-                            trackName: rec.title,
-                            artistName: rec.artist,
-                        }, { silent: true });
+                }).slice(0, 5);
 
-                        // Small delay to avoid 429 (Rate Limiting) from aggressive filling
-                        await new Promise(r => setTimeout(r, 800));
-                    } else {
-                        console.log(`[usePlayer] ⏭️ Skipping duplicate: ${rec.title}`);
-                    }
+                for (const rec of uniqueRecs) {
+                    await enqueue({
+                        trackName: rec.title,
+                        artistName: rec.artist,
+                    }, { silent: true });
+                    addedCount++;
+                    
+                    // UI immediately reflects the added track
+                    store.notifyQueueUpdate();
+
+                    // Small delay to avoid 429
+                    await new Promise(r => setTimeout(r, 800));
                 }
-                store.notifyQueueUpdate();
+
+                if (addedCount === 0) break;
             }
         } catch (error) {
             console.error('[usePlayer] ❌ extendQueue error:', error);
         } finally {
-            isExtendingRef.current = false;
+            (globalThis as any).__sonicIsExtending = false;
         }
     }, [enqueue]);
 

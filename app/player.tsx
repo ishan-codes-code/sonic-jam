@@ -46,8 +46,8 @@ export default function PlayerScreen() {
     }, [isPlaying]);
 
     const handleOpenQueue = useCallback(() => {
-        // Open the queue in a high-performance bottom sheet with 50% & 100% snap points
-        open(<PlayerQueueDrawer />, ['50%', '100%']);
+        // Open the queue with Spotify-like multi-snap points
+        open(<PlayerQueueDrawer />, ['25%', '60%', '90%']);
     }, [open]);
 
     if (!currentSong) return null;

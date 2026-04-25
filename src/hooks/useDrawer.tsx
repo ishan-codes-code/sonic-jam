@@ -1,5 +1,5 @@
 import { theme } from '@/src/theme';
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import React, {
     createContext,
     useCallback,
@@ -9,7 +9,9 @@ import React, {
     useRef,
     useState,
 } from 'react';
-import { BackHandler } from 'react-native';
+import { BackHandler, Dimensions } from 'react-native';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 
 type BottomSheetContextType = {
@@ -25,14 +27,19 @@ export const BottomSheetProvider = ({ children }: { children: React.ReactNode })
     const [isOpen, setIsOpen] = useState(false);
 
     const [content, setContent] = useState<React.ReactNode>(null);
-    const [snapPoints, setSnapPoints] = useState<string[]>(['50%']);
+    const [snapPoints, setSnapPoints] = useState<string[] | undefined>(undefined);
 
     const open = useCallback((node: React.ReactNode, points?: string[]) => {
         setContent(node);
-        if (points) setSnapPoints(points);
-        // snapToIndex(0) ensures the drawer opens to the first snap point (e.g., 50%) 
-        // instead of expand() which forces it directly to the max snap point (100%).
-        sheetRef.current?.snapToIndex(0);
+        setSnapPoints(points);
+        // snap to middle (index 1) if there are 3 snap points, otherwise first snap point
+        const initialIndex = points && points.length >= 3 ? 1 : 0;
+        // Defer snapToIndex so BottomSheet has time to complete its layout pass with new snapPoints
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                sheetRef.current?.snapToIndex(initialIndex);
+            }, 50);
+        });
     }, []);
 
     const close = useCallback(() => {
@@ -69,17 +76,34 @@ export const BottomSheetProvider = ({ children }: { children: React.ReactNode })
                 ref={sheetRef}
                 index={-1}
                 snapPoints={snapPoints}
+                enableDynamicSizing={!snapPoints || snapPoints.length === 0}
+                maxDynamicContentSize={SCREEN_HEIGHT * 0.9}
                 enablePanDownToClose
                 keyboardBehavior="interactive"
                 backgroundStyle={{ backgroundColor: theme.colors.backgroundCard }}
                 handleIndicatorStyle={{ backgroundColor: theme.colors.textSecondary }}
+                backdropComponent={useCallback(
+                    (props: any) => (
+                        <BottomSheetBackdrop
+                            {...props}
+                            disappearsOnIndex={-1}
+                            appearsOnIndex={0}
+                            opacity={0.6}
+                        />
+                    ),
+                    []
+                )}
                 onChange={(index) => {
                     setIsOpen(index >= 0);
                 }}
             >
-                <BottomSheetView style={{ flex: 1 }}>
-                    {content}
-                </BottomSheetView>
+                {(!snapPoints || snapPoints.length === 0) ? (
+                    <BottomSheetView>
+                        {content}
+                    </BottomSheetView>
+                ) : (
+                    content
+                )}
             </BottomSheet>
         </BottomSheetContext.Provider>
     );

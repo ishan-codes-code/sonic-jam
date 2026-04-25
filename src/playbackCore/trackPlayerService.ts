@@ -68,84 +68,91 @@ export async function PlaybackService() {
 
         // ── Background Queue Auto-fill ─────────────────────────────
         // Only extend in radio mode. Playlist mode manages its own queue.
-        try {
-            const { usePlaybackStore } = await import('./usePlaybackStore');
-            const store = usePlaybackStore.getState();
-
-            if (store.queueType !== 'radio') return;
-            if (!store.currentSong) return;
-
-            // Check how many tracks remain after the active track
-            const queue = await TrackPlayer.getQueue();
-            const activeIndex = await TrackPlayer.getActiveTrackIndex();
-            const remaining = queue.length - ((activeIndex ?? 0) + 1);
-
-            // Only fill if fewer than 3 tracks remain ahead
-            if (remaining >= 3) return;
-
-            // Guard against concurrent fills
+        const triggerAutoFill = async () => {
             if ((globalThis as any).__sonicIsExtending) return;
             (globalThis as any).__sonicIsExtending = true;
 
             try {
-                const { getRecommendations } = await import(
-                    '../services/recommendationService'
-                );
+                while (true) {
+                    const { usePlaybackStore } = await import('./usePlaybackStore');
+                    const store = usePlaybackStore.getState();
 
-                const recs = await getRecommendations({
-                    title: store.currentSong.trackName,
-                    artists: store.currentSong.artists || [],
-                    limit: 5,
-                });
+                    if (store.queueType !== 'radio') break;
+                    if (!store.currentSong) break;
 
-                const currentQueue = await TrackPlayer.getQueue();
+                    const queue = await TrackPlayer.getQueue();
+                    const activeIndex = await TrackPlayer.getActiveTrackIndex();
+                    const remaining = queue.length - ((activeIndex ?? 0) + 1);
 
-                for (const rec of recs) {
-                    if (!rec.title || !rec.artist) continue;
+                    // If we have enough tracks, stop filling
+                    if (remaining >= 3) break;
 
-                    const alreadyInQueue = currentQueue.some((t) => {
-                        const tTitle = (t.title || '').trim().toLowerCase();
-                        const tArtist = (t.artist || '').trim().toLowerCase();
-                        const rTitle = rec.title.trim().toLowerCase();
-                        const rArtist = rec.artist.trim().toLowerCase();
-                        return tTitle === rTitle && tArtist === rArtist;
+                    const { getRecommendations } = await import('../services/recommendationService');
+                    const recs = await getRecommendations({
+                        title: store.currentSong.trackName,
+                        artists: store.currentSong.artists || [],
+                        limit: 20,
                     });
 
-                    if (alreadyInQueue) continue;
+                    if (!recs || recs.length === 0) break;
 
-                    // Import resolveStream fresh each time (background-safe)
-                    const { resolveStream } = await import('./playbackApi');
-                    const { streamUrl, streamUrlExpiresAt, song } =
-                        await resolveStream({
-                            trackName: rec.title,
-                            artistName: rec.artist,
+                    let addedCount = 0;
+                    const currentQueue = await TrackPlayer.getQueue();
+
+                    const uniqueRecs = recs.filter((rec) => {
+                        if (!rec.title || !rec.artist) return false;
+                        return !currentQueue.some((t) => {
+                            const tTitle = (t.title || '').trim().toLowerCase();
+                            const tArtist = (t.artist || '').trim().toLowerCase();
+                            const rTitle = rec.title.trim().toLowerCase();
+                            const rArtist = rec.artist.trim().toLowerCase();
+                            return tTitle === rTitle && tArtist === rArtist;
                         });
+                    }).slice(0, 5);
 
-                    const track = {
-                        url: streamUrl,
-                        title: song.trackName,
-                        artist: song.artists?.map((a: any) => a.name).join(', '),
-                        artwork: song.image ?? undefined,
-                        duration: song.duration,
-                        songId: song.id,
-                        song,
-                        streamUrlExpiresAt,
-                    };
+                    for (const rec of uniqueRecs) {
+                        try {
+                            const { resolveStream } = await import('./playbackApi');
+                            const { streamUrl, streamUrlExpiresAt, song } = await resolveStream({
+                                trackName: rec.title,
+                                artistName: rec.artist,
+                            });
 
-                    await TrackPlayer.add(track as any);
+                            const track = {
+                                url: streamUrl,
+                                title: song.trackName,
+                                artist: song.artists?.map((a: any) => a.name).join(', '),
+                                artwork: song.image ?? undefined,
+                                duration: song.duration,
+                                songId: song.id,
+                                song,
+                                streamUrlExpiresAt,
+                            };
 
-                    // Rate limit protection — 800ms between each enqueue
-                    await new Promise((r) => setTimeout(r, 800));
+                            await TrackPlayer.add(track as any);
+                            addedCount++;
+                            
+                            // Notify immediately so UI updates while next track resolves
+                            store.notifyQueueUpdate();
+
+                            // Rate limit protection
+                            await new Promise((r) => setTimeout(r, 800));
+                        } catch (err) {
+                            console.error('[TrackPlayerService] Failed to resolve recommended track:', err);
+                        }
+                    }
+
+                    // If no tracks were added (duplicates or errors), break to prevent infinite loop
+                    if (addedCount === 0) break;
                 }
-
-                store.notifyQueueUpdate();
+            } catch (err) {
+                console.error('[TrackPlayerService] background extendQueue error:', err);
             } finally {
                 (globalThis as any).__sonicIsExtending = false;
             }
-        } catch (err) {
-            console.error('[TrackPlayerService] background extendQueue error:', err);
-            (globalThis as any).__sonicIsExtending = false;
-        }
+        };
+
+        triggerAutoFill();
     });
 
     TrackPlayer.addEventListener(Event.PlaybackError, (event) => {
