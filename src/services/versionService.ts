@@ -104,7 +104,7 @@ export const checkAppVersion = async (): Promise<VersionStatus> => {
       throw new Error("Failed to load config");
     }
 
-    const isMaintenance = config.maintenance?.enabled ?? false;
+    const isMaintenance = !__DEV__ && (config.maintenance?.enabled ?? false);
     const maintenanceMessage = config.maintenance?.message ?? null;
 
     const native = config.native || { version: "0.0.0", minRequiredVersion: "0.0.0", forceUpdate: false, updateUrl: "" };

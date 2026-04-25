@@ -50,7 +50,7 @@
     "updates": {
       "url": "https://u.expo.dev/7cefc623-c5dc-4d02-8a7f-af9d2865e177",
       "enabled": true,
-      "checkAutomatically": "OFF"
+      "checkAutomatically": "NEVER"
     },
     "extra": {
       "router": {},
