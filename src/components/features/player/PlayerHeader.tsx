@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 import { ChevronDown, MoreVertical } from 'lucide-react-native';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 
 interface PlayerHeaderProps {
     onBack: () => void;
@@ -17,7 +17,7 @@ export const PlayerHeader = ({ onBack, insetsTop }: PlayerHeaderProps) => {
             <TouchableOpacity onPress={onBack} style={styles.headerBtn}>
                 <ChevronDown color={theme.colors.textPrimary} size={32} />
             </TouchableOpacity>
-            
+
             <View style={styles.titleContainer}>
                 <Text style={styles.headerTitle}>RECOMMENDED FOR YOU</Text>
             </View>
@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: theme.spacing.lg - 4,
-        height: 64, 
+        height: 64,
     },
     headerBtn: {
         width: 48,

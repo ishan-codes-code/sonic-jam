@@ -1,6 +1,6 @@
 import React from 'react';
 import { type DimensionValue, View } from 'react-native';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 import { playlistScreenStyles as styles } from './PlaylistScreen.styles';
 
 const SkeletonBlock = ({ w, h, r }: { w: DimensionValue; h: number; r?: number }) => {

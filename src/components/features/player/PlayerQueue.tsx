@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import TrackPlayer from 'react-native-track-player';
-import { theme } from '@/src/theme';
-import { usePlaybackStore } from '@/src/playbackCore';
+import { theme } from '@/theme';
+import { usePlaybackStore } from '@/playbackCore';
 import SongListCard from '../Playlist/SongListCard';
 import { Ionicons } from '@expo/vector-icons';
 

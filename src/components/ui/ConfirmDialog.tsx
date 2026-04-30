@@ -11,7 +11,7 @@
  *  - Buttons right-aligned (Cancel → Confirm) like Spotify
  */
 
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,

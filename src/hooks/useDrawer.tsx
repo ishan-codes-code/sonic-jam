@@ -1,4 +1,4 @@
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import React, {
     createContext,

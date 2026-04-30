@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
-import { usePlaybackStore, usePlayer } from '@/src/playbackCore';
-import { theme } from '@/src/theme';
+import { usePlaybackStore, usePlayer } from '@/playbackCore';
+import { theme } from '@/theme';
 import TrackPlayer from 'react-native-track-player';
 import SongListCard from '../Playlist/SongListCard';
-import { useBottomSheet } from '@/src/hooks/useDrawer';
+import { useBottomSheet } from '@/hooks/useDrawer';
 import { Shuffle, Timer, Menu } from 'lucide-react-native';
 
 /**
@@ -77,7 +77,7 @@ export const PlayerQueueDrawer = () => {
                                     playlistSongs={currentSong}
                                     isCurrent={true}
                                     isPlaying={isPlaying}
-                                    onPress={() => {}} 
+                                    onPress={() => { }}
                                     disableLongPress={true}
                                 />
                             </View>
@@ -93,7 +93,7 @@ export const PlayerQueueDrawer = () => {
                 }
                 renderItem={({ item, index }) => {
                     const globalIndex = activeIndex + 1 + index;
-                    
+
                     const playlistSong = {
                         id: item.songId || item.title,
                         trackName: item.title,
@@ -120,8 +120,8 @@ export const PlayerQueueDrawer = () => {
             {/* 4. Footer Actions */}
             {(currentSong || nextQueue.length > 0) && (
                 <View style={styles.footer}>
-                    <TouchableOpacity 
-                        style={[styles.footerBtn, isShuffling && styles.footerBtnActive]} 
+                    <TouchableOpacity
+                        style={[styles.footerBtn, isShuffling && styles.footerBtnActive]}
                         onPress={toggleShuffle}
                     >
                         <Shuffle size={20} color={isShuffling ? theme.colors.actionAccent : 'white'} />
@@ -175,12 +175,12 @@ const styles = StyleSheet.create({
     },
     listContent: {
         paddingHorizontal: 16,
-        paddingBottom: 16, 
+        paddingBottom: 16,
     },
     footer: {
         flexDirection: 'row',
         padding: 16,
-        paddingBottom: 24, 
+        paddingBottom: 24,
         gap: 12,
         backgroundColor: theme.colors.backgroundCard,
         borderTopWidth: StyleSheet.hairlineWidth,

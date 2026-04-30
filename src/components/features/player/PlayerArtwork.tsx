@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, StyleSheet, View, Dimensions } from 'react-native';
 import { Music } from 'lucide-react-native';
 import Animated from 'react-native-reanimated';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Artwork fills 80% of screen width for dominance

@@ -1,6 +1,6 @@
 import Toast, { BaseToast, ErrorToast, ToastConfig } from 'react-native-toast-message';
 import React from 'react';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 
 /**
  * useToast
@@ -62,7 +62,7 @@ export const toastConfig: ToastConfig = {
       }}
       contentContainerStyle={{ paddingHorizontal: 20 }}
       text1Style={{
-        color: '#000', // Premium Green
+        color: '#000',
         fontSize: 15,
         fontWeight: '700',
         letterSpacing: -0.3,
@@ -88,7 +88,7 @@ export const toastConfig: ToastConfig = {
       }}
       contentContainerStyle={{ paddingHorizontal: 20 }}
       text1Style={{
-        color: theme.colors.error, // Rose Red
+        color: theme.colors.error,
         fontSize: 15,
         fontWeight: '700',
         letterSpacing: -0.3,
@@ -122,6 +122,8 @@ export const toastConfig: ToastConfig = {
     />
   )
 };
+
+
 
 /**
  * withToast helper for async flows

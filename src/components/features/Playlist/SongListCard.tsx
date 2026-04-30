@@ -1,7 +1,7 @@
-import { PlaylistSongs } from '@/src/api/musicApi';
-import { useBottomSheet } from '@/src/hooks/useDrawer';
-import { theme } from '@/src/theme';
-import { ActionItem, SongQuickAction } from '@/src/utils/songsActions';
+import { PlaylistSongs } from '@/api/musicApi';
+import { useBottomSheet } from '@/hooks/useDrawer';
+import { theme } from '@/theme';
+import { ActionItem, SongQuickAction } from '@/utils/songsActions';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
 import { Image } from 'expo-image';

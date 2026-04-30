@@ -1,8 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { usePlayer } from '@/src/playbackCore';
-import { theme } from '@/src/theme';
+import { usePlayer } from '@/playbackCore';
+import { theme } from '@/theme';
 import { useProgress } from 'react-native-track-player';
 
 /**

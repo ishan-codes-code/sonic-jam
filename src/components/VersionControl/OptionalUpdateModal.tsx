@@ -33,7 +33,7 @@ export const OptionalUpdateModal = ({ isOta }: OptionalUpdateModalProps) => {
     >
       <View style={styles.overlay}>
         <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
-        
+
         <LinearGradient
           colors={[
             theme.colors.backgroundCard,
@@ -43,8 +43,8 @@ export const OptionalUpdateModal = ({ isOta }: OptionalUpdateModalProps) => {
           end={{ x: 1, y: 1 }}
           style={styles.modalContent}
         >
-          <TouchableOpacity 
-            style={styles.closeButton} 
+          <TouchableOpacity
+            style={styles.closeButton}
             onPress={dismissOptional}
           >
             <X color={theme.colors.textSecondary} size={20} />
@@ -61,22 +61,22 @@ export const OptionalUpdateModal = ({ isOta }: OptionalUpdateModalProps) => {
 
           <Text style={styles.title}>{isOta ? "App Update Ready" : "Update Available"}</Text>
           <Text style={styles.description}>
-            {isOta 
+            {isOta
               ? (otaMessage || "A new update has been downloaded. Restart to apply.")
               : (message || "A new version of Sonic is available with new features and improvements.")}
           </Text>
 
           <View style={styles.actions}>
-            <TouchableOpacity 
-              style={styles.maybeLater} 
+            <TouchableOpacity
+              style={styles.maybeLater}
               onPress={dismissOptional}
             >
               <Text style={styles.maybeLaterText}>Maybe Later</Text>
             </TouchableOpacity>
 
             {!isOta && (
-              <TouchableOpacity 
-                style={styles.updateButton} 
+              <TouchableOpacity
+                style={styles.updateButton}
                 onPress={handleUpdate}
               >
                 <Text style={styles.updateButtonText}>Update</Text>

@@ -1,8 +1,8 @@
-import { Playlist } from '@/src/api/musicApi';
-import { useBottomSheet } from '@/src/hooks/useDrawer';
-import { useMusic } from '@/src/hooks/useMusic';
-import { useToast } from '@/src/hooks/useToast';
-import { theme } from '@/src/theme';
+import { Playlist } from '@/api/musicApi';
+import { useBottomSheet } from '@/hooks/useDrawer';
+import { useMusic } from '@/hooks/useMusic';
+import { useToast } from '@/hooks/useToast';
+import { theme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {

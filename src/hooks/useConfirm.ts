@@ -16,7 +16,7 @@
  *   };
  */
 
-import { ConfirmContext } from '@/src/context/ConfirmProvider';
+import { ConfirmContext } from '@/context/ConfirmProvider';
 import { useContext } from 'react';
 
 export function useConfirm() {

@@ -1,8 +1,8 @@
-import { useBottomSheet } from '@/src/hooks/useDrawer';
-import { useConfirm } from '@/src/hooks/useConfirm';
-import { useToast } from '@/src/hooks/useToast';
-import { useMusic } from '@/src/hooks/useMusic';
-import { useAuth } from '@/src/hooks/useAuth';
+import { useBottomSheet } from '@/hooks/useDrawer';
+import { useConfirm } from '@/hooks/useConfirm';
+import { useToast } from '@/hooks/useToast';
+import { useMusic } from '@/hooks/useMusic';
+import { useAuth } from '@/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,12 +40,12 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export const Library = () => {
   const router = useRouter()
   const { user } = useAuth();
-  const { 
-    userPlaylist, 
-    createPlaylist, 
-    isCreatingPlaylist, 
+  const {
+    userPlaylist,
+    createPlaylist,
+    isCreatingPlaylist,
     deletePlaylist,
-    isLoadingUserPlaylists 
+    isLoadingUserPlaylists
   } = useMusic();
 
   const [playListLayout, setPlaylistLayout] = useState<'grid' | 'list'>('grid');
@@ -188,7 +188,7 @@ export const Library = () => {
                   accessibilityRole="button"
                   accessibilityLabel={`Favorites, ${favorites.songCount || 0} tracks`}
                 >
-                  <LinearGradient 
+                  <LinearGradient
                     colors={[theme.colors.secondaryAccent, theme.colors.primaryAccent]}
                     style={styles.likedBanner}
                     start={{ x: 0, y: 0 }}

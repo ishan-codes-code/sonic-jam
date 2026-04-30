@@ -10,15 +10,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../../theme';
-import { useBottomSheet } from '@/src/hooks/useDrawer';
-import { createRecentSongActions } from '@/src/utils/songsActions';
+import { useBottomSheet } from '@/hooks/useDrawer';
+import { createRecentSongActions } from '@/utils/songsActions';
 import SongListCard from '../Playlist/SongListCard';
 import { RecentSongPlaylistDrawer } from './RecentSongPlaylistDrawer';
 import { useSearchLogic } from './Search.logic';
 import { styles } from './Search.styles';
-import { usePlayer } from '@/src/playbackCore/';
-import { RecentSong } from '@/src/utils/recentSongsStorage';
-import { SearchTrack } from '@/src/services/searchService';
+import { usePlayer } from '@/playbackCore/';
+import { RecentSong } from '@/utils/recentSongsStorage';
+import { SearchTrack } from '@/services/searchService';
 
 export function Search() {
   const { open, close } = useBottomSheet();

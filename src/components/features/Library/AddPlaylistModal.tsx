@@ -1,4 +1,4 @@
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';

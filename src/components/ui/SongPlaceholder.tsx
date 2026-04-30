@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo } from 'react';
 import { StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 
 type GradientPreset = {
   colors: [string, string] | [string, string, string];

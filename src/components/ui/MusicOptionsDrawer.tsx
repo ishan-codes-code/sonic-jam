@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet, Image, FlatList } from 'react-native';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 import AnimatedPressable from './AnimatedPressable';
 import { SongPlaceholder } from './SongPlaceholder';
 
@@ -20,8 +20,8 @@ interface MusicOptionsDrawerProps {
 
 export function MusicOptionsDrawer({ image, title, subtitle, actions }: MusicOptionsDrawerProps) {
   const renderItem = ({ item }: { item: ActionItem }) => (
-    <AnimatedPressable 
-      onPress={item.onPress} 
+    <AnimatedPressable
+      onPress={item.onPress}
       pressableStyle={styles.actionRow}
       scaleTo={0.98}
       feedback="timing"
@@ -53,10 +53,10 @@ export function MusicOptionsDrawer({ image, title, subtitle, actions }: MusicOpt
           <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
         </View>
       </View>
-      
+
       {/* Divider */}
       <View style={styles.divider} />
-      
+
       {/* Actions List */}
       <FlatList
         data={actions}
@@ -73,7 +73,7 @@ export function MusicOptionsDrawer({ image, title, subtitle, actions }: MusicOpt
 const styles = StyleSheet.create({
   container: {
     paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.xxl, 
+    paddingBottom: theme.spacing.xxl,
   },
   headerRow: {
     flexDirection: 'row',

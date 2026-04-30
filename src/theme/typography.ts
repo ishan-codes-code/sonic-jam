@@ -11,26 +11,26 @@ import { TextStyle } from 'react-native';
 export const typography = {
   // Display - Massive & Authoritative
   displayLarge: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: 'ClashDisplay_700Bold',
     fontSize: 48,
     letterSpacing: -1.5,
   } as TextStyle,
   displayMedium: {
-    fontFamily: 'PlusJakartaSans_700Bold',
+    fontFamily: 'ClashDisplay_700Bold',
     fontSize: 32,
     letterSpacing: -1,
   } as TextStyle,
 
   // Headlines - Playlist titles & Section headers
   headline: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontFamily: 'Satoshi_700Bold',
     fontSize: 24,
     letterSpacing: -0.5,
   } as TextStyle,
 
   // Title - List item titles & secondary headers
   title: {
-    fontFamily: 'PlusJakartaSans_500Medium',
+    fontFamily: 'Satoshi_500Medium',
     fontSize: 18,
     letterSpacing: -0.2,
   } as TextStyle,

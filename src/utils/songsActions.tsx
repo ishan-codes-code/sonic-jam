@@ -1,5 +1,5 @@
-import { ActionItem as DrawerActionItem } from '@/src/components/ui/MusicOptionsDrawer';
-import { theme } from '@/src/theme';
+import { ActionItem as DrawerActionItem } from '@/components/ui/MusicOptionsDrawer';
+import { theme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 

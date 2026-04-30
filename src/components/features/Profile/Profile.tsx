@@ -1,8 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
-import { 
-  LogOut, 
-  User as UserIcon, 
+import {
+  LogOut,
+  User as UserIcon,
   ShieldCheck
 } from 'lucide-react-native';
 import React from 'react';
@@ -25,7 +25,7 @@ export const Profile = () => {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
-      
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -42,9 +42,9 @@ export const Profile = () => {
             style={styles.avatarGlow}
           />
           <View style={styles.avatarCircle}>
-            <UserIcon 
-              color={theme.colors.secondaryAccent} 
-              size={64} 
+            <UserIcon
+              color={theme.colors.secondaryAccent}
+              size={64}
               strokeWidth={1.5}
             />
           </View>

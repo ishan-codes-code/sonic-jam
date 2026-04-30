@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '@/src/theme';
+import { theme } from '@/theme';
 import AnimatedPressable from '../../ui/AnimatedPressable';
 import { playlistScreenStyles as styles } from './PlaylistScreen.styles';
 

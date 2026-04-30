@@ -8,7 +8,7 @@
  * Wrap the root layout with <ConfirmProvider> to make it available everywhere.
  */
 
-import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import React, { createContext, useCallback, useRef, useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

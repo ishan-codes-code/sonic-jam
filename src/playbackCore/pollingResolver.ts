@@ -1,4 +1,4 @@
-import { musicApi } from '@/src/api/musicApi';
+import { musicApi } from '@/api/musicApi';
 import { PlayJobResponse, ResolvedStream } from './types';
 import { useJobStore } from './useJobStore';
 

@@ -50,8 +50,8 @@ export const ForceUpdateScreen = ({ isOta }: ForceUpdateScreenProps) => {
             {isOta ? "Update Available" : "Update Required"}
           </Text>
           <Text style={styles.subtitle}>
-            {isOta 
-              ? "A new version is ready. Restart the app to apply it." 
+            {isOta
+              ? "A new version is ready. Restart the app to apply it."
               : message || "We've released a new version with critical improvements and new features."}
           </Text>
         </View>
@@ -59,8 +59,8 @@ export const ForceUpdateScreen = ({ isOta }: ForceUpdateScreenProps) => {
         <View style={styles.card}>
           <AlertCircle color={theme.colors.textSecondary} size={24} style={styles.cardIcon} />
           <Text style={styles.cardText}>
-            {isOta 
-              ? "Close and reopen the application to finish installing the latest updates." 
+            {isOta
+              ? "Close and reopen the application to finish installing the latest updates."
               : "Your current version is no longer supported. Please update to continue using Sonic."}
           </Text>
         </View>

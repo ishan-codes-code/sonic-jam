@@ -11,13 +11,13 @@ import {
     Timer,
 } from 'lucide-react-native';
 import Animated from 'react-native-reanimated';
-import { theme } from '@/src/theme';
-import { Song } from '@/src/playbackCore/types';
+import { theme } from '@/theme';
+import { Song } from '@/playbackCore/types';
 import PlayerSeek from './playerSeek';
 import AnimatedPressable from '../../ui/AnimatedPressable';
-import { usePlaybackStore, usePlayer } from '@/src/playbackCore';
+import { usePlaybackStore, usePlayer } from '@/playbackCore';
 import { RecentSongPlaylistDrawer } from '../Search/RecentSongPlaylistDrawer';
-import { useBottomSheet } from '@/src/hooks/useDrawer';
+import { useBottomSheet } from '@/hooks/useDrawer';
 
 
 
