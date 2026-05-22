@@ -97,7 +97,7 @@ const FeedSection = React.memo(
                 if (horizontal) {
                     return <HorizontalSongCard song={item} onPress={onSongPress} />;
                 }
-                return <RemoteSongListCard song={item} onPress={onSongPress} />;
+                return <RemoteSongListCard song={item} onPress={() => onSongPress?.(item)} />;
             },
             [onSongPress, horizontal],
         );

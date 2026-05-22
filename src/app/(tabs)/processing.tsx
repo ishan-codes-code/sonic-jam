@@ -1,5 +1,5 @@
-import Processing from '@/components/features/Processing/Processing'
+import { ProcessingScreen } from "@/features/processing";
 
 export default function ProcessingTabScreen() {
-    return <Processing />
+  return <ProcessingScreen />;
 }

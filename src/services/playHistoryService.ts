@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Song } from '@/playbackCore/types';
+import type { Song } from '@/features/playback';
 
 const HISTORY_KEY = '@sonic_play_history_';
 const MAX_HISTORY = 10;

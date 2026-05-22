@@ -1,8 +1,9 @@
 import axios from 'axios';
-import { Collection, ItunesLookupResponse } from '../types';
+import { ItuneCollectionWithSongs, ItunesLookupResponse } from '../types';
 import { upgradeArtwork } from '@/features/search/utils/itunesHelpers';
 
-export const fetchRemoteAlbum = async (id: string, signal?: AbortSignal): Promise<Collection> => {
+export const fetchRemoteAlbum = async (id: string, signal?: AbortSignal): Promise<ItuneCollectionWithSongs> => {
+    console.log("Fetching remote album with id", id);
     const response = await axios.get<ItunesLookupResponse>(
         `https://itunes.apple.com/lookup?id=${id}&entity=song`,
         { signal }

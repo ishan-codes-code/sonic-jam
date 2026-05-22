@@ -103,13 +103,13 @@ function DropdownMenuContent({
       <FullWindowOverlay>
         <DropdownMenuPrimitive.Overlay
           style={Platform.select({
-            web: overlayStyle ?? undefined,
-            native: overlayStyle
+            web: (overlayStyle ?? undefined) as any,
+            native: (overlayStyle
               ? StyleSheet.flatten([
                 StyleSheet.absoluteFill,
                 overlayStyle as typeof StyleSheet.absoluteFill,
               ])
-              : StyleSheet.absoluteFill,
+              : StyleSheet.absoluteFill) as any,
           })}
           className={cn('bg-black/5', overlayClassName)}
           pointerEvents="auto">

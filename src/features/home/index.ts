@@ -1,5 +1,4 @@
 // Screens
-export { default as HomeScreen } from './screens/HomeScreen';
 
 // Components
 export { default as HomeFeed } from './screens/HomeFeedScreen';

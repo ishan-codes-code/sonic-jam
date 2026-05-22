@@ -5,6 +5,7 @@ import { Search, User, Camera } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { SearchScreenState } from '../types';
 import ExploreGenres from '../components/ExploreGenres';
+import { ProfileAvatar } from '@/features/profile/components';
 
 
 function SearchScreen({ searchFocus, setSearchFocus }: SearchScreenState) {
@@ -12,12 +13,11 @@ function SearchScreen({ searchFocus, setSearchFocus }: SearchScreenState) {
         <SafeAreaView className="flex-1 bg-background">
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                 {/* Header Top Row */}
-                <View className="px-4 pt-6 pb-6 flex-row items-center justify-between">
-                    <View className="flex-row items-center">
-                        <View className="w-9 h-9 rounded-full bg-secondary items-center justify-center overflow-hidden mr-3">
-                            <User size={18} color="#9ca3af" />
-                        </View>
-                        <Text variant="h1" className="text-3xl font-bold text-foreground tracking-tight">Search</Text>
+                <View className="px-4 pt-2 pb-6 flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-2">
+                        <ProfileAvatar size={36} />
+
+                        <Text variant="h1" className="text-2xl font-display text-foreground">Search</Text>
                     </View>
                     <TouchableOpacity activeOpacity={0.7}>
                         <Camera size={26} color="#ffffff" />
@@ -26,8 +26,8 @@ function SearchScreen({ searchFocus, setSearchFocus }: SearchScreenState) {
 
                 {/* Fake Search Bar Button */}
                 <View className="px-4 pb-6">
-                    <TouchableOpacity 
-                        activeOpacity={0.9} 
+                    <TouchableOpacity
+                        activeOpacity={0.9}
                         onPress={() => setSearchFocus(true)}
                         className="flex-row items-center bg-white rounded-md h-14 px-4 shadow-sm"
                     >

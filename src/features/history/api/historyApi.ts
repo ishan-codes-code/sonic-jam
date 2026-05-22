@@ -13,5 +13,10 @@ export const fetchHistory = async ({
   const { data } = await apiClient.get<ListeningEvent[]>("/listening/history", {
     params: { limit, offset },
   });
+
   return data;
+};
+
+export const deleteHistoryEvent = async (id: string): Promise<void> => {
+  await apiClient.delete(`/listening/history/${id}`);
 };

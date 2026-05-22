@@ -48,7 +48,7 @@ const HorizontalSongCard = React.memo(({ song, onPress, style }: HorizontalSongC
                     numberOfLines={1}
                     className="text-xs text-muted-foreground mt-1"
                 >
-                    {song.artist}
+                    {song.type.charAt(0).toUpperCase() + song.type.slice(1)} • {song.artist}
                 </Text>
             </View>
         </TouchableOpacity>

@@ -204,7 +204,7 @@ export default function ExploreGenres() {
 
     const handleGenrePress = (genre: string) => {
         router.push({
-            pathname: '/(tabs)/search/[genre]',
+            pathname: '/search/[genre]',
             params: { genre },
         } as any);
     };

@@ -2,20 +2,22 @@ import { BlurView } from 'expo-blur';
 import { useRouter, usePathname } from 'expo-router';
 import { Music, Pause, Play, Plus } from 'lucide-react-native';
 import React, { useMemo } from 'react';
-import tinycolor from 'tinycolor2';
-import { Image, Platform, TouchableOpacity, View } from 'react-native';
+import { Image, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
-import { RecentSongPlaylistDrawer } from '@/components/features/Search/RecentSongPlaylistDrawer';
+
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
-import { useBottomSheet } from '@/hooks/useDrawer';
+import { useBottomSheet } from '@/features/drawer';
 import { cn } from '@/lib/utils';
-import { useBackgroundGradient, getBaseColor } from '@/features/collections/hooks/useBackgroundGradients';
-import { usePlaybackStore, usePlayer } from '@/playbackCore';
+import { useArtworkColors } from '@/features/artwork-colors';
+import { usePlaybackStore, usePlayer } from '@/features/playback';
 import { theme } from '@/theme';
 import { LinearGradient } from 'expo-linear-gradient';
+import ProcessingPlaylistDrawer from '@/features/processing/components/ProcessingPlaylistDrawer';
+import { PlaybackLoadingIndicator } from '@/features/playback/components/PlaybackLoadingIndicator';
 
 /**
  * MiniplayerScreen
@@ -28,6 +30,12 @@ export default function MiniplayerScreen() {
     const pathname = usePathname();
     const { pause, resume } = usePlayer();
     const { open } = useBottomSheet();
+    const insets = useSafeAreaInsets();
+
+    // Tab bar height = pt-2.5(10) + tabItem(~47) + paddingBottom(max safeArea, 8)
+    // Updated height to account for the taller pt-14 (56px) tab bar padding
+    const TAB_BAR_CONTENT_HEIGHT = 56;
+    const bottomOffset = TAB_BAR_CONTENT_HEIGHT + Math.max(insets.bottom, 8);
 
     // Playback State
     const currentSong = usePlaybackStore((s) => s.currentSong);
@@ -45,17 +53,9 @@ export default function MiniplayerScreen() {
         return currentSong.image ?? (currentSong.youtubeId ? `https://img.youtube.com/vi/${currentSong.youtubeId}/hqdefault.jpg` : null);
     }, [currentSong]);
 
-    // Dynamic Background Color — darkened if not already dark
-    const { imageColors } = useBackgroundGradient(artworkUri ?? '');
-    const baseColor = useMemo(() => {
-        if (!imageColors) return theme.colors.backgroundCard;
-        const raw = getBaseColor(imageColors);
-        const color = tinycolor(raw);
-        // If already dark (luminance <= 0.15), use as-is; otherwise darken it
-        return color.getLuminance() <= 0.15
-            ? raw
-            : color.darken(20).saturate(10).toHexString();
-    }, [imageColors]);
+    // Dynamic Background Color — extracted, saturated, and darkened by the service
+    const { colors: artworkColors } = useArtworkColors(artworkUri);
+    const baseColor = artworkColors?.primary ?? theme.colors.backgroundCard;
 
     const handleToggle = () => {
         if (isPlaying) {
@@ -69,7 +69,7 @@ export default function MiniplayerScreen() {
         e.stopPropagation();
         if (currentSong) {
             open(
-                <RecentSongPlaylistDrawer
+                <ProcessingPlaylistDrawer
                     songId={currentSong.id}
                     songTitle={currentSong.trackName}
                 />,
@@ -88,10 +88,8 @@ export default function MiniplayerScreen() {
         <Animated.View
             entering={FadeInDown.duration(300)}
             exiting={FadeOutDown.duration(200)}
-            className={cn(
-                "absolute left-2.5 right-2.5 z-50",
-                Platform.OS === 'ios' ? "bottom-[96px]" : "bottom-[78px]"
-            )}
+            className="absolute left-2.5 right-2.5 z-50"
+            style={{ bottom: bottomOffset }}
         >
             <TouchableOpacity
                 activeOpacity={0.95}
@@ -99,10 +97,10 @@ export default function MiniplayerScreen() {
                 className="h-[62px] rounded-xl overflow-hidden border border-white/5 shadow-2xl"
                 style={{
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 12,
-                    elevation: 12,
+                    shadowOffset: { width: 0, height: 12 },
+                    shadowOpacity: 0.5,
+                    shadowRadius: 16,
+                    elevation: 16,
                 }}
             >
                 {/* Background Layer */}
@@ -168,8 +166,11 @@ export default function MiniplayerScreen() {
                                     e.stopPropagation();
                                     handleToggle();
                                 }}
+                                disabled={status === 'loading'}
                             >
-                                {isPlaying ? (
+                                {status === 'loading' ? (
+                                    <PlaybackLoadingIndicator color="white" size={22} />
+                                ) : isPlaying ? (
                                     <Pause color="white" fill="white" size={22} />
                                 ) : (
                                     <Play color="white" fill="white" size={22} />

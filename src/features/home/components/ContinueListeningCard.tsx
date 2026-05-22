@@ -1,11 +1,10 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { usePlaybackStore } from '@/playbackCore/usePlaybackStore';
-import { usePlayer } from '@/playbackCore/usePlayer';
+import { usePlaybackStore } from '@/features/playback';
+import { usePlayer } from '@/features/playback';
 import { Play, Pause } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import { Card, CardContent } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { Progress } from '@/components/ui/progress';
@@ -13,8 +12,7 @@ import { Icon } from '@/components/ui/icon';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { fetchHistory } from '@/features/history/api/historyApi';
 import { useQuery } from '@tanstack/react-query';
-import { useBackgroundGradient, getBaseColor } from '@/features/collections/hooks/useBackgroundGradients';
-import tinycolor from 'tinycolor2';
+import { useArtworkColors } from '@/features/artwork-colors';
 
 const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return '0:00';
@@ -40,7 +38,6 @@ const formatRelativeTime = (dateStr: string) => {
 };
 
 export function ContinueListeningCard() {
-    const router = useRouter();
     const currentSong = usePlaybackStore(state => state.currentSong);
     const status = usePlaybackStore(state => state.status);
     const { play, pause, resume } = usePlayer();
@@ -56,19 +53,15 @@ export function ContinueListeningCard() {
     const latestEvent = historyItems?.[0];
     const activeSong = latestEvent?.song;
 
-    // Get colors from the artwork
-    const { imageColors } = useBackgroundGradient(activeSong?.image || '');
-    const baseColor = imageColors ? getBaseColor(imageColors) : '#111111';
-    const isBaseColorDark = tinycolor(baseColor).isDark();
-    const playIconColor = isBaseColorDark ? '#FFFFFF' : '#000000';
+    // Get tinted colors from the artwork
+    const { colors: artworkColors } = useArtworkColors(activeSong?.image);
+    const baseColor = artworkColors?.base ?? '#111111';
+    const playIconColor = artworkColors?.onColor ?? '#FFFFFF';
 
     if (currentSong || !activeSong || isHistoryLoading) return null;
 
     const isPlaying = status === 'playing';
 
-    const handleBoxPress = () => {
-        router.push('/player');
-    };
 
     const handleAction = (e: any) => {
         e.stopPropagation();
@@ -96,7 +89,7 @@ export function ContinueListeningCard() {
             layout={Layout.springify()}
             className="px-4 mt-2 mb-6"
         >
-            <TouchableOpacity activeOpacity={0.9} onPress={handleBoxPress}>
+            <TouchableOpacity activeOpacity={0.9}>
                 <Card className="h-64 overflow-hidden border-0 rounded-[32px] bg-[#121212] shadow-2xl shadow-black/50">
                     {/* Background Artwork with Premium Gradient Overlay */}
                     {activeSong.image ? (

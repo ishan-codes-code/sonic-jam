@@ -1,18 +1,17 @@
-import { ConfirmProvider } from '@/context/ConfirmProvider';
-import { BottomSheetProvider } from '@/hooks/useDrawer';
+import { BottomSheetProvider } from '@/features/drawer';
 import { toastConfig } from '@/hooks/useToast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { colorScheme as nativewindColorScheme } from 'nativewind';
 import { ThemeProvider, DarkTheme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/features/auth';
 import { theme } from '@/theme';
-import TrackPlayer from 'react-native-track-player';
-import { PlaybackService, setupPlayer, PlaybackSync, usePlayer } from '@/playbackCore';
-import MiniplayerScreen from '@/features/miniplayer/screens/MiniplayerScreen';
+import TrackPlayer, { BackgroundEvent } from '@rntp/player';
+import { PlaybackService, setupPlayer, PlaybackSync, usePlayer } from '@/features/playback';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { useVersionStore } from '@/store/versionStore';
 import { ForceUpdateScreen } from '@/components/VersionControl/ForceUpdateScreen';
@@ -30,10 +29,19 @@ import {
   Inter_600SemiBold,
   Inter_700Bold
 } from '@expo-google-fonts/inter';
+import { NAV_THEME } from '@/lib/theme';
+import MiniplayerScreen from '@/features/miniplayer/screens/MiniplayerScreen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as NavigationBar from 'expo-navigation-bar';
+import { Platform } from 'react-native';
+
+
+
+
 
 SplashScreen.preventAutoHideAsync();
 
-TrackPlayer.registerPlaybackService(() => PlaybackService);
+TrackPlayer.registerBackgroundEventHandler(() => PlaybackService);
 
 // --------------------------------------------------------------------------
 // Guard: redirects based on auth state after it is known
@@ -53,11 +61,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status === 'idle' || status === 'loading') return;
 
-    const isAuthPath = segments[0] === 'login' || segments[0] === 'signup';
+    const isAuthPath = segments[0] === '(auth)';
 
     if (status === 'authenticated' && isAuthPath) {
       // Logged in users should be moved to the app
-      router.replace('/(tabs)/home');
+      router.replace('/home');
     } else if (status === 'unauthenticated') {
       // Stop playback on logout
       stop();
@@ -143,9 +151,6 @@ const queryClient = new QueryClient();
 // --------------------------------------------------------------------------
 // Root layout
 // --------------------------------------------------------------------------
-
-import { NAV_THEME } from '@/lib/theme';
-
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -167,8 +172,25 @@ export default function RootLayout() {
     setupPlayer();
   }, []);
 
-  const colorScheme = useColorScheme();
-  const navTheme = NAV_THEME[colorScheme ?? 'dark'];
+  // useEffect(() => {
+  //   if (Platform.OS === 'android') {
+  //     NavigationBar.setBackgroundColorAsync('#121212');
+  //     NavigationBar.setButtonStyleAsync('light'); // makes the nav buttons white/light
+  //   }
+  // }, []);
+
+  // Force dark mode for the entire app regardless of OS theme.
+  // Use Nativewind's API so it works on native and web.
+  useEffect(() => {
+    try {
+      nativewindColorScheme.set('dark');
+    } catch (e) {
+      // noop if unavailable
+    }
+  }, []);
+
+  const colorScheme = 'dark';
+  const navTheme = NAV_THEME['dark'];
 
   if (!fontsLoaded && !fontError) {
     return null;
@@ -178,7 +200,8 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={navTheme}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <ConfirmProvider>
+          <SafeAreaProvider>
+
             <BottomSheetProvider>
               <VersionGuard>
                 <AuthGuard>
@@ -192,6 +215,7 @@ export default function RootLayout() {
                     }}
                   >
                     <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="(auth)" />
 
                     <Stack.Screen
                       name="player"
@@ -208,9 +232,11 @@ export default function RootLayout() {
                 </AuthGuard>
               </VersionGuard>
             </BottomSheetProvider>
-          </ConfirmProvider>
-          <Toast config={toastConfig} />
-          <PortalHost />
+            <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
+              <Toast config={toastConfig} />
+              <PortalHost />
+            </View>
+          </SafeAreaProvider>
         </GestureHandlerRootView>
       </ThemeProvider>
     </QueryClientProvider>

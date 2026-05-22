@@ -1,5 +1,5 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { fetchHistory } from "../api/historyApi";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchHistory, deleteHistoryEvent } from "../api/historyApi";
 import { ListeningEvent } from "../types";
 
 export const useHistory = () => {
@@ -16,6 +16,17 @@ export const useHistory = () => {
       }
       // Otherwise, the next offset is the current total number of items loaded
       return allPages.reduce((total, page) => total + page.length, 0);
+    },
+  });
+};
+
+export const useDeleteHistory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteHistoryEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listening-history"] });
     },
   });
 };

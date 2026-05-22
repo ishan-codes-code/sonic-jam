@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 
 import { useGenreTracks } from '../hooks/useGenreTracks';
-import { usePlayer } from '@/playbackCore/usePlayer';
+import { usePlayer } from '@/features/playback';
 import { Text } from '@/components/ui/text';
 import SongListCard from '../../../components/RemoteSongListCard';
 import { CleanedSearchResult } from '../types';
@@ -38,13 +38,14 @@ export default function GenreScreen() {
         play({
             trackName: track.trackName,
             artistName: track.artistName || track.artist,
-            // Removed 'artwork' and 'url' as they are not in PlaySongDto
+            image: track.image ?? null,
+            externalId: track.externalId,
         });
     }, [play]);
 
     const renderItem = useCallback(({ item }: ListRenderItemInfo<any>) => {
-        // Map musicApi track to CleanedSearchResult format
-        // Note: musicApi returns seconds, formatDuration expects ms
+        // Map track to CleanedSearchResult format
+        // Note: API returns seconds, formatDuration expects ms
         const cleanedTrack: CleanedSearchResult = {
             id: item.id || item._id,
             title: item.trackName || 'Unknown',
