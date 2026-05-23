@@ -3,11 +3,10 @@ import axios, {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from "axios";
-import { tokenStorage } from "../utils/tokenStorage";
+import { tokenStorage } from "@/features/auth/utils/tokenStorage";
 
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
-
-// console.log('BASE_URL', BASE_URL);
+export const MEDIA_URL = process.env.EXPO_PUBLIC_MEDIA_URL || BASE_URL;
 
 // --------------------------------------------------------------------------
 // Axios instance
@@ -18,21 +17,49 @@ export const apiClient: AxiosInstance = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+import * as SecureStore from "expo-secure-store";
+
+const DEVICE_ID_KEY = "sonic_device_id";
+let cachedDeviceId: string | null = null;
+
+async function getOrInitDeviceId(): Promise<string> {
+  if (cachedDeviceId) return cachedDeviceId;
+  try {
+    cachedDeviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    if (!cachedDeviceId) {
+      cachedDeviceId =
+        "device_" +
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+      await SecureStore.setItemAsync(DEVICE_ID_KEY, cachedDeviceId);
+    }
+  } catch (error) {
+    console.error("Failed to get/set device ID in SecureStore:", error);
+    cachedDeviceId =
+      "device_fallback_" + Math.random().toString(36).substring(2, 15);
+  }
+  return cachedDeviceId;
+}
+
 // --------------------------------------------------------------------------
 // Request interceptor – attach access token
 // --------------------------------------------------------------------------
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    const token = await tokenStorage.getAccessToken();
+    const [token, deviceId] = await Promise.all([
+      tokenStorage.getAccessToken(),
+      getOrInitDeviceId(),
+    ]);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.headers["x-device-id"] = deviceId;
     return config;
   },
   (error) => Promise.reject(error),
 );
 
-import Toast from "react-native-toast-message";
+import { toastImperative } from "@/features/Toast/utils/toastSingleton";
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -66,10 +93,9 @@ apiClient.interceptors.response.use(
       response.data?.message &&
       typeof response.data.message === "string"
     ) {
-      Toast.show({
+      toastImperative.show({
         type: "success",
-        text1: "Success",
-        text2: response.data.message,
+        text1: response.data.message || "Success",
       });
     }
 
@@ -101,10 +127,9 @@ apiClient.interceptors.response.use(
           "An unexpected error occurred";
         const displayMsg = Array.isArray(msg) ? msg[0] : msg; // handle class-validator arrays
 
-        Toast.show({
+        toastImperative.show({
           type: "error",
-          text1: "Error",
-          text2:
+          text1:
             typeof displayMsg === "string"
               ? displayMsg
               : "Failed to complete request",
@@ -146,6 +171,13 @@ apiClient.interceptors.response.use(
       const newAccessToken = data.accessToken;
       const newRefreshToken = data.refreshToken;
       await tokenStorage.saveTokens(newAccessToken, newRefreshToken);
+
+      // Update native progressSync headers with the new token
+      // Lazy imported to prevent circular dependencies (apiClient -> authStore)
+      const { setProgressSyncToken } =
+        await import("@/features/playback/hooks/useProgressSyncAuth");
+      setProgressSyncToken(newAccessToken);
+
       processQueue(null, newAccessToken);
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return apiClient(originalRequest);
@@ -154,7 +186,7 @@ apiClient.interceptors.response.use(
       // Clear tokens + trigger logout via the auth store
       await tokenStorage.clearTokens();
       // Lazy import to avoid circular dependency
-      const { useAuthStore } = await import("../store/authStore");
+      const { useAuthStore } = await import("../features/auth/store/authStore");
       useAuthStore.getState().resetAuth();
       return Promise.reject(refreshError);
     } finally {

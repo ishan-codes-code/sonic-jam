@@ -1,27 +1,43 @@
 {
   "expo": {
-    "name": "sonic",
+    "name": "Sonic",
     "slug": "sonic",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/sonicIcons/ios/AppIcon~ios-marketing.png",
     "scheme": "sonic",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png",
-      "buildNumber": "4"
+      "icon": "./assets/images/sonicIcons/ios/AppIcon~ios-marketing.png",
+      "buildNumber": "5"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0F0F2B",
-        "foregroundImage": "./assets/images/icon.png"
+        "backgroundImage": "./assets/images/sonicIcons/android/res/mipmap-xxxhdpi/ic_launcher_background.png",
+        "foregroundImage": "./assets/images/sonicIcons/android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "monochromeImage": "./assets/images/sonicIcons/android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png"
       },
-      "versionCode": 4,
-      "package": "com.itsishandev.sonic"
+      "versionCode": 5,
+      "package": "com.itsishandev.sonic",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "music-sonic.vercel.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/sonicIcons/web/favicon.ico",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
@@ -38,7 +54,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-navigation-bar"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -50,7 +67,7 @@
     "updates": {
       "url": "https://u.expo.dev/7cefc623-c5dc-4d02-8a7f-af9d2865e177",
       "enabled": true,
-      "checkAutomatically": "OFF"
+      "checkAutomatically": "NEVER"
     },
     "extra": {
       "router": {},
