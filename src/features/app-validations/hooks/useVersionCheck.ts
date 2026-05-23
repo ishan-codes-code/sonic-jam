@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { checkAppVersion } from '../services/versionService';
 import { useVersionStore } from '../store/versionStore';
+import { checkAppVersion } from '../services/versionService';
 
 export const useVersionCheck = () => {
   const setVersionState = useVersionStore((s) => s.setVersionState);

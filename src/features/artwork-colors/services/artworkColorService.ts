@@ -1,11 +1,10 @@
-import { getColors } from 'react-native-image-colors';
-import tinycolor from 'tinycolor2';
+import { getColors } from "react-native-image-colors";
+import tinycolor from "tinycolor2";
 import type {
   AndroidImageColors,
   IOSImageColors,
   WebImageColors,
-} from 'react-native-image-colors/build/types';
-import { theme } from '@/theme';
+} from "react-native-image-colors/build/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,7 +20,7 @@ export type ArtworkColors = {
   /** Whether `base` is perceptually dark (luminance check via tinycolor). */
   isDark: boolean;
   /** High-contrast foreground to place on top of `base`. */
-  onColor: '#FFFFFF' | '#000000';
+  onColor: "#FFFFFF" | "#000000";
   /** Ready-to-use LinearGradient props for hero screens. */
   gradient: {
     colors: readonly [string, string, string];
@@ -31,7 +30,7 @@ export type ArtworkColors = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FALLBACK_BASE = '#121212';
+const FALLBACK_BASE = "#121212";
 const MAX_CACHE_SIZE = 150;
 
 // ─── Module-level LRU cache ───────────────────────────────────────────────────
@@ -49,9 +48,9 @@ function _buildFallback(): ArtworkColors {
     secondary,
     base: primary,
     isDark: true,
-    onColor: '#FFFFFF',
+    onColor: "#FFFFFF",
     gradient: {
-      colors: [primary + 'cc', 'rgba(0,0,0,0.30)', theme.colors.backgroundBase] as const,
+      colors: [primary + "cc", "rgba(0,0,0,0.30)", "#000000"] as const,
       locations: [0, 0.5, 1] as const,
     },
   };
@@ -60,21 +59,24 @@ function _buildFallback(): ArtworkColors {
 export const FALLBACK_ARTWORK_COLORS: ArtworkColors = _buildFallback();
 
 function _isUsable(color: unknown): color is string {
-  if (typeof color !== 'string') return false;
+  if (typeof color !== "string") return false;
   const lower = color.toLowerCase();
   // Reject pure black (getColors fallback) and malformed values
-  if (lower === '#000000' || lower === '#00000') return false;
+  if (lower === "#000000" || lower === "#00000") return false;
   return tinycolor(color.trim()).isValid();
 }
 
 /** Platform-aware best-color picker — android prefers vibrant, iOS prefers primary. */
 function _pickBestColor(raw: RawPlatformColors): string {
   switch (raw.platform) {
-    case 'android':
-      return [raw.vibrant, raw.dominant, raw.average].find(_isUsable) ?? FALLBACK_BASE;
-    case 'ios':
+    case "android":
+      return (
+        [raw.vibrant, raw.dominant, raw.average].find(_isUsable) ??
+        FALLBACK_BASE
+      );
+    case "ios":
       return [raw.primary, raw.background].find(_isUsable) ?? FALLBACK_BASE;
-    case 'web':
+    case "web":
       return [raw.vibrant, raw.dominant].find(_isUsable) ?? FALLBACK_BASE;
     default:
       return FALLBACK_BASE;
@@ -100,9 +102,9 @@ function _buildPalette(base: string): ArtworkColors {
     secondary,
     base,
     isDark,
-    onColor: isDark ? '#FFFFFF' : '#000000',
+    onColor: isDark ? "#FFFFFF" : "#000000",
     gradient: {
-      colors: [base + 'cc', 'rgba(0,0,0,0.30)', theme.colors.backgroundBase] as const,
+      colors: [base + "cc", "rgba(0,0,0,0.30)", "#000000"] as const,
       locations: [0, 0.5, 1] as const,
     },
   };
@@ -131,7 +133,11 @@ export async function extractArtworkColors(
   if (hit) return hit;
 
   try {
-    const raw = await getColors(url, { fallback: FALLBACK_BASE, cache: true, key: url });
+    const raw = await getColors(url, {
+      fallback: FALLBACK_BASE,
+      cache: true,
+      key: url,
+    });
     const base = _pickBestColor(raw as RawPlatformColors);
     const palette = _buildPalette(base);
     _evict();
@@ -146,7 +152,9 @@ export async function extractArtworkColors(
  * Synchronous cache read — returns `null` if the URL hasn't been
  * extracted yet. Use to seed React state before the async result arrives.
  */
-export function getCachedArtworkColors(url: string | null | undefined): ArtworkColors | null {
+export function getCachedArtworkColors(
+  url: string | null | undefined,
+): ArtworkColors | null {
   if (!url) return null;
   return _cache.get(url) ?? null;
 }

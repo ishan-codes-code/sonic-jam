@@ -1,5 +1,3 @@
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import React from 'react';
@@ -7,28 +5,24 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { cn } from '@/lib/utils';
 import { AuthFooter } from '../components/AuthFooter';
 import { AuthHeader } from '../components/AuthHeader';
-import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { useLogin } from '../hooks/useLogin';
+import { Icon } from '@/components/ui/icon';
 
 export const LoginScreen = () => {
   const router = useRouter();
   const {
-    email,
-    setEmail,
-    password,
-    setPassword,
-    showPassword,
-    setShowPassword,
+    email, setEmail,
+    password, setPassword,
+    showPassword, setShowPassword,
     setFieldError,
     isLoading,
     handleLogin,
@@ -36,125 +30,91 @@ export const LoginScreen = () => {
   } = useLogin();
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      {/* Background gradient */}
-      <LinearGradient
-        colors={['#0f0a1e', '#0a0a0f', '#0a0a0f']}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        className="absolute inset-0"
-      />
-
+    <SafeAreaView className="flex-1 bg-[#0a0a0a]">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="flex-grow px-5 pt-6 pb-10"
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
           <AuthHeader
-            title="Welcome Back"
-            subtitle="Sign in to continue your sonic journey"
+            title="Welcome back"
+            subtitle="Sign in to continue your sonic journey."
+            image="login"
           />
 
-          {/* Glass Form Card */}
-          <View className="rounded-2xl overflow-hidden border border-white/10">
-            <BlurView intensity={25} tint="dark" className="absolute inset-0" />
-            <View className="p-5 gap-4">
+          {/* Error */}
+          {displayError ? (
+            <View className="mb-4 rounded-md border border-red-500/20 bg-red-500/[0.08] px-4 py-3">
+              <Text className="text-[13px] text-red-400">{displayError}</Text>
+            </View>
+          ) : null}
 
-              {/* Error Banner */}
-              {displayError ? (
-                <View className="bg-red-500/15 border border-red-500/30 rounded-xl px-4 py-3">
-                  <Text className="text-red-400 text-sm">{displayError}</Text>
-                </View>
-              ) : null}
-
-              {/* Email Field */}
-              <View className="gap-1.5">
-                <Text className="text-xs tracking-widest text-muted-foreground uppercase">
-                  Email Address
-                </Text>
-                <View className="flex-row items-center bg-white/5 border border-white/10 rounded-xl px-3 h-12 gap-2">
-                  <Mail size={18} color="#6b7280" />
-                  <Input
-                    className="flex-1 h-full border-0 bg-transparent shadow-none text-foreground"
-                    placeholder="name@email.com"
-                    placeholderTextColor="#6b7280"
-                    value={email}
-                    onChangeText={(t) => { setEmail(t); setFieldError(null); }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!isLoading}
-                  />
-                </View>
-              </View>
-
-              {/* Password Field */}
-              <View className="gap-1.5">
-                <Text className="text-xs tracking-widest text-muted-foreground uppercase">
-                  Password
-                </Text>
-                <View className="flex-row items-center bg-white/5 border border-white/10 rounded-xl px-3 h-12 gap-2">
-                  <Lock size={18} color="#6b7280" />
-                  <Input
-                    className="flex-1 h-full border-0 bg-transparent shadow-none text-foreground"
-                    placeholder="••••••••"
-                    placeholderTextColor="#6b7280"
-                    value={password}
-                    onChangeText={(t) => { setPassword(t); setFieldError(null); }}
-                    secureTextEntry={!showPassword}
-                    editable={!isLoading}
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
-                    {showPassword ? (
-                      <EyeOff size={18} color="#6b7280" />
-                    ) : (
-                      <Eye size={18} color="#6b7280" />
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Forgot Password */}
-              <TouchableOpacity className="self-end">
-                <Text className="text-violet-400 text-xs tracking-widest uppercase">
-                  Forgot Password?
-                </Text>
-              </TouchableOpacity>
-
-              {/* Login Button */}
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={handleLogin}
-                disabled={isLoading}
-                className={cn('rounded-xl overflow-hidden mt-1', isLoading && 'opacity-60')}
-              >
-                <LinearGradient
-                  colors={['#7c3aed', '#a78bfa']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  className="h-12 items-center justify-center"
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#000" size="small" />
-                  ) : (
-                    <Text className="text-black font-bold text-sm tracking-widest uppercase">
-                      Login
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* Social Auth */}
-              <SocialAuthButtons disabled={isLoading} />
+          {/* Email */}
+          <View className="mb-3.5">
+            <Text className="mb-1.5 text-[10px] font-heading uppercase tracking-[2px] text-muted-foreground">
+              Email Address
+            </Text>
+            <View className="h-[50px] flex-row items-center gap-2.5 rounded-md border border-border bg-card px-3.5">
+              <Icon as={Mail} size={16} className='text-muted-foreground' strokeWidth={1.8} />
+              <Input
+                className="h-full flex-1 border-0 bg-transparent text-[14px] font-display text-foreground shadow-none"
+                placeholder="name@email.com"
+                placeholderTextColor="#252525"
+                value={email}
+                onChangeText={(t) => { setEmail(t); setFieldError(null); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+              />
             </View>
           </View>
 
-          {/* Footer */}
+          {/* Password */}
+          <View className="mb-2">
+            <Text className="mb-1.5 text-[10px] font-heading uppercase tracking-[2px] text-muted-foreground">
+              Password
+            </Text>
+            <View className="h-[50px] flex-row items-center gap-2.5 rounded-md border border-border bg-card px-3.5">
+              <Icon as={Lock} size={16} className='text-muted-foreground' strokeWidth={1.8} />
+
+              <Input
+                className="h-full flex-1 border-0 bg-transparent text-[14px] font-display text-foreground shadow-none"
+                placeholder="••••••••"
+                value={password}
+                onChangeText={(t) => { setPassword(t); setFieldError(null); }}
+                secureTextEntry={!showPassword}
+                editable={!isLoading}
+              />
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={8}
+              >
+                {showPassword
+                  ? <Icon as={EyeOff} size={16} className='text-muted-foreground' strokeWidth={1.8} />
+                  : <Icon as={Eye} size={16} className='text-muted-foreground' strokeWidth={1.8} />}
+              </Pressable>
+            </View>
+          </View>
+
+
+          {/* CTA */}
+          <Pressable
+            onPress={handleLogin}
+            disabled={isLoading}
+            className="mt-5 h-[52px] w-full items-center justify-center rounded-md bg-amber-300"
+            style={({ pressed }) => ({ opacity: pressed || isLoading ? 0.8 : 1 })}
+          >
+            {isLoading
+              ? <ActivityIndicator color="#0a0a0a" size="small" />
+              : <Text className="text-[15px] font-display  text-secondary">Login</Text>
+            }
+          </Pressable>
+
           <AuthFooter
             prompt="Don't have an account?"
             actionLabel="Create Account"

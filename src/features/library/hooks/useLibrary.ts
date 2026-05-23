@@ -2,6 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { libraryApi } from "../api/library.api";
 import type { PlayListReqPayload } from "../types";
 
+export function usePlaylistIdsBySong(songId: string) {
+  return useQuery({
+    queryKey: ["playlistIdsBySong", songId],
+    queryFn: () => libraryApi.getUserPlaylistIdsBySong(songId),
+    enabled: !!songId,
+  });
+}
+
 export function useLibrary() {
   const queryClient = useQueryClient();
 
@@ -25,18 +33,32 @@ export function useLibrary() {
   });
 
   const updatePlaylistMutation = useMutation({
-    mutationFn: ({ playlistId, payload }: { playlistId: string; payload: Partial<PlayListReqPayload> }) =>
-      libraryApi.updatePlaylist(playlistId, payload),
+    mutationFn: ({
+      playlistId,
+      payload,
+    }: {
+      playlistId: string;
+      payload: Partial<PlayListReqPayload>;
+    }) => libraryApi.updatePlaylist(playlistId, payload),
     onSuccess: (_, { playlistId }) => {
-      queryClient.invalidateQueries({ queryKey: ["playlistSongs", playlistId] });
+      queryClient.invalidateQueries({
+        queryKey: ["playlistSongs", playlistId],
+      });
       queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
+
+      // invalidate collection query
+      queryClient.invalidateQueries({
+        queryKey: ["collection", playlistId, false],
+      });
     },
   });
 
   const addSongToPlaylistMutation = useMutation({
     mutationFn: libraryApi.addSongToPlaylist,
     onSuccess: (_, { playlistId }) => {
-      queryClient.invalidateQueries({ queryKey: ["playlistSongs", playlistId] });
+      queryClient.invalidateQueries({
+        queryKey: ["playlistSongs", playlistId],
+      });
       queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
     },
   });

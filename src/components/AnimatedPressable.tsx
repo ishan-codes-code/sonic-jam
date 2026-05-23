@@ -124,6 +124,8 @@ export interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
 
     /** Accessibility hint for screen readers. */
     accessibilityHint?: string;
+
+    className?: string; // For tailwind users who want to pass className directly
 }
 
 // ─── Spring / Timing presets ──────────────────────────────────────────────────

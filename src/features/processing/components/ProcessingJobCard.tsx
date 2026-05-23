@@ -1,12 +1,11 @@
 import PressableScale from "@/components/AnimatedPressable";
 import { Icon } from "@/components/ui/icon";
 import { Progress } from "@/components/ui/progress";
-import { SongPlaceholder } from "@/components/SongPlaceholder";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import type { JobItem } from "@/features/playback";
 import { Image } from "expo-image";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Clock3, Loader2, Music2 } from "lucide-react-native";
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Clock3, Disc3, Loader2, Music2 } from "lucide-react-native";
 import { memo, useMemo, useState } from "react";
 import { TouchableOpacity, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
@@ -81,12 +80,7 @@ function ProcessingJobCard({ job, onPress }: ProcessingJobCardProps) {
                 cachePolicy="memory-disk"
               />
             ) : (
-              <SongPlaceholder
-                title={meta.title}
-                artist={meta.artist}
-                style={{ width: "100%", height: "100%" }}
-                borderRadius={8}
-              />
+              <Icon as={Disc3} className='text-muted-foreground' size={20} />
             )}
           </View>
 

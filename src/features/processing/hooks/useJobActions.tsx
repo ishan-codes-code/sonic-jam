@@ -4,7 +4,8 @@ import { useBottomSheet } from "@/features/drawer";
 import { useJobStore, usePlayer, type JobItem } from "@/features/playback";
 import { ListEnd, ListMusic, Play, PlusCircle, Trash2 } from "lucide-react-native";
 import { useCallback } from "react";
-import ProcessingPlaylistDrawer from "../components/ProcessingPlaylistDrawer";
+import ProcessingPlaylistDrawer from "../../library/components/AddToPlaylistDrawer";
+import AddToPlaylistDrawer from "../../library/components/AddToPlaylistDrawer";
 
 /**
  * Hook to manage common actions for processing jobs (Play, Queue, Remove, etc.)
@@ -19,7 +20,7 @@ export function useJobActions() {
       if (!job.song) return;
 
       open(
-        <ProcessingPlaylistDrawer songId={job.song.id} songTitle={job.song.trackName} />,
+        <AddToPlaylistDrawer songId={job.song.id} title={job.song.trackName} subtitle={job.song.artists?.map((a: any) => a.name).join(', ')} image={job.song.image} />,
         ["55%", "82%"]
       );
     },

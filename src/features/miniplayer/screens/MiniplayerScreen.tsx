@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { useRouter, usePathname } from 'expo-router';
 import { Music, Pause, Play, Plus } from 'lucide-react-native';
 import React, { useMemo } from 'react';
@@ -11,13 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import { useBottomSheet } from '@/features/drawer';
-import { cn } from '@/lib/utils';
 import { useArtworkColors } from '@/features/artwork-colors';
 import { usePlaybackStore, usePlayer } from '@/features/playback';
-import { theme } from '@/theme';
 import { LinearGradient } from 'expo-linear-gradient';
-import ProcessingPlaylistDrawer from '@/features/processing/components/ProcessingPlaylistDrawer';
+import AddToPlaylistDrawer from '@/features/library/components/AddToPlaylistDrawer';
 import { PlaybackLoadingIndicator } from '@/features/playback/components/PlaybackLoadingIndicator';
+import { Icon } from '@/components/ui/icon';
 
 /**
  * MiniplayerScreen
@@ -55,7 +53,7 @@ export default function MiniplayerScreen() {
 
     // Dynamic Background Color — extracted, saturated, and darkened by the service
     const { colors: artworkColors } = useArtworkColors(artworkUri);
-    const baseColor = artworkColors?.primary ?? theme.colors.backgroundCard;
+    const baseColor = artworkColors?.primary ?? "#000000";
 
     const handleToggle = () => {
         if (isPlaying) {
@@ -69,9 +67,11 @@ export default function MiniplayerScreen() {
         e.stopPropagation();
         if (currentSong) {
             open(
-                <ProcessingPlaylistDrawer
+                <AddToPlaylistDrawer
                     songId={currentSong.id}
-                    songTitle={currentSong.trackName}
+                    title={currentSong.trackName}
+                    subtitle={currentSong.artists?.map((a: any) => a.name).join(', ')}
+                    image={currentSong.image}
                 />,
                 ['55%', '82%']
             );
@@ -123,10 +123,11 @@ export default function MiniplayerScreen() {
                             ) : (
                                 <>
                                     <LinearGradient
-                                        colors={[theme.colors.backgroundInteractive, theme.colors.backgroundCard]}
+                                        colors={["#1c1c1f", "#000000"]}
                                         className="absolute inset-0"
                                     />
-                                    <Music color={theme.colors.textMuted} size={18} />
+                                    <Icon as={Music} size={18} className='text-muted-foreground' />
+
                                 </>
                             )}
                         </View>

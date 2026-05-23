@@ -6,7 +6,7 @@ import { useCollection } from '../hooks/useCollection';
 import { CollectionAlbumHeader } from '../components/CollectionAlbumHeader';
 import { StickyCollectionHeader } from '../components/StickyCollectionHeader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CollectionTrack } from '../types';
+import { Collection, CollectionTrack } from '../types';
 import Animated, {
     useSharedValue,
     useAnimatedScrollHandler,
@@ -16,17 +16,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AnimatedPressable from '@/components/AnimatedPressable';
 import { AlertCircle, RefreshCw, Music2, Share2, Pencil, Trash2, Play } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
-import { useJobStore, usePlaybackStore, usePlayer } from '@/features/playback';
+import { usePlaybackStore, usePlayer } from '@/features/playback';
 import SongListCard from '../components/SongListCard';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/features/auth';
-import { useToast } from '@/hooks/useToast';
+import { useToast } from '@/features/Toast/hooks/useToast';
 import { useBottomSheet } from '@/features/drawer';
 import { OptionsDrawer } from '@/features/drawer/components/OptionsDrawer';
 import { useLibrary } from '@/features/library/hooks/useLibrary';
 import { Playlist } from '@/features/library/types';
 import { AddPlaylistModal } from '@/features/library/components/AddPlaylistModal';
 import { DeletePlaylistDialog } from '@/features/library/components/DeletePlaylistDialog';
+import { Share } from 'react-native';
+import { MEDIA_URL } from '@/api/apiClient';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -94,6 +96,24 @@ export const CollectionScreen = () => {
             setPlaylistToDelete(null);
         }
     };
+    const shareCollection = useCallback(async () => {
+        if (!collection) return;
+        if (!collection.isRemote && !collection.isPublic) {
+            toast.error('Only public collections can be shared');
+            return;
+        }
+        try {
+            await Share.share({
+                title: 'Sonic',
+                message:
+                    `Listening to ${collection.title} ${collection.type} on Sonic 🎵\n${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`,
+                url: `${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`, // mainly for iOS
+            });
+        } catch (error) {
+            toast.error('Something went worng');
+            return;
+        }
+    }, [collection, MEDIA_URL, toast]);
 
     const handleMorePress = useCallback(() => {
         if (!collection || collection.type !== 'playlist') return;
@@ -106,7 +126,10 @@ export const CollectionScreen = () => {
             {
                 label: 'Share ',
                 icon: <Icon as={Share2} size={20} className='text-foreground' />,
-                onPress: () => close()
+                onPress: () => {
+                    close();
+                    shareCollection()
+                }
             }
         ];
 
@@ -152,7 +175,7 @@ export const CollectionScreen = () => {
                 actions={actions}
             />
         );
-    }, [collection, user?.id, open, close, isThisQueueActive]);
+    }, [collection, user?.id, open, close, isThisQueueActive, shareCollection]);
 
     const artworkUrl = useMemo(() => {
         if (!collection?.artwork) return undefined;

@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, InteractionManager } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Image } from 'expo-image';
-import { EllipsisVertical, Play, ListMusic, Mic2 } from 'lucide-react-native';
+import { EllipsisVertical, Play, ListMusic, Mic2, SkipForward } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { CleanedSearchResult } from '../features/search/types';
@@ -18,10 +18,11 @@ import Animated, {
     interpolate,
     Extrapolation,
 } from 'react-native-reanimated';
-import { useToast } from '@/hooks/useToast';
+import { useToast } from '@/features/Toast/hooks/useToast';
 import * as Haptics from 'expo-haptics';
 import { useBottomSheet } from '@/features/drawer';
 import { OptionsDrawer } from '../features/drawer/components/OptionsDrawer';
+import { usePlayer } from '@/features/playback/hooks/usePlayer';
 
 // ─── Module-level constants ────────────────────────────────────────────────────
 const SWIPE_THRESHOLD = 60;
@@ -58,7 +59,8 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
     const startX = useSharedValue(0);
     const startY = useSharedValue(0);
 
-    const { open } = useBottomSheet();
+    const { open, close } = useBottomSheet();
+    const { playNext, addToQueue } = usePlayer();
 
     const toast = useToast();
     const toastRef = useRef(toast);
@@ -81,6 +83,30 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
         onPressRef.current?.();
     }, []);
 
+    // Memoized Play Next handler
+    const handlePlayNext = useCallback(async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+        await playNext({
+            externalId: song.id,
+            trackName: song.title,
+            artistName: song.artist,
+            image: song.artwork,
+            duration: typeof song.duration === 'string' ? parseInt(song.duration, 10) : song.duration,
+        });
+    }, [playNext, song]);
+
+    // Memoized Add to Queue handler
+    const handleAddToQueue = useCallback(async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+        await addToQueue({
+            externalId: song.id,
+            trackName: song.title,
+            artistName: song.artist,
+            image: song.artwork,
+            duration: typeof song.duration === 'string' ? parseInt(song.duration, 10) : song.duration,
+        });
+    }, [addToQueue, song]);
+
     const handleOpenOptions = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
 
@@ -91,10 +117,26 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
                 icon: <Icon as={Play} size={18} className="mr-2" />,
                 onPress: handlePress,
             },
+            {
+                label: 'Play Next',
+                icon: <Icon as={SkipForward} size={18} className="mr-2" />,
+                onPress: () => {
+                    handlePlayNext()
+                    close()
+                },
+            },
+            {
+                label: 'Add to Queue',
+                icon: <Icon as={ListMusic} size={18} className="mr-2" />,
+                onPress: () => {
+                    handleAddToQueue()
+                    close()
+                },
+            }
         ] : []);
 
         // Defer until press animation and FlatList render cycle settles
-        InteractionManager.runAfterInteractions(() => {
+        requestAnimationFrame(() => {
             open(
                 <OptionsDrawer
                     image={song.artwork}
@@ -104,7 +146,7 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
                 />
             );
         });
-    }, [handlePress, open, song.artwork, song.artist, song.title]);
+    }, [handlePress, open, close, song.artwork, song.artist, song.title]);
 
     // Natively run strict diagonal gesture activation on the UI thread to play perfectly with vertical list scroll
     const pan = useMemo(
@@ -176,7 +218,13 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
                         translateX.value = withSpring(MAX_TRANSLATE, { ...SNAP_SPRING, velocity: event.velocityX }, (done) => {
                             'worklet';
                             if (done) {
-                                runOnJS(showToast)(song.title);
+                                runOnJS(playNext)({
+                                    externalId: song.id,
+                                    trackName: song.title,
+                                    artistName: song.artist,
+                                    image: song.artwork,
+                                    duration: typeof song.duration === 'string' ? parseInt(song.duration, 10) : song.duration,
+                                });
                                 translateX.value = withDelay(60, withSpring(0, SPRING_CONFIG, (f) => {
                                     'worklet';
                                     if (f) hasTriggered.value = false;
@@ -187,7 +235,7 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
                         translateX.value = withSpring(0, { ...SNAP_SPRING, velocity: event.velocityX });
                     }
                 }),
-        [hasTriggered, showToast, song.title, startX, startY, translateX]
+        [hasTriggered, playNext, song, startX, startY, translateX]
     );
 
     const cardStyle = useAnimatedStyle(() => {

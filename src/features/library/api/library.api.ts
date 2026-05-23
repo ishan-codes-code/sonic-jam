@@ -5,7 +5,7 @@ import type {
   PlaylistSong,
   AddSongToPlaylistPayload,
   AddSongToPlaylistResponse,
-  PlaylistWithSongs
+  PlaylistWithSongs,
 } from "../types";
 
 export const libraryApi = {
@@ -24,7 +24,10 @@ export const libraryApi = {
     return data;
   },
 
-  updatePlaylist: async (playlistId: string, payload: Partial<PlayListReqPayload>): Promise<Playlist> => {
+  updatePlaylist: async (
+    playlistId: string,
+    payload: Partial<PlayListReqPayload>,
+  ): Promise<Playlist> => {
     const { data } = await apiClient.patch(`/playlist/${playlistId}`, payload);
     return data;
   },
@@ -34,18 +37,35 @@ export const libraryApi = {
     return data;
   },
 
-  getPlaylistWithSongs: async (playlistId: string): Promise<PlaylistWithSongs> => {
+  getPlaylistWithSongs: async (
+    playlistId: string,
+  ): Promise<PlaylistWithSongs> => {
     const { data } = await apiClient.get(`/playlist/${playlistId}/songs`);
     return data;
   },
 
-  addSongToPlaylist: async (payload: AddSongToPlaylistPayload): Promise<AddSongToPlaylistResponse> => {
-    const { data } = await apiClient.post<AddSongToPlaylistResponse>("/playlist/song/add", payload);
+  addSongToPlaylist: async (
+    payload: AddSongToPlaylistPayload,
+  ): Promise<AddSongToPlaylistResponse> => {
+    const { data } = await apiClient.post<AddSongToPlaylistResponse>(
+      "/playlist/song/add",
+      payload,
+    );
     return data;
   },
 
-  removeSongFromPlaylist: async (playlistId: string, songId: string): Promise<{ message: string }> => {
-    const { data } = await apiClient.delete(`/playlist/${playlistId}/song/${songId}`);
+  removeSongFromPlaylist: async (
+    playlistId: string,
+    songId: string,
+  ): Promise<{ message: string }> => {
+    const { data } = await apiClient.delete(
+      `/playlist/${playlistId}/song/${songId}`,
+    );
+    return data;
+  },
+
+  getUserPlaylistIdsBySong: async (songId: string): Promise<string[]> => {
+    const { data } = await apiClient.get(`/playlist/song/${songId}`);
     return data;
   },
 };

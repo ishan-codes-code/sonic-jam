@@ -14,7 +14,7 @@ import * as Haptics from "expo-haptics";
 import { useLibrary } from '../hooks/useLibrary';
 import { Playlist } from '../types';
 import { useAuth } from '@/features/auth';
-import { useToast } from '@/hooks/useToast';
+import { useToast } from '@/features/Toast/hooks/useToast';
 import { useBottomSheet } from '@/features/drawer';
 
 import { LibraryHeader } from '../components/LibraryHeader';

@@ -9,21 +9,27 @@ import {
 } from "../services/smartQueueService";
 import { usePlaybackStore } from "../store/usePlaybackStore";
 import { useJobStore } from "../store/useJobStore";
-import type { PlaySongDto, PlaybackTrack, Song } from "../types";
+import type { PlaySongDto, PlaybackTrack, Song, TrackSource } from "../types";
 import {
   getPlaybackUrl,
   createPlaybackTrack,
   syncQueueTokens,
 } from "../utils/playbackHelpers";
 import { ensureFreshToken } from "@/features/auth/utils/tokenManager";
+import { toastImperative } from "@/features/Toast/utils/toastSingleton";
 
 export function usePlayer() {
   const isSettingUp = useRef(false);
 
-  // ── Helper: Get Store ───────────────────────────────────────
+  // ── Mutex: serialize playNext / addToQueue ops ──────────────────
+  // Prevents race conditions when user taps rapidly. Each op chains
+  // onto the previous one, so queue state is always consistent.
+  const queueOpLock = useRef<Promise<void>>(Promise.resolve());
+
+  // ── Helper: Get Store ───────────────────────────────────────────
   const getStore = () => usePlaybackStore.getState();
 
-  // ── Setup ────────────────────────────────────────────────────
+  // ── Setup ────────────────────────────────────────────────────────
   const ensureSetup = useCallback(async (): Promise<boolean> => {
     if (isSettingUp.current) return false;
     try {
@@ -49,31 +55,16 @@ export function usePlayer() {
           return undefined;
         }
 
-        // Fresh fetch
         const { song, playbackToken } = await resolveStream(payload, {
           onJob: (jobId) => {
             useJobStore.getState().addJob(jobId, { payload });
-
-            import("react-native-toast-message").then(({ default: Toast }) => {
-              Toast.show({
-                type: "info",
-                text1: "Preparing your track...",
-                text2: "Processing in background",
-                onPress: () => {
-                  import("expo-router").then(({ router }) => {
-                    router.push("/processing" as any);
-                  });
-                  Toast.hide();
-                },
-              });
+            toastImperative.show({
+              type: "info",
+              text1: "Preparing your track...",
             });
           },
         });
 
-        console.log(
-          "[usePlayer] Enqueueing track with URL:",
-          getPlaybackUrl(song),
-        );
         const track = await createPlaybackTrack(song, playbackToken, {
           isManualAdd: options?.isManualAdd ?? false,
         });
@@ -81,7 +72,6 @@ export function usePlayer() {
         store.addTrackToMap(track);
         await TrackPlayer.addMediaItem(track as any);
 
-        // If queue was empty, sync store immediately
         const queue = await TrackPlayer.getQueue();
         if (queue.length === 1) {
           store.setCurrentSong(song, track);
@@ -90,7 +80,6 @@ export function usePlayer() {
         }
 
         store.notifyQueueUpdate();
-
         return track;
       } catch (error: any) {
         if (!options?.silent) {
@@ -103,9 +92,48 @@ export function usePlayer() {
     [ensureSetup],
   );
 
-  // ── Queue: Play Next ───────────────────────────────────────────
+  // ── Helper: Resolve & Create Track ──────────────────────────────
+  const resolveAndCreateTrack = useCallback(
+    async (payload: PlaySongDto, source?: TrackSource) => {
+      const store = getStore();
+      const { song, playbackToken } = await resolveStream(payload);
+      const track = await createPlaybackTrack(song, playbackToken, {
+        isManualAdd: true,
+        source,
+      });
+      store.addTrackToMap(track);
+      return { song, track };
+    },
+    [],
+  );
+
+  // ── Helper: Find last manual insert position ─────────────────────
+  // Scans the live queue backwards from the end, stopping at the first
+  // track with source "playNext" or "addToQueue". Returns the index
+  // AFTER that track (i.e., where the next addToQueue should insert).
+  // Falls back to currentIndex + 1 if no manual tracks exist ahead.
+  //
+  // This is safe against index shifts because it reads the live queue
+  // state at call time — there's no stale integer to go wrong.
+  const findAddToQueueInsertIndex = useCallback(async (): Promise<number> => {
+    const queue = await TrackPlayer.getQueue();
+    const currentIndex = (await TrackPlayer.getActiveMediaItemIndex()) ?? -1;
+
+    // Scan backwards from end, stop at first manual track past currentIndex
+    for (let i = queue.length - 1; i > currentIndex; i--) {
+      const t = queue[i] as PlaybackTrack;
+      if (t.source === "playNext" || t.source === "addToQueue") {
+        return i + 1; // insert after this track
+      }
+    }
+
+    // No manual tracks ahead — insert right after current
+    return currentIndex + 1;
+  }, []);
+
+  // Play Next — drop immediately after current song
   const playNext = useCallback(
-    async (payload: PlaySongDto) => {
+    async (payload: PlaySongDto, source: TrackSource = "playNext") => {
       const store = getStore();
       try {
         const ok = await ensureSetup();
@@ -114,40 +142,31 @@ export function usePlayer() {
           return;
         }
 
-        const { song, playbackToken } = await resolveStream(payload);
-        console.log(
-          "[usePlayer] PlayNext track with URL:",
-          getPlaybackUrl(song),
-        );
-        const track = await createPlaybackTrack(song, playbackToken, { isManualAdd: true });
-
-        store.addTrackToMap(track);
+        const { track } = await resolveAndCreateTrack(payload, source);
         const currentIndex = await TrackPlayer.getActiveMediaItemIndex();
 
         if (currentIndex === null || currentIndex === undefined) {
           await TrackPlayer.addMediaItem(track as any);
           await TrackPlayer.play();
-          return;
+        } else {
+          await TrackPlayer.insertMediaItem(currentIndex + 1, track as any);
         }
-
-        await TrackPlayer.insertMediaItem(currentIndex + 1, track as any);
-
-        if (store.manualInsertIndex !== null) {
-          store.setManualInsertIndex(store.manualInsertIndex + 1);
-        }
-
+        toastImperative.show({
+          type: "info",
+          text1: "Playing next...",
+        });
         store.notifyQueueUpdate();
       } catch (error: any) {
         console.error("[usePlayer] playNext error:", error);
         store.setError(error?.message ?? "Failed to play next");
       }
     },
-    [ensureSetup],
+    [ensureSetup, resolveAndCreateTrack],
   );
 
-  // ── Queue: Add to Queue (Smart Add) ────────────────────────────
+  // Add to Queue — FIFO append to the end
   const addToQueue = useCallback(
-    async (payload: PlaySongDto) => {
+    async (payload: PlaySongDto, source: TrackSource = "addToQueue") => {
       const store = getStore();
       try {
         const ok = await ensureSetup();
@@ -156,36 +175,27 @@ export function usePlayer() {
           return;
         }
 
-        const { song, playbackToken } = await resolveStream(payload);
-        console.log(
-          "[usePlayer] AddToQueue track with URL:",
-          getPlaybackUrl(song),
-        );
-        const track = await createPlaybackTrack(song, playbackToken, { isManualAdd: true });
+        const { track } = await resolveAndCreateTrack(payload, source);
 
-        store.addTrackToMap(track);
-        const currentIndex = await TrackPlayer.getActiveMediaItemIndex();
+        // Just append — no index math needed
+        await TrackPlayer.addMediaItem(track as any);
 
-        if (currentIndex === null || currentIndex === undefined) {
-          await TrackPlayer.addMediaItem(track as any);
+        const queue = await TrackPlayer.getQueue();
+        if (queue.length === 1) {
+          // Was empty, start playing
           await TrackPlayer.play();
-          return;
         }
-
-        let insertIndex =
-          store.manualInsertIndex === null
-            ? currentIndex + 1
-            : store.manualInsertIndex + 1;
-
-        await TrackPlayer.insertMediaItem(insertIndex, track as any);
-        store.setManualInsertIndex(insertIndex);
+        toastImperative.show({
+          type: "info",
+          text1: "Added to queue",
+        });
         store.notifyQueueUpdate();
       } catch (error: any) {
         console.error("[usePlayer] addToQueue error:", error);
         store.setError(error?.message ?? "Failed to add to queue");
       }
     },
-    [ensureSetup],
+    [ensureSetup, resolveAndCreateTrack],
   );
 
   // ── Queue: Remove from Queue ──────────────────────────────────
@@ -212,7 +222,6 @@ export function usePlayer() {
     ): Promise<PlaybackTrack | undefined> => {
       const store = getStore();
       try {
-        // 1. Instant Optimistic Update
         const optimisticSong: any = {
           id: "songId" in payload ? payload.songId : `temp_${Date.now()}`,
           trackName: "trackName" in payload ? payload.trackName : "Loading...",
@@ -222,27 +231,25 @@ export function usePlayer() {
           duration: "duration" in payload ? payload.duration : 0,
         };
         store.setOptimisticSong(optimisticSong);
-        store.setPendingJobId("resolving"); // Lock UI into loading state during initial API roundtrip
+        store.setPendingJobId("resolving");
 
         const shouldPreserveQueue = options?.preserveQueue ?? true;
-        const isPlaylistActive = store.queueType === "playlist" || store.playlistMeta !== null;
+        const isPlaylistActive =
+          store.queueType === "playlist" || store.playlistMeta !== null;
         const forceQueueReplacement = !shouldPreserveQueue || isPlaylistActive;
 
         if (forceQueueReplacement) {
           resetSmartQueueRadio();
           store.setQueueType("radio");
           store.clearPlaylistMeta();
-          store.setManualInsertIndex(null);
+          // ✅ Clear the lock too so stale ops don't run after a hard reset
+          queueOpLock.current = Promise.resolve();
 
-          // Kill old audio immediately for explicit queue replacement.
           try {
             await TrackPlayer.clear();
-          } catch {
-            // Player might not be initialized yet, which is fine.
-          }
+          } catch { }
         }
 
-        // 3. Ensure Setup (can be slow)
         const ok = await ensureSetup();
         if (!ok) {
           store.setPendingJobId(null);
@@ -254,31 +261,27 @@ export function usePlayer() {
           store.clearPlaylistMeta();
         }
 
-        // 3. Background Fetch (silent)
         const { song, playbackToken } = await resolveStream(payload, {
           onJob: (jobId) => {
             useJobStore.getState().addJob(jobId, { payload });
             store.setPendingJobId(jobId);
-
-            import("react-native-toast-message").then(({ default: Toast }) => {
-              Toast.show({
-                type: "info",
-                text1: "Whoops, we don't have this one.",
-                text2: "Magically resolving the audio stream for you...",
-                visibilityTime: 4000,
-              });
+            toastImperative.show({
+              type: "info",
+              text1:
+                "Whoops, we don't have this one. Magically resolving the audio stream for you...",
+              visibilityTime: 4000,
             });
           },
         });
-        store.setPendingJobId(null); // Clear it once done
-        const track = await createPlaybackTrack(song, playbackToken, { isManualAdd: true });
 
-        console.log("[usePlayer] Resolved track:", track.title);
+        store.setPendingJobId(null);
+        const track = await createPlaybackTrack(song, playbackToken, {
+          isManualAdd: true,
+        });
 
         store.addTrackToMap(track);
 
         if (forceQueueReplacement) {
-          // Atomic queue replacement
           await TrackPlayer.setMediaItems([track]);
         } else {
           const queue = await TrackPlayer.getQueue();
@@ -298,7 +301,6 @@ export function usePlayer() {
 
         await TrackPlayer.play();
 
-        // Final store sync with full metadata
         store.setCurrentSong(song, track);
         store.setDuration(song.duration);
         store.notifyQueueUpdate();
@@ -309,16 +311,11 @@ export function usePlayer() {
         console.error("[usePlayer] play error:", error);
         store.setPendingJobId(null);
         store.setError(error?.message ?? "Failed to play song");
-
-        import("react-native-toast-message").then(({ default: Toast }) => {
-          Toast.show({
-            type: "error",
-            text1: "Audio Error",
-            text2: error?.message ?? "Failed to magically steal the song.",
-            visibilityTime: 4000,
-          });
+        toastImperative.show({
+          type: "error",
+          text1: error?.message ?? "Failed to magically steal the song.",
+          visibilityTime: 4000,
         });
-
         return undefined;
       }
     },
@@ -327,7 +324,12 @@ export function usePlayer() {
 
   // ── Playlist: Play ───────────────────────────────────────────
   const playPlaylist = useCallback(
-    async (songs: Song[], startIndex: number = 0, playlistId: string, playbackToken?: string) => {
+    async (
+      songs: Song[],
+      startIndex: number = 0,
+      playlistId: string,
+      playbackToken?: string,
+    ) => {
       if (!songs.length) return;
 
       const store = getStore();
@@ -335,7 +337,6 @@ export function usePlayer() {
       const firstSong = songs[clampedIndex];
 
       try {
-        // Optimistic update: show the chosen song instantly in the UI
         store.setOptimisticSong({
           id: firstSong.id,
           trackName: firstSong.trackName,
@@ -348,36 +349,34 @@ export function usePlayer() {
         resetSmartQueueRadio();
         store.setQueueType("playlist");
         store.setPlaylistMeta({ playlistId, total: songs.length });
+        // ✅ Clear lock on hard reset
+        queueOpLock.current = Promise.resolve();
 
-        // Guard: abort if player setup fails
         const ok = await ensureSetup();
         if (!ok) {
           store.setError("Player setup failed");
           return;
         }
 
-        // Resolve auth token for the first song if not supplied by caller.
-        // All tracks in the queue share this playlist-scoped token; the native
-        // player will lazily re-authenticate when it buffers each subsequent track.
         let token = playbackToken ?? "";
         if (!token) {
           try {
             const resolved = await resolveStream({ songId: firstSong.id });
             token = resolved.playbackToken;
           } catch (e) {
-            console.warn("[playPlaylist] Could not pre-resolve first track token:", e);
+            console.warn(
+              "[playPlaylist] Could not pre-resolve first track token:",
+              e,
+            );
           }
         }
 
-        // Build all tracks using the resolved token
         const tracks = await Promise.all(
           songs.map((song) => createPlaybackTrack(song, token)),
         );
 
-        // Register tracks in the lookup map
         tracks.forEach((t) => store.addTrackToMap(t as any));
 
-        // Atomic queue replacement starting at the user's chosen index
         await TrackPlayer.setMediaItems(tracks, clampedIndex);
         await TrackPlayer.play();
 
@@ -407,14 +406,11 @@ export function usePlayer() {
 
   const seek = useCallback(async (seconds: number) => {
     try {
-      // const position = Math.max(0, seconds);
-      // console.log(`[usePlayer] Executing seekTo: ${position}s`);
-      // await TrackPlayer.seekTo(position);
       const position = Math.max(0, seconds);
       console.log(`[BEFORE SEEK] state:`, await TrackPlayer.getPlaybackState());
       console.log("[SEEK to]", position);
       await TrackPlayer.seekTo(position);
-      await new Promise((r) => setTimeout(r, 500)); // wait for native
+      await new Promise((r) => setTimeout(r, 500));
       console.log(`[AFTER SEEK] position:`, await TrackPlayer.getProgress());
     } catch (e) {
       console.error("[usePlayer] Seek error:", e);
@@ -441,15 +437,18 @@ export function usePlayer() {
     } catch { }
   }, []);
 
-  const skipToIndex = useCallback(async (index: number) => {
-    try {
-      await ensureSetup();
-      await TrackPlayer.skipToIndex(index);
-      await TrackPlayer.play();
-    } catch (e) {
-      console.error("[usePlayer] skipToIndex error:", e);
-    }
-  }, [ensureSetup]);
+  const skipToIndex = useCallback(
+    async (index: number) => {
+      try {
+        await ensureSetup();
+        await TrackPlayer.skipToIndex(index);
+        await TrackPlayer.play();
+      } catch (e) {
+        console.error("[usePlayer] skipToIndex error:", e);
+      }
+    },
+    [ensureSetup],
+  );
 
   const toggleShuffle = useCallback(async () => {
     const store = getStore();
@@ -483,14 +482,14 @@ export function usePlayer() {
 
     const currentStoreTimer = store.sleepTimer;
     let originalSeconds =
-      currentStoreTimer?.type === "time" ? currentStoreTimer.seconds : undefined;
+      currentStoreTimer?.type === "time"
+        ? currentStoreTimer.seconds
+        : undefined;
 
     if (!originalSeconds && timer.remainingSeconds !== undefined) {
       const standardSeconds = [300, 600, 900, 1800, 2700, 3600];
       const matched = standardSeconds.find((s) => s >= timer.remainingSeconds);
-      if (matched) {
-        originalSeconds = matched;
-      }
+      if (matched) originalSeconds = matched;
     }
 
     const timerData = {

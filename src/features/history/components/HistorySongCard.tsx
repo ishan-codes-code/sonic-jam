@@ -1,8 +1,8 @@
-import React, { useState } from "react";
-import { View, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { View, TouchableOpacity, ActivityIndicator, Share } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Image } from "expo-image";
-import { MoreVertical, Music2, X } from "lucide-react-native";
+import { MoreVertical, Music2, X, Play, SkipForward, ListMusic, Share2 } from "lucide-react-native";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -18,21 +18,14 @@ import { useDeleteHistory } from "../hooks/useHistory";
 import { Icon } from "@/components/ui/icon";
 import { ListeningEvent } from "../types";
 import { CleanedSearchResult } from "@/features/search";
+import { useBottomSheet } from "@/features/drawer";
+import { OptionsDrawer } from "@/features/drawer/components/OptionsDrawer";
+import { usePlayer } from "@/features/playback/hooks/usePlayer";
+import * as Haptics from "expo-haptics";
 
-// interface HistorySongCardProps {
-//   event: {
-//     id?: string;
-//     song: {
-//       id: string;
-//       trackName: string;
-//       image?: string;
-//       artists: { name: string }[];
-//     };
-//     playedAt?: string;
-//   };
-//   onPress: (event: any) => void;
-//   onRemove?: () => void | Promise<void>;
-// }
+
+
+
 type HistorySongCardProps = {
   onPress: (event: any) => void;
   onRemove?: () => void | Promise<void>;
@@ -40,6 +33,11 @@ type HistorySongCardProps = {
     | { event: ListeningEvent; song?: never }
     | { song: CleanedSearchResult; event?: never }
   );
+
+
+
+
+
 
 
 const formatPlayedAt = (dateString: string) => {
@@ -57,11 +55,115 @@ export const HistorySongCard = React.memo((props: HistorySongCardProps) => {
   const imageUri = event ? event.song.image : song?.artwork;
   const playedAt = event?.playedAt;
 
+  const { open, close } = useBottomSheet();
+  const { playNext, addToQueue } = usePlayer();
+
   const [isOpen, setIsOpen] = useState(false);
   const { mutateAsync: deleteEvent, isPending: isDeletePending } = useDeleteHistory();
   const [isLocalPending, setIsLocalPending] = useState(false);
 
   const isPending = isDeletePending || isLocalPending;
+
+  // Latest Ref Pattern to avoid unnecessary re-renders
+  const onPressRef = useRef(onPress);
+  useEffect(() => {
+    onPressRef.current = onPress;
+  });
+
+  const handlePress = useCallback(() => {
+    onPressRef.current?.(event ?? song);
+  }, [event, song]);
+
+  const handlePlayNext = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+    const trackData = event
+      ? {
+        externalId: event.song.id,
+        trackName: event.song.trackName,
+        artistName: event.song.artists?.map((a: { name: string }) => a.name).join(", ") ?? "",
+        image: event.song.image,
+        duration: 0,
+      }
+      : {
+        externalId: song?.id ?? "",
+        trackName: song?.title ?? "",
+        artistName: song?.artist ?? "",
+        image: song?.artwork,
+        duration: typeof song?.duration === "string" ? parseInt(song.duration, 10) : song?.duration ?? 0,
+      };
+    await playNext(trackData);
+  }, [playNext, event, song]);
+
+  const handleAddToQueue = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+    const trackData = event
+      ? {
+        externalId: event.song.id,
+        trackName: event.song.trackName,
+        artistName: event.song.artists?.map((a: { name: string }) => a.name).join(", ") ?? "",
+        image: event.song.image,
+        duration: 0,
+      }
+      : {
+        externalId: song?.id ?? "",
+        trackName: song?.title ?? "",
+        artistName: song?.artist ?? "",
+        image: song?.artwork,
+        duration: typeof song?.duration === "string" ? parseInt(song.duration, 10) : song?.duration ?? 0,
+      };
+    await addToQueue(trackData);
+  }, [addToQueue, event, song]);
+
+
+
+
+
+
+  const handleOpenOptions = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+
+    const currentActions = onPressRef.current !== undefined
+      ? [
+        {
+          label: "Play",
+          icon: <Icon as={Play} size={18} className="mr-2" />,
+          onPress: handlePress,
+        },
+        {
+          label: "Play Next",
+          icon: <Icon as={SkipForward} size={18} className="mr-2" />,
+          onPress: () => {
+            handlePlayNext();
+            close();
+          },
+        },
+        {
+          label: "Add to Queue",
+          icon: <Icon as={ListMusic} size={18} className="mr-2" />,
+          onPress: () => {
+            handleAddToQueue();
+            close();
+          }
+        },
+        {
+          label: "Share",
+          icon: <Icon as={Share2} size={18} className="mr-2" />,
+          onPress: () => { },
+        }
+      ]
+      : [];
+
+    requestAnimationFrame(() => {
+      open(
+        <OptionsDrawer
+          image={imageUri}
+          title={trackName}
+          subtitle={artistName}
+          actions={currentActions}
+        />
+      );
+    });
+  }, [handlePress, handlePlayNext, handleAddToQueue, close, open, imageUri, trackName, artistName]);
 
   const handleDelete = async () => {
     try {
@@ -118,7 +220,7 @@ export const HistorySongCard = React.memo((props: HistorySongCardProps) => {
       </View>
 
       <View className="flex-row items-center -mr-2">
-        <TouchableOpacity className="p-2">
+        <TouchableOpacity className="p-2" onPress={(e) => { e.stopPropagation?.(); handleOpenOptions(); }}>
           <MoreVertical size={20} color="#9ca3af" />
         </TouchableOpacity>
         {song ? (

@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { useAuth } from './useAuth';
-import { validateSignup } from '../utils/validation';
-import { useToast } from '@/hooks/useToast';
-import { useRouter } from 'expo-router';
+import { useState } from "react";
+import { useAuth } from "./useAuth";
+import { validateSignup } from "../utils/validation";
+import { useToast } from "@/features/Toast/hooks/useToast";
+
+import { useRouter } from "expo-router";
 
 export const useSignup = () => {
   const { signup, status, error, clearError } = useAuth();
   const toast = useToast();
   const router = useRouter();
-  const isLoading = status === 'loading';
+  const isLoading = status === "loading";
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
 
@@ -30,9 +31,13 @@ export const useSignup = () => {
     }
     setFieldError(null);
     try {
-      await signup({ name: name.trim(), email: email.trim().toLowerCase(), password });
-      toast.success('Registration successful! Please login.');
-      router.push('/login');
+      await signup({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      toast.success("Registration successful! Please login.");
+      router.push("/login");
     } catch {
       // Error is in the store
     }

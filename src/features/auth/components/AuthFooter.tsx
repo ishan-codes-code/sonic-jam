@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 
 interface AuthFooterProps {
@@ -10,11 +10,15 @@ interface AuthFooterProps {
 
 export const AuthFooter = ({ prompt, actionLabel, onPress }: AuthFooterProps) => {
   return (
-    <View className="flex-row items-center justify-center mt-6 pb-4">
-      <Text className="text-muted-foreground text-sm">{prompt} </Text>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-        <Text className="text-violet-400 text-sm font-semibold">{actionLabel}</Text>
-      </TouchableOpacity>
+    <View className="mt-6 flex-row items-center justify-center gap-1.5">
+      <Text className="text-[13px] text-muted-foreground font-heading">{prompt}</Text>
+      <Pressable
+        onPress={onPress}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+      >
+        <Text className="text-[13px] font-heading text-amber-300">{actionLabel}</Text>
+      </Pressable>
     </View>
   );
 };

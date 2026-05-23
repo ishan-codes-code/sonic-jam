@@ -19,7 +19,7 @@ const TABS = [
   { name: 'search', route: '/(tabs)/search', label: 'Search', Icon: Search },
   { name: 'library', route: '/(tabs)/library', label: 'Library', Icon: Library },
   { name: 'processing', route: '/(tabs)/processing', label: 'Downloads', Icon: Download },
-  // { name: 'profile', route: '/(tabs)/profile', label: 'Profile', Icon: User },
+
 ] as const;
 
 // ─── Animated Tab Item ────────────────────────────────────────────────────────
@@ -147,6 +147,9 @@ export default function TabLayout() {
       <Tabs.Screen name="processing" />
       <Tabs.Screen name="profile/index" options={{ href: null }} />
       <Tabs.Screen name="collections/[id]" options={{ href: null }} />
+      <Tabs.Screen name="about/developers" options={{ href: null }} />
+      <Tabs.Screen name="song/[id]" options={{ href: null }} />
+
     </Tabs>
   );
 }

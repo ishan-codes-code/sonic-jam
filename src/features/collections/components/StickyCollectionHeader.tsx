@@ -31,7 +31,7 @@ interface StickyCollectionHeaderProps {
     insets: { top: number };
     threshold: number;
     tracksLength: number;
-    backRoute: '/home' | '/library';
+    backRoute?: '/home' | '/library';
 }
 
 export const StickyCollectionHeader = React.memo(({
@@ -125,7 +125,16 @@ export const StickyCollectionHeader = React.memo(({
                         scaleTo={0.85}
                         feedback="snappy"
                         hitSlopSize={10}
-                        onPress={() => router.push(backRoute)}
+                        onPress={() => {
+                            if (backRoute) {
+                                router.push(backRoute)
+                            } else if (router.canGoBack()) {
+                                router.back();
+                            } else {
+                                router.replace('/home'); // fallback route
+                            }
+
+                        }}
                         accessibilityLabel="Go back"
                         className="w-10 h-10 items-center justify-center rounded-full bg-white/10"
                     >

@@ -17,7 +17,7 @@ export const LibraryHeader = ({ onAddPress }: LibraryHeaderProps) => {
       <View className="flex-row items-center justify-start gap-2">
         <ProfileAvatar size={36} />
 
-        <Text className="text-2xl font-display text-foreground">Your Library</Text>
+        <Text className="text-2xl font-display text-foreground">Library</Text>
       </View>
       <View className="flex-row items-center gap-3">
         <AnimatedPressable

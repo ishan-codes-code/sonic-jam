@@ -1,8 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Image } from 'expo-image';
-import { EllipsisVertical, Mic2 } from 'lucide-react-native';
+import { EllipsisVertical, Mic2, Play, SkipForward, ListMusic } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +11,9 @@ import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { cn } from '@/lib/utils';
 import AudioWave from '@/components/AudioWave';
 import { usePlaybackStore } from '@/features/playback';
+import { usePlayer } from '@/features/playback/hooks/usePlayer';
+import { useBottomSheet } from '@/features/drawer';
+import { OptionsDrawer } from '@/features/drawer/components/OptionsDrawer';
 
 const areEqual = (prev: SongListCardProps, next: SongListCardProps) =>
     prev.track.id === next.track.id &&
@@ -27,10 +30,76 @@ interface SongListCardProps {
 }
 
 const SongListCard = React.memo(({ track, onPress, isActive = false }: SongListCardProps) => {
+    const { open } = useBottomSheet();
+    const { playNext, addToQueue } = usePlayer();
+    const isPlaying = usePlaybackStore((s) => s.status === "playing");
+
+    // Latest Ref Pattern to avoid unnecessary re-renders
+    const onPressRef = useRef(onPress);
+    useEffect(() => {
+        onPressRef.current = onPress;
+    });
+
+    const handlePress = useCallback(() => {
+        onPressRef.current?.(track);
+    }, [track]);
+
+    const handlePlayNext = useCallback(async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+        await playNext({
+            externalId: track.id,
+            trackName: track.title,
+            artistName: track.artist,
+            image: track.artwork,
+            duration: typeof track.duration === 'string' ? parseInt(track.duration, 10) : track.duration,
+        });
+    }, [playNext, track]);
+
+    const handleAddToQueue = useCallback(async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+        await addToQueue({
+            externalId: track.id,
+            trackName: track.title,
+            artistName: track.artist,
+            image: track.artwork,
+            duration: typeof track.duration === 'string' ? parseInt(track.duration, 10) : track.duration,
+        });
+    }, [addToQueue, track]);
+
     const handleOpenOptions = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
-    }, []);
-    const isPlaying = usePlaybackStore((s) => s.status === "playing");
+
+        const currentActions = onPressRef.current
+            ? [
+                {
+                    label: 'Play',
+                    icon: <Icon as={Play} size={18} className="mr-2" />,
+                    onPress: handlePress,
+                },
+                {
+                    label: 'Play Next',
+                    icon: <Icon as={SkipForward} size={18} className="mr-2" />,
+                    onPress: handlePlayNext,
+                },
+                {
+                    label: 'Add to Queue',
+                    icon: <Icon as={ListMusic} size={18} className="mr-2" />,
+                    onPress: handleAddToQueue,
+                },
+            ]
+            : [];
+
+        requestAnimationFrame(() => {
+            open(
+                <OptionsDrawer
+                    image={track.artwork}
+                    title={track.title}
+                    subtitle={track.artist}
+                    actions={currentActions}
+                />
+            );
+        });
+    }, [handlePress, handlePlayNext, handleAddToQueue, open, track]);
 
     return (
         <View className="w-full relative overflow-hidden" style={{ height: 64 }}>

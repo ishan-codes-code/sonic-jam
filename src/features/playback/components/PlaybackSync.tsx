@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { usePlaybackState, useProgress, PlaybackState as State, default as TrackPlayer, Event, useIsPlaying, RepeatMode } from '@rntp/player';
 import { usePlaybackStore } from '../store/usePlaybackStore';
 import { extractArtworkColors } from '@/features/artwork-colors';
-import { PlayHistoryService } from '@/services/playHistoryService';
 import { useProgressSyncAuth } from '../hooks/useProgressSyncAuth';
 import { useSmartQueue } from '../hooks/useSmartQueue';
 import { resolveStream } from '../api/playbackApi';
@@ -258,7 +257,7 @@ export const PlaybackSync = () => {
 
                 if (fullTrack && fullTrack.song) {
                     store.setCurrentSong(fullTrack.song, fullTrack);
-                    void PlayHistoryService.addToHistory(fullTrack.song);
+
 
                     if (fullTrack.url) {
                         const url = fullTrack.url;

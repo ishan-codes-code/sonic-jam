@@ -16,10 +16,11 @@ import { usePlaybackStore, type Song } from "@/features/playback";
 import { PlayerSeek } from "./PlayerSeek";
 import { PlaybackLoadingIndicator } from "./PlaybackLoadingIndicator";
 import { AnimatedPressable } from "@/components/AnimatedPressable";
-import ProcessingPlaylistDrawer from "@/features/processing/components/ProcessingPlaylistDrawer";
+import ProcessingPlaylistDrawer from "@/features/library/components/AddToPlaylistDrawer";
 import { useBottomSheet } from "@/features/drawer";
 import type { ExtendedRepeatMode } from "../types";
 import { SleepTimerDrawer } from "./SleepTimerDrawer";
+import AddToPlaylistDrawer from "@/features/library/components/AddToPlaylistDrawer";
 
 interface PlayerControlsProps {
   currentSong: Song;
@@ -50,9 +51,11 @@ export const PlayerControls = memo(function PlayerControls({
   const handleOpenAddToPlaylist = useCallback(() => {
     if (currentSong) {
       open(
-        <ProcessingPlaylistDrawer
+        <AddToPlaylistDrawer
           songId={currentSong.id}
-          songTitle={currentSong.trackName}
+          title={currentSong.trackName}
+          subtitle={currentSong.artists?.map((a: any) => a.name).join(", ")}
+          image={currentSong.image}
         />,
         ["55%", "82%"],
       );
@@ -83,14 +86,7 @@ export const PlayerControls = memo(function PlayerControls({
         </View>
 
         <View className="flex-row items-center gap-4">
-          <TouchableOpacity className="items-center justify-center">
-            <Icon
-              as={X}
-              className="text-foreground opacity-80"
-              size={30}
-              strokeWidth={1.5}
-            />
-          </TouchableOpacity>
+
           <TouchableOpacity
             className="items-center justify-center"
             onPress={handleOpenAddToPlaylist}

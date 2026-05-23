@@ -1,22 +1,17 @@
 import { BottomSheetProvider } from '@/features/drawer';
-import { toastConfig } from '@/hooks/useToast';
+import { ToastProvider } from '@/features/Toast/components/ToastProvider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { colorScheme as nativewindColorScheme } from 'nativewind';
-import { ThemeProvider, DarkTheme } from '@react-navigation/native';
+import { ThemeProvider } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import Toast from 'react-native-toast-message';
 import { useAuth } from '@/features/auth';
-import { theme } from '@/theme';
-import TrackPlayer, { BackgroundEvent } from '@rntp/player';
+import TrackPlayer from '@rntp/player';
 import { PlaybackService, setupPlayer, PlaybackSync, usePlayer } from '@/features/playback';
-import { useVersionCheck } from '@/hooks/useVersionCheck';
-import { useVersionStore } from '@/store/versionStore';
-import { ForceUpdateScreen } from '@/components/VersionControl/ForceUpdateScreen';
-import { OptionalUpdateModal } from '@/components/VersionControl/OptionalUpdateModal';
-import { MaintenanceScreen } from '@/components/VersionControl/MaintenanceScreen';
+import { useVersionCheck } from '@/features/app-validations/hooks/useVersionCheck';
+
 import { PortalHost } from "@rn-primitives/portal";
 
 import "../global.css"
@@ -32,8 +27,10 @@ import {
 import { NAV_THEME } from '@/lib/theme';
 import MiniplayerScreen from '@/features/miniplayer/screens/MiniplayerScreen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as NavigationBar from 'expo-navigation-bar';
-import { Platform } from 'react-native';
+import { useVersionStore } from '@/features/app-validations/store/versionStore';
+import { MaintenanceScreen } from '@/features/app-validations/screens/MaintenanceScreen';
+import { UpdateScreen } from '@/features/app-validations/screens/UpdateScreen';
+import { OTAUpdateScreen } from '@/features/app-validations/screens/OTAUpdateScreen';
 
 
 
@@ -81,7 +78,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (status === 'idle' || status === 'loading') {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={theme.colors.secondaryAccent} />
+        <ActivityIndicator size="large" color={"#FFD54F"} />
       </View>
     );
   }
@@ -110,6 +107,9 @@ function VersionGuard({ children }: { children: React.ReactNode }) {
   const isOptional = useVersionStore((s) => s.isOptional);
   const isOtaForce = useVersionStore(s => s.isOtaForce);
   const isOtaOptional = useVersionStore(s => s.isOtaOptional);
+  const hasDismissedOptional = useVersionStore(s => s.hasDismissedOptional);
+  const dismissOptional = useVersionStore(s => s.dismissOptional);
+  const isOtaUpdating = useVersionStore(s => s.isOtaUpdating);
   const hasChecked = useVersionStore((s) => s.hasChecked);
 
   // Priority 1: Maintenance
@@ -119,29 +119,56 @@ function VersionGuard({ children }: { children: React.ReactNode }) {
 
   // Priority 2: Native force update
   if (isForce) {
-    return <ForceUpdateScreen />;
+    return <UpdateScreen isOptional={false} />;
   }
+
+  // Priority 3: OTA force update (foreground download directly)
+  if (isOtaForce) {
+    return <OTAUpdateScreen />;
+  }
+
+  // Priority 4: OTA updating in progress (user clicked update on optional OTA prompt)
+  if (isOtaUpdating) {
+    return <OTAUpdateScreen />;
+  }
+
 
   // We only show the content after the first version check is done
   // to prevent a flash of old content if a force update is pending.
   if (!hasChecked) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={theme.colors.secondaryAccent} />
+        <ActivityIndicator size="large" color={"#FFD54F"} />
       </View>
     );
   }
 
-  // Priority 3: OTA force (non-dismissible nudge)
-  if (isOtaForce) {
-    return <ForceUpdateScreen isOta />;
+  // Priority 5: Native optional update
+  if (isOptional && !hasDismissedOptional) {
+    return (
+      <UpdateScreen
+        isOptional={true}
+        onSkip={dismissOptional}
+        onLater={dismissOptional}
+      />
+    );
+  }
+
+  // Priority 6: OTA optional update (show UpdateScreen with isOta prop, user can skip or update)
+  if (isOtaOptional && !hasDismissedOptional) {
+    return (
+      <UpdateScreen
+        isOptional={true}
+        isOta={true}
+        onSkip={dismissOptional}
+        onLater={dismissOptional}
+      />
+    );
   }
 
   return (
     <>
       {children}
-      {isOptional && <OptionalUpdateModal />}
-      {isOtaOptional && !isOptional && <OptionalUpdateModal isOta />}
     </>
   );
 }
@@ -201,41 +228,42 @@ export default function RootLayout() {
       <ThemeProvider value={navTheme}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <SafeAreaProvider>
-
-            <BottomSheetProvider>
-              <VersionGuard>
-                <AuthGuard>
-                  <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      animation: 'fade',
-                      animationDuration: 200,
-                      contentStyle: { backgroundColor: navTheme.colors.background },
-                    }}
-                  >
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="(auth)" />
-
-                    <Stack.Screen
-                      name="player"
-                      options={{
-                        presentation: 'fullScreenModal',
-                        animation: 'slide_from_bottom',
-                        gestureEnabled: false,
+            <ToastProvider>
+              <BottomSheetProvider>
+                <VersionGuard>
+                  <AuthGuard>
+                    <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+                    <Stack
+                      screenOptions={{
                         headerShown: false,
-                        contentStyle: { backgroundColor: 'transparent' }
+                        animation: 'fade',
+                        animationDuration: 200,
+                        contentStyle: { backgroundColor: navTheme.colors.background },
                       }}
-                    />
+                    >
+                      <Stack.Screen name="(tabs)" />
+                      <Stack.Screen name="(auth)" />
 
-                  </Stack>
-                </AuthGuard>
-              </VersionGuard>
-            </BottomSheetProvider>
-            <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
-              <Toast config={toastConfig} />
+                      <Stack.Screen
+                        name="player"
+                        options={{
+                          presentation: 'fullScreenModal',
+                          animation: 'slide_from_bottom',
+                          gestureEnabled: false,
+                          headerShown: false,
+                          contentStyle: { backgroundColor: 'transparent' }
+                        }}
+                      />
+
+
+                    </Stack>
+                  </AuthGuard>
+                </VersionGuard>
+              </BottomSheetProvider>
+
               <PortalHost />
-            </View>
+
+            </ToastProvider>
           </SafeAreaProvider>
         </GestureHandlerRootView>
       </ThemeProvider>
@@ -246,7 +274,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loaderContainer: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundBase,
+    backgroundColor: "#0a0a0a",
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
-import { Dimensions, View, TouchableOpacity, Text } from 'react-native';
+import { Dimensions, View, TouchableOpacity, Text, Share } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { usePlaybackStore, usePlayer } from '@/features/playback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,8 @@ import { PlayerArtwork } from '../components/PlayerArtwork';
 import { PlayerControls } from '../components/PlayerControls';
 import { PlayerBackground } from '../components/PlayerBackground';
 import { PlayerQueueDrawer } from '../components/PlayerQueueDrawer';
+import { toastImperative } from '@/features/Toast/utils/toastSingleton';
+import { MEDIA_URL } from '@/api/apiClient';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -21,6 +23,36 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
  * Pixel-perfect Player Screen redesign utilizing NativeWind and UI UX Pro Max.
  * Decoupled from the queue list (now in Drawer) for maximum performance and 60FPS fluid motion.
  */
+
+
+const shareSong = useCallback(async (songId: string, trackName: string) => {
+    if (!songId.trim() || !trackName.trim()) {
+        toastImperative.show({
+            type: "error",
+            text1: 'Something went wrong',
+            position: "top"
+        });
+        return;
+    }
+    try {
+        await Share.share({
+            title: 'Sonic',
+            message:
+                `Listening to ${trackName} song on Sonic 🎵\n${MEDIA_URL}/song/${songId}`,
+            url: `${MEDIA_URL}/song/${songId}}`, // mainly for iOS
+        });
+    } catch (error) {
+        toastImperative.show({
+            type: "error",
+            text1: 'Something went wrong',
+            position: "top"
+        });
+        return;
+    }
+
+}, [toastImperative, MEDIA_URL])
+
+
 export const PlayerScreen = React.memo(() => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -57,7 +89,13 @@ export const PlayerScreen = React.memo(() => {
     }, [open]);
 
     // Stable reference so PlayerHeader never re-renders due to a new arrow on every cycle
-    const handleBack = useCallback(() => router.back(), [router]);
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/home'); // fallback route
+        }
+    }, [router]);
 
     if (!currentSong) return null;
 
@@ -75,16 +113,16 @@ export const PlayerScreen = React.memo(() => {
 
                 {/* Dominant Hero Artwork Section */}
                 <View className="flex-1 justify-center" style={{ maxHeight: SCREEN_HEIGHT * 0.5 }}>
-                    <PlayerArtwork 
-                        artworkUri={artworkUri} 
+                    <PlayerArtwork
+                        artworkUri={artworkUri}
                     />
                 </View>
 
                 {/* Primary Interaction Area */}
                 <View className="px-7 pb-5">
                     {status === 'loading' && pendingJobId && (
-                        <Animated.View 
-                            entering={FadeInDown.duration(400)} 
+                        <Animated.View
+                            entering={FadeInDown.duration(400)}
                             exiting={FadeOutDown.duration(300)}
                             className="mb-4 bg-white/10 px-4 py-3 rounded-xl border border-white/10"
                         >
@@ -114,12 +152,12 @@ export const PlayerScreen = React.memo(() => {
 
                     <View className="flex-1" />
 
-                    <TouchableOpacity className="h-12 w-12 items-center justify-center" activeOpacity={0.6}>
+                    <TouchableOpacity className="h-12 w-12 items-center justify-center" activeOpacity={0.6} onPress={() => shareSong(currentSong.id, currentSong.trackName)}>
                         <Share2 size={20} color="white" opacity={0.6} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity 
-                        className="h-12 w-12 items-center justify-center" 
+                    <TouchableOpacity
+                        className="h-12 w-12 items-center justify-center"
                         activeOpacity={0.6}
                         onPress={handleOpenQueue}
                     >

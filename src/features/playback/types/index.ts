@@ -42,31 +42,38 @@ type BaseMetadata = {
 
 export type PlaySongMetadata =
   | (BaseMetadata & {
-    externalId: string;
-    image?: string | null;
-    lastfmId?: string;
-  })
+      externalId: string;
+      image?: string | null;
+      lastfmId?: string;
+    })
   | (BaseMetadata & {
-    lastfmId: string;
-    externalId?: undefined;
-    image?: string | null;
-  });
+      lastfmId: string;
+      externalId?: undefined;
+      image?: string | null;
+    });
 
 export type PlaySongDto = { songId: string } | PlaySongMetadata;
 
 export type PlayResponseDto =
-  | { type: "ready"; song: Song; playbackToken: string; }
+  | { type: "ready"; song: Song; playbackToken: string }
   | { type: "job"; jobId: string };
 
 // ─────────────────────────────────────────
 // RNTP Types
 // ─────────────────────────────────────────
 
+export type TrackSource =
+  | "play"
+  | "playNext"
+  | "addToQueue"
+  | "enqueue"
+  | "playlist";
+
 // Extends RNTP's Track so the player always has your Song attached
 export type PlaybackTrack = MediaItem & {
-  // songId: string;       // = song.id, used to detect "is this already playing?"
   song: Song; // full Song object, always accessible from queue
   isManualAdd?: boolean;
+  source?: TrackSource;
   mimeType?: string;
 };
 
@@ -93,7 +100,7 @@ export type QueueType = "playlist" | "radio" | "manual";
 
 export type SleepTimer = {
   type: "time" | "track";
-  seconds?: number;          // Original duration in seconds selected by user
+  seconds?: number; // Original duration in seconds selected by user
   remainingSeconds?: number; // Native active remaining seconds
 } | null;
 
@@ -147,7 +154,6 @@ export type ResolvedStream = {
   playbackToken: string;
 };
 
-
 export type PlayJobResponse = {
   status: string;
   retryAfter?: number;
@@ -156,8 +162,6 @@ export type PlayJobResponse = {
   progress?: number;
   message?: string;
 };
-
-
 
 export type SmartQueueStatus = "enriching" | "resolving" | "ready" | "failed";
 

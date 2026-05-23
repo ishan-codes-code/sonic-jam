@@ -1,7 +1,7 @@
 import { compareVersions } from "compare-versions";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import versionInfo from '../../assets/version.json';
+import versionInfo from "../../../../assets/version.json";
 
 /*
 
@@ -45,6 +45,8 @@ export interface VersionConfig {
     minRequiredVersion: string;
     forceUpdate: boolean;
     updateUrl: string;
+    whatsNew?: string[];
+    message?: string;
   };
   ota: {
     version: string;
@@ -59,9 +61,12 @@ export interface VersionStatus {
   isForce: boolean;
   isOptional: boolean;
   updateUrl: string | null;
+  nativeVersion: string | null;
+  nativeWhatsNew: string[] | null;
   nativeMessage: string | null;
   isOtaForce: boolean;
   isOtaOptional: boolean;
+  otaVersion: string | null;
   otaMessage: string | null;
 }
 
@@ -124,40 +129,18 @@ export const checkAppVersion = async (): Promise<VersionStatus> => {
     const isOtaOptional =
       !isOtaForce && compareVersions(currentOtaVersion, ota.version) < 0;
 
-    // Only hit EAS servers if config says there is actually 
-    // a new OTA version available. This preserves free tier usage.
-    if (isOtaForce || isOtaOptional) {
-      try {
-        const Updates = await import('expo-updates');
-
-        // Only fetch in production — expo-updates throws in dev client
-        if (!Updates.isEmbeddedLaunch && !__DEV__) {
-          const update = await Updates.checkForUpdateAsync();
-
-          if (update.isAvailable) {
-            await Updates.fetchUpdateAsync();
-            // Bundle is now downloaded and staged.
-            // It will apply on next app launch.
-            // The UI (ForceUpdateScreen isOta / OptionalUpdateModal isOta)
-            // already handles showing the user a restart nudge.
-          }
-        }
-      } catch (e) {
-        // Fail safe — expo-updates errors must never block the app.
-        // Log only, continue normally.
-        console.warn('[versionService] expo-updates check failed:', e);
-      }
-    }
-
     return {
       isMaintenance,
       maintenanceMessage,
       isForce,
       isOptional,
       updateUrl: native.updateUrl,
-      nativeMessage: null,
+      nativeVersion: native.version,
+      nativeWhatsNew: native.whatsNew || null,
+      nativeMessage: native.message || null,
       isOtaForce,
       isOtaOptional,
+      otaVersion: ota.version,
       otaMessage: ota.message,
     };
   } catch (e) {
@@ -169,9 +152,12 @@ export const checkAppVersion = async (): Promise<VersionStatus> => {
       isForce: false,
       isOptional: false,
       updateUrl: null,
+      nativeVersion: null,
+      nativeWhatsNew: null,
       nativeMessage: null,
       isOtaForce: false,
       isOtaOptional: false,
+      otaVersion: null,
       otaMessage: null,
     };
   }

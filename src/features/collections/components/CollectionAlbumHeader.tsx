@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { View, Dimensions, InteractionManager } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Collection } from '../types';
@@ -14,6 +14,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PlaylistArtwork } from '@/features/library';
 import { usePlaybackStore } from '@/features/playback/store/usePlaybackStore';
+import { MEDIA_URL } from '@/api/apiClient';
+import { Share } from 'react-native';
+import { useToast } from '@/features/Toast/hooks/useToast';
+
 
 const { width } = Dimensions.get('window');
 const HEADER_IMAGE_SIZE = width * 0.58;
@@ -35,6 +39,8 @@ export const CollectionAlbumHeader = React.memo(({ collection, baseColor, onPlay
         ? new Date(collection.releaseDate).getFullYear()
         : null;
 
+    const toast = useToast();
+
     // ── Shared values (initialised to hidden) ────────────────────────────────
     const artworkOpacity = useSharedValue(0);
     const artworkScale = useSharedValue(0.9);
@@ -47,6 +53,29 @@ export const CollectionAlbumHeader = React.memo(({ collection, baseColor, onPlay
 
     // Deferred so animations start AFTER the list's initial render completes
     const taskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+
+    const shareCollection = useCallback(async () => {
+        if (!collection) return;
+
+        if (!collection.isRemote && !collection.isPublic) {
+            toast.error('Only public collections can be shared');
+            return;
+        }
+
+        try {
+            await Share.share({
+                title: 'Sonic',
+                message:
+                    `Listening to ${collection.title} ${collection.type} on Sonic 🎵\n` +
+                    `${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`,
+
+                // mainly for iOS
+                url: `${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`,
+            });
+        } catch (error) {
+            console.log(error);
+        }
+    }, [MEDIA_URL, toast, collection]);
 
     useEffect(() => {
         taskRef.current = InteractionManager.runAfterInteractions(() => {
@@ -94,9 +123,11 @@ export const CollectionAlbumHeader = React.memo(({ collection, baseColor, onPlay
     // Fine-grained selectors so the header only re-renders when these two
     // values change — not on every position tick.
     const playlistMeta = usePlaybackStore(s => s.playlistMeta);
-    const status       = usePlaybackStore(s => s.status);
+    const status = usePlaybackStore(s => s.status);
     const isThisPlaying = playlistMeta?.playlistId === collection.id
         && (status === 'playing' || status === 'loading' || status === 'paused');
+
+
 
 
     return (
@@ -181,7 +212,7 @@ export const CollectionAlbumHeader = React.memo(({ collection, baseColor, onPlay
                     </AnimatedPressable>
 
                     {/* Icon row */}
-                    <AnimatedPressable disabled={collection.tracks.length === 0} hitSlopSize={14} scaleTo={0.78} feedback="snappy" onPress={() => { }}>
+                    <AnimatedPressable disabled={collection.tracks.length === 0} hitSlopSize={14} scaleTo={0.78} feedback="snappy" onPress={() => shareCollection()}>
                         <Icon as={Share2} size={20} className="text-foreground" />
                     </AnimatedPressable>
 

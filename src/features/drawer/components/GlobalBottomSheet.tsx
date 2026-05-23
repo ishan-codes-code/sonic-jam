@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { BackHandler, Dimensions } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useDrawerStore } from '../store/drawerStore';
-import { theme } from '@/theme';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -76,8 +75,8 @@ export const GlobalBottomSheet = () => {
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
-      backgroundStyle={{ backgroundColor: theme.colors.backgroundCard }}
-      handleIndicatorStyle={{ backgroundColor: theme.colors.textSecondary }}
+      backgroundStyle={{ backgroundColor: "#0a0a0a" }}
+      handleIndicatorStyle={{ backgroundColor: "#a1a1aa" }}
       backdropComponent={renderBackdrop}
       animationConfigs={{
         damping: 32,
