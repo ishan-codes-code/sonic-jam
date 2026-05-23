@@ -106,8 +106,8 @@ export const CollectionScreen = () => {
             await Share.share({
                 title: 'Sonic',
                 message:
-                    `Listening to ${collection.title} ${collection.type} on Sonic 🎵\n${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`,
-                url: `${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`, // mainly for iOS
+                    `Listening to ${collection.title} ${collection.type} on Sonic 🎵\n${MEDIA_URL}/collections/${collection.id}?isRemote=${collection.isRemote}`,
+                url: `${MEDIA_URL}/collections/${collection.id}?isRemote=${collection.isRemote}`, // mainly for iOS
             });
         } catch (error) {
             toast.error('Something went worng');

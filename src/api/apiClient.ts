@@ -8,10 +8,6 @@ import { tokenStorage } from "@/features/auth/utils/tokenStorage";
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 export const MEDIA_URL = process.env.EXPO_PUBLIC_MEDIA_URL || BASE_URL;
 
-//export const BASE_URL = "https://previews-lookup-promises-provided.trycloudflare.com";
-
-// console.log('BASE_URL', BASE_URL);
-
 // --------------------------------------------------------------------------
 // Axios instance
 // --------------------------------------------------------------------------

@@ -1,8 +1,8 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Image } from 'expo-image';
-import { EllipsisVertical, Mic2, Play, SkipForward, ListMusic } from 'lucide-react-native';
+import { EllipsisVertical, Mic2, Play, SkipForward, ListMusic, Share2 } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import * as Haptics from 'expo-haptics';
@@ -14,6 +14,7 @@ import { usePlaybackStore } from '@/features/playback';
 import { usePlayer } from '@/features/playback/hooks/usePlayer';
 import { useBottomSheet } from '@/features/drawer';
 import { OptionsDrawer } from '@/features/drawer/components/OptionsDrawer';
+import { shareSong } from '@/features/song/utils/shareSong';
 
 const areEqual = (prev: SongListCardProps, next: SongListCardProps) =>
     prev.track.id === next.track.id &&
@@ -66,28 +67,39 @@ const SongListCard = React.memo(({ track, onPress, isActive = false }: SongListC
         });
     }, [addToQueue, track]);
 
+    const isRemoteTrack = !track.songId;
+
+    const actions = useMemo(() => {
+        if (!onPressRef.current) return [];
+
+        return [
+            {
+                label: 'Play',
+                icon: <Icon as={Play} size={18} className="mr-2" />,
+                onPress: handlePress,
+            },
+            {
+                label: 'Play Next',
+                icon: <Icon as={SkipForward} size={18} className="mr-2" />,
+                onPress: handlePlayNext,
+            },
+            {
+                label: 'Add to Queue',
+                icon: <Icon as={ListMusic} size={18} className="mr-2" />,
+                onPress: handleAddToQueue,
+            },
+            {
+                label: 'Share',
+                icon: <Icon as={Share2} size={18} className="mr-2" />,
+                onPress: () => {
+                    shareSong(track.id, track.title, isRemoteTrack);
+                },
+            },
+        ];
+    }, [handlePress, handlePlayNext, handleAddToQueue, track.id, track.title, isRemoteTrack]);
+
     const handleOpenOptions = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
-
-        const currentActions = onPressRef.current
-            ? [
-                {
-                    label: 'Play',
-                    icon: <Icon as={Play} size={18} className="mr-2" />,
-                    onPress: handlePress,
-                },
-                {
-                    label: 'Play Next',
-                    icon: <Icon as={SkipForward} size={18} className="mr-2" />,
-                    onPress: handlePlayNext,
-                },
-                {
-                    label: 'Add to Queue',
-                    icon: <Icon as={ListMusic} size={18} className="mr-2" />,
-                    onPress: handleAddToQueue,
-                },
-            ]
-            : [];
 
         requestAnimationFrame(() => {
             open(
@@ -95,16 +107,17 @@ const SongListCard = React.memo(({ track, onPress, isActive = false }: SongListC
                     image={track.artwork}
                     title={track.title}
                     subtitle={track.artist}
-                    actions={currentActions}
+                    actions={actions}
                 />
             );
         });
-    }, [handlePress, handlePlayNext, handleAddToQueue, open, track]);
+    }, [actions, open, track.artwork, track.artist, track.title]);
 
     return (
         <View className="w-full relative overflow-hidden" style={{ height: 64 }}>
             <AnimatedPressable
                 onPress={() => onPress?.(track)}
+                onLongPress={handleOpenOptions}
                 scaleTo={0.98}
                 feedback="timing"
                 pressedOpacity={0.7}

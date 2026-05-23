@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
-import { Dimensions, View, TouchableOpacity, Text, Share } from 'react-native';
+import { Dimensions, View, TouchableOpacity, Text } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { usePlaybackStore, usePlayer } from '@/features/playback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +14,8 @@ import { PlayerArtwork } from '../components/PlayerArtwork';
 import { PlayerControls } from '../components/PlayerControls';
 import { PlayerBackground } from '../components/PlayerBackground';
 import { PlayerQueueDrawer } from '../components/PlayerQueueDrawer';
-import { toastImperative } from '@/features/Toast/utils/toastSingleton';
-import { MEDIA_URL } from '@/api/apiClient';
+import { shareSong } from '@/features/song/utils/shareSong';
+import { SongInfoDrawer } from '../components/SongInfoDrawer';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -23,34 +23,6 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
  * Pixel-perfect Player Screen redesign utilizing NativeWind and UI UX Pro Max.
  * Decoupled from the queue list (now in Drawer) for maximum performance and 60FPS fluid motion.
  */
-
-
-const shareSong = useCallback(async (songId: string, trackName: string) => {
-    if (!songId.trim() || !trackName.trim()) {
-        toastImperative.show({
-            type: "error",
-            text1: 'Something went wrong',
-            position: "top"
-        });
-        return;
-    }
-    try {
-        await Share.share({
-            title: 'Sonic',
-            message:
-                `Listening to ${trackName} song on Sonic 🎵\n${MEDIA_URL}/song/${songId}`,
-            url: `${MEDIA_URL}/song/${songId}}`, // mainly for iOS
-        });
-    } catch (error) {
-        toastImperative.show({
-            type: "error",
-            text1: 'Something went wrong',
-            position: "top"
-        });
-        return;
-    }
-
-}, [toastImperative, MEDIA_URL])
 
 
 export const PlayerScreen = React.memo(() => {
@@ -97,6 +69,11 @@ export const PlayerScreen = React.memo(() => {
         }
     }, [router]);
 
+    const handleMorePress = useCallback(() => {
+        if (!currentSong) return;
+        open(<SongInfoDrawer song={currentSong} />, ['50%', '80%']);
+    }, [open, currentSong]);
+
     if (!currentSong) return null;
 
     return (
@@ -109,6 +86,7 @@ export const PlayerScreen = React.memo(() => {
                 <PlayerHeader
                     onBack={handleBack}
                     insetsTop={insets.top}
+                    onMorePress={handleMorePress}
                 />
 
                 {/* Dominant Hero Artwork Section */}
@@ -152,7 +130,7 @@ export const PlayerScreen = React.memo(() => {
 
                     <View className="flex-1" />
 
-                    <TouchableOpacity className="h-12 w-12 items-center justify-center" activeOpacity={0.6} onPress={() => shareSong(currentSong.id, currentSong.trackName)}>
+                    <TouchableOpacity className="h-12 w-12 items-center justify-center" activeOpacity={0.6} onPress={() => shareSong(currentSong.id, currentSong.trackName, false)}>
                         <Share2 size={20} color="white" opacity={0.6} />
                     </TouchableOpacity>
 

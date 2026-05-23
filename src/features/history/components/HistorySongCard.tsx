@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { View, TouchableOpacity, ActivityIndicator, Share } from "react-native";
+import { View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Image } from "expo-image";
 import { MoreVertical, Music2, X, Play, SkipForward, ListMusic, Share2 } from "lucide-react-native";
@@ -21,6 +21,7 @@ import { CleanedSearchResult } from "@/features/search";
 import { useBottomSheet } from "@/features/drawer";
 import { OptionsDrawer } from "@/features/drawer/components/OptionsDrawer";
 import { usePlayer } from "@/features/playback/hooks/usePlayer";
+import { shareSong } from "@/features/song/utils/shareSong";
 import * as Haptics from "expo-haptics";
 
 
@@ -148,7 +149,16 @@ export const HistorySongCard = React.memo((props: HistorySongCardProps) => {
         {
           label: "Share",
           icon: <Icon as={Share2} size={18} className="mr-2" />,
-          onPress: () => { },
+          onPress: () => {
+            if (event) {
+              // ListeningEvent → local song (from app's backend)
+              shareSong(event.song.id, event.song.trackName, false);
+            } else if (song) {
+              // CleanedSearchResult → remote song (from iTunes)
+              shareSong(song.id, song.title, true);
+            }
+            close();
+          },
         }
       ]
       : [];

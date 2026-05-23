@@ -31,11 +31,12 @@ export const SignupScreen = () => {
   } = useSignup();
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0a0a0a]">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-[#0a0a0a]"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -200}
+    >
+      <SafeAreaView className="flex-1">
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
@@ -143,7 +144,7 @@ export const SignupScreen = () => {
             onPress={() => router.push('/login')}
           />
         </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };

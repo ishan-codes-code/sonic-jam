@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, InteractionManager } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Image } from 'expo-image';
-import { EllipsisVertical, Play, ListMusic, Mic2, SkipForward } from 'lucide-react-native';
+import { EllipsisVertical, Play, ListMusic, Mic2, SkipForward, Share2 } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { CleanedSearchResult } from '../features/search/types';
@@ -23,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import { useBottomSheet } from '@/features/drawer';
 import { OptionsDrawer } from '../features/drawer/components/OptionsDrawer';
 import { usePlayer } from '@/features/playback/hooks/usePlayer';
+import { shareSong } from '@/features/song/utils/shareSong';
 
 // ─── Module-level constants ────────────────────────────────────────────────────
 const SWIPE_THRESHOLD = 60;
@@ -107,11 +108,10 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
         });
     }, [addToQueue, song]);
 
-    const handleOpenOptions = useCallback(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+    const actions = useMemo(() => {
+        if (!onPressRef.current) return [];
 
-        // Lazy action array creation only when drawer opens
-        const currentActions = menuActionsRef.current ?? (onPressRef.current ? [
+        return [
             {
                 label: 'Play',
                 icon: <Icon as={Play} size={18} className="mr-2" />,
@@ -121,32 +121,51 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
                 label: 'Play Next',
                 icon: <Icon as={SkipForward} size={18} className="mr-2" />,
                 onPress: () => {
-                    handlePlayNext()
-                    close()
+                    handlePlayNext();
+                    close();
                 },
             },
             {
                 label: 'Add to Queue',
                 icon: <Icon as={ListMusic} size={18} className="mr-2" />,
                 onPress: () => {
-                    handleAddToQueue()
-                    close()
+                    handleAddToQueue();
+                    close();
                 },
-            }
-        ] : []);
+            },
+            {
+                label: 'Share',
+                icon: <Icon as={Share2} size={18} className="mr-2" />,
+                onPress: () => {
+                    shareSong(song.id, song.title, true);
+                    close();
+                },
+            },
+        ];
+    }, [
+        handlePress,
+        handlePlayNext,
+        handleAddToQueue,
+        close,
+        shareSong,
+        song.id,
+        song.title,
+    ]);
 
-        // Defer until press animation and FlatList render cycle settles
+    const handleOpenOptions = useCallback(() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+
         requestAnimationFrame(() => {
             open(
                 <OptionsDrawer
                     image={song.artwork}
                     title={song.title}
                     subtitle={song.artist}
-                    actions={currentActions}
+                    actions={actions}
                 />
             );
         });
-    }, [handlePress, open, close, song.artwork, song.artist, song.title]);
+    }, [actions, open, song.artwork, song.artist, song.title]);
 
     // Natively run strict diagonal gesture activation on the UI thread to play perfectly with vertical list scroll
     const pan = useMemo(
@@ -298,6 +317,7 @@ const SongListCard = React.memo(({ song, onPress, menuActions }: SongListCardPro
                 <Animated.View style={cardStyle}>
                     <AnimatedPressable
                         onPress={handlePress}
+                        onLongPress={handleOpenOptions}
                         scaleTo={0.98}
                         feedback="timing"
                         pressedOpacity={0.7}
