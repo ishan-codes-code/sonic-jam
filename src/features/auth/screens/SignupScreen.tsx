@@ -32,16 +32,16 @@ export const SignupScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-[#0a0a0a]"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -200}
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  className="flex-1 bg-[#0a0a0a]"
+>
+  <SafeAreaView className="flex-1">
+    <ScrollView
+      contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets={true}
     >
-      <SafeAreaView className="flex-1">
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
           <AuthHeader
             title="Join Sonic"
             subtitle="Create your account and start listening."
