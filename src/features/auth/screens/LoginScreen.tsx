@@ -31,16 +31,16 @@ export const LoginScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-[#0a0a0a]"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -200}
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  className="flex-1 bg-[#0a0a0a]"
+>
+  <SafeAreaView className="flex-1">
+    <ScrollView
+      contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets={true}
     >
-      <SafeAreaView className="flex-1">
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
           <AuthHeader
             title="Welcome back"
             subtitle="Sign in to continue your sonic journey."
