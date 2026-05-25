@@ -67,10 +67,10 @@ export const CollectionAlbumHeader = React.memo(({ collection, baseColor, onPlay
                 title: 'Sonic',
                 message:
                     `Listening to ${collection.title} ${collection.type} on Sonic 🎵\n` +
-                    `${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`,
+                    `${MEDIA_URL}/collections/${collection.id}?isRemote=${collection.isRemote}`,
 
                 // mainly for iOS
-                url: `${MEDIA_URL}/collection/${collection.id}?isRemote=${collection.isRemote}`,
+                url: `${MEDIA_URL}/collections/${collection.id}?isRemote=${collection.isRemote}`,
             });
         } catch (error) {
             console.log(error);

@@ -66,7 +66,7 @@ const HorizontalSongCard = React.memo(({ song, onPress, style }: HorizontalSongC
                     icon: <Icon as={Share2} size={18} className="mr-2" />,
                     onPress: () => {
                         try {
-                            const url = `${MEDIA_URL}/collection/${song.id}?isRemote=true`;
+                            const url = `${MEDIA_URL}/collections/${song.id}?isRemote=true`;
                             Share.share({
                                 title: 'Sonic',
                                 message: `Check out ${song.title} album on Sonic 🎵\n${url}`,
