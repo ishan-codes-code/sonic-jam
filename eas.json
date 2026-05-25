@@ -9,9 +9,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://backend-sonic.onrender.com"
-      },
       "android": {
         "buildType": "apk"
       }
@@ -19,9 +16,6 @@
     "production": {
       "distribution": "internal",
       "channel": "production",
-      "env": {
-      "EXPO_PUBLIC_API_URL": "https://backend-sonic.onrender.com"
-      },
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
