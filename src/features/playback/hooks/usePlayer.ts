@@ -211,6 +211,36 @@ export function usePlayer() {
     }
   }, []);
 
+  // ── Queue: Remove by Song Id ──────────────────────────────────
+  // Identity-based removal so playlist edits (which shift positions) can sync
+  // the native queue without trusting a stale index. Reads the live queue at
+  // call time. Never removes the active item — dropping what is playing would
+  // stop/break playback.
+  const removeFromQueueBySongId = useCallback(
+    async (songId: string) => {
+      try {
+        const queue = await TrackPlayer.getQueue();
+        const activeIndex = await TrackPlayer.getActiveMediaItemIndex();
+        const index = queue.findIndex(
+          (t) =>
+            (t as PlaybackTrack).mediaId === songId ||
+            (t as PlaybackTrack).song?.id === songId,
+        );
+        if (index === -1) return;
+        if (
+          activeIndex !== null &&
+          activeIndex !== undefined &&
+          index === activeIndex
+        )
+          return;
+        await removeFromQueue(index);
+      } catch (error) {
+        console.error("[usePlayer] removeFromQueueBySongId error:", error);
+      }
+    },
+    [removeFromQueue],
+  );
+
   // ── Extended: Auto-fill ────────────────────────────────────────
   const extendQueue = useCallback(async () => { }, []);
 
@@ -508,6 +538,7 @@ export function usePlayer() {
     playNext,
     addToQueue,
     removeFromQueue,
+    removeFromQueueBySongId,
     extendQueue,
     pause,
     resume,

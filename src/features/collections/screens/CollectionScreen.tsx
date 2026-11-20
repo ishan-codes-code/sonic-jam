@@ -201,7 +201,7 @@ export const CollectionScreen = () => {
         },
     });
 
-    const { play, playPlaylist, skipToIndex } = usePlayer();
+    const { play, playPlaylist, skipToIndex, removeFromQueueBySongId } = usePlayer();
 
 
 
@@ -237,6 +237,16 @@ export const CollectionScreen = () => {
         !!user?.id &&
         user.id === collection.user?.id;
 
+    // Keep the active native queue aligned with the refreshed list (by identity,
+    // never by index) so later taps via index-based skipToIndex land on the
+    // right track. No-op unless this playlist's queue is the active one; the
+    // currently playing item is always left in place.
+    const syncQueueAfterRemoval = useCallback(async (songId: string) => {
+        if (isThisQueueActive) {
+            await removeFromQueueBySongId(songId);
+        }
+    }, [isThisQueueActive, removeFromQueueBySongId]);
+
     // ── Remove song from playlist ─────────────────────────────────────────────
     const handleRemoveSong = useCallback(async (track: CollectionTrack) => {
         if (!collection || isRemoving) return;
@@ -248,6 +258,7 @@ export const CollectionScreen = () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             // Success toast ("Song removed from playlist") comes from the
             // apiClient response interceptor — no manual toast (exactly one).
+            await syncQueueAfterRemoval(songId);
         } catch (error) {
             // A 404 right after a successful removal (double tap, retry) means
             // the song is already gone — not a user-facing failure. The
@@ -257,12 +268,13 @@ export const CollectionScreen = () => {
                 error.response?.status === 404 &&
                 error.response?.data?.message === 'Song not found in playlist'
             ) {
+                await syncQueueAfterRemoval(songId);
                 return;
             }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             // Error toast comes from the apiClient interceptor — no duplicate.
         }
-    }, [collection, isRemoving, removeSongFromPlaylist]);
+    }, [collection, isRemoving, removeSongFromPlaylist, syncQueueAfterRemoval]);
 
     // ── Song press ───────────────────────────────────────────────────────────
     const handleSongPress = useCallback((track: CollectionTrack) => {
