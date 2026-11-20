@@ -107,6 +107,15 @@ apiClient.interceptors.response.use(
     };
 
     if (error.response?.status !== 401 || originalRequest._retry) {
+      // Benign: second delete of an already-removed playlist song (double tap
+      // / retry). The caller treats this as "already removed", not a failure.
+      const isAlreadyRemoved =
+        error.response?.status === 404 &&
+        error.response?.data?.message === "Song not found in playlist";
+      if (isAlreadyRemoved) {
+        return Promise.reject(error);
+      }
+
       // Global error handler for failed requests (ignoring pending 401 retries)
       const method = originalRequest?.method?.toLowerCase();
       const isMutation = ["post", "put", "patch", "delete"].includes(

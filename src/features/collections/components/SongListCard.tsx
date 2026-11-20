@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Image } from 'expo-image';
-import { EllipsisVertical, Mic2, Play, SkipForward, ListMusic, Share2 } from 'lucide-react-native';
+import { EllipsisVertical, Mic2, Play, SkipForward, ListMusic, Share2, Trash2 } from 'lucide-react-native';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import * as Haptics from 'expo-haptics';
@@ -22,16 +22,18 @@ const areEqual = (prev: SongListCardProps, next: SongListCardProps) =>
     prev.track.artist === next.track.artist &&
     prev.track.artwork === next.track.artwork &&
     prev.isActive === next.isActive &&
-    prev.onPress === next.onPress;
+    prev.onPress === next.onPress &&
+    prev.onRemove === next.onRemove;
 
 interface SongListCardProps {
     track: CollectionTrack;
     onPress?: (track: CollectionTrack) => void;
-    isActive?: boolean
+    isActive?: boolean;
+    onRemove?: (track: CollectionTrack) => void;
 }
 
-const SongListCard = React.memo(({ track, onPress, isActive = false }: SongListCardProps) => {
-    const { open } = useBottomSheet();
+const SongListCard = React.memo(({ track, onPress, isActive = false, onRemove }: SongListCardProps) => {
+    const { open, close } = useBottomSheet();
     const { playNext, addToQueue } = usePlayer();
     const isPlaying = usePlaybackStore((s) => s.status === "playing");
 
@@ -69,10 +71,15 @@ const SongListCard = React.memo(({ track, onPress, isActive = false }: SongListC
 
     const isRemoteTrack = !track.songId;
 
+    const handleRemove = useCallback(() => {
+        close();
+        onRemove?.(track);
+    }, [close, onRemove, track]);
+
     const actions = useMemo(() => {
         if (!onPressRef.current) return [];
 
-        return [
+        const items = [
             {
                 label: 'Play',
                 icon: <Icon as={Play} size={18} className="mr-2" />,
@@ -96,7 +103,18 @@ const SongListCard = React.memo(({ track, onPress, isActive = false }: SongListC
                 },
             },
         ];
-    }, [handlePress, handlePlayNext, handleAddToQueue, track.id, track.title, isRemoteTrack]);
+
+        // Only backend tracks (songId = server UUID) can be removed from a playlist.
+        if (onRemove && track.songId) {
+            items.push({
+                label: 'Remove from playlist',
+                icon: <Icon as={Trash2} size={18} className="mr-2" />,
+                onPress: handleRemove,
+            });
+        }
+
+        return items;
+    }, [handlePress, handlePlayNext, handleAddToQueue, handleRemove, onRemove, track.id, track.title, track.songId, isRemoteTrack]);
 
     const handleOpenOptions = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
