@@ -29,11 +29,15 @@ import { AddPlaylistModal } from '@/features/library/components/AddPlaylistModal
 import { DeletePlaylistDialog } from '@/features/library/components/DeletePlaylistDialog';
 import { Share } from 'react-native';
 import { MEDIA_URL } from '@/api/apiClient';
+import { isAxiosError } from 'axios';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const HEADER_THRESHOLD = 200;
 const ITEM_HEIGHT = 64;
+// Backend song ids are UUIDs; the server 500s on malformed ids instead of 400,
+// so never send a non-UUID to the remove endpoint.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -61,7 +65,7 @@ export const CollectionScreen = () => {
     const { user } = useAuth();
     const toast = useToast();
     const { open, close } = useBottomSheet();
-    const { deletePlaylist, isDeleting, updatePlaylist, isUpdating } = useLibrary();
+    const { deletePlaylist, isDeleting, updatePlaylist, isUpdating, removeSongFromPlaylist, isRemoving } = useLibrary();
 
     const [playlistToDelete, setPlaylistToDelete] = useState<Playlist | null>(null);
     const [playlistToEdit, setPlaylistToEdit] = useState<Playlist | null>(null);
@@ -224,6 +228,42 @@ export const CollectionScreen = () => {
         }
     }, [collection, rawSongs, playbackToken, play, playPlaylist]);
 
+    // Only the owner may remove songs — never on remote collections or
+    // someone else's playlist. (Favorites included: there is no separate
+    // like/unlike flow in the app, so nothing to desync.)
+    const canRemoveSongs = !!collection &&
+        collection.type === 'playlist' &&
+        !collection.isRemote &&
+        !!user?.id &&
+        user.id === collection.user?.id;
+
+    // ── Remove song from playlist ─────────────────────────────────────────────
+    const handleRemoveSong = useCallback(async (track: CollectionTrack) => {
+        if (!collection || isRemoving) return;
+        const songId = track.songId;
+        if (!songId || !UUID_REGEX.test(songId)) return;
+
+        try {
+            await removeSongFromPlaylist({ playlistId: collection.id, songId });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Success toast ("Song removed from playlist") comes from the
+            // apiClient response interceptor — no manual toast (exactly one).
+        } catch (error) {
+            // A 404 right after a successful removal (double tap, retry) means
+            // the song is already gone — not a user-facing failure. The
+            // interceptor stays silent for it; onSettled already refetched.
+            if (
+                isAxiosError(error) &&
+                error.response?.status === 404 &&
+                error.response?.data?.message === 'Song not found in playlist'
+            ) {
+                return;
+            }
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            // Error toast comes from the apiClient interceptor — no duplicate.
+        }
+    }, [collection, isRemoving, removeSongFromPlaylist]);
+
     // ── Song press ───────────────────────────────────────────────────────────
     const handleSongPress = useCallback((track: CollectionTrack) => {
         const index = collection?.tracks.findIndex((t) => t.id === track.id) ?? -1;
@@ -263,9 +303,16 @@ export const CollectionScreen = () => {
                 item.id === currentSong.lastfmId ||
                 item.id === currentSong.id
             );
-            return <SongListCard track={item} onPress={handleSongPress} isActive={isActive} />
+            return (
+                <SongListCard
+                    track={item}
+                    onPress={handleSongPress}
+                    isActive={isActive}
+                    onRemove={canRemoveSongs ? handleRemoveSong : undefined}
+                />
+            );
         },
-        [handleSongPress, currentSong]
+        [handleSongPress, handleRemoveSong, canRemoveSongs, currentSong]
     );
 
     const keyExtractor = useCallback((item: CollectionTrack) => item.id, []);

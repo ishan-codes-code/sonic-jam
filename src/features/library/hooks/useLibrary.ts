@@ -63,6 +63,35 @@ export function useLibrary() {
     },
   });
 
+  const removeSongFromPlaylistMutation = useMutation({
+    mutationFn: ({
+      playlistId,
+      songId,
+    }: {
+      playlistId: string;
+      songId: string;
+    }) => libraryApi.removeSongFromPlaylist(playlistId, songId),
+    // onSettled (not just onSuccess): the backend delete + reorder is not
+    // atomic, so refetch server truth after errors too instead of trusting
+    // local state.
+    onSettled: (_, __, { playlistId, songId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["playlistSongs", playlistId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["userPlaylists"] });
+
+      // invalidate collection query
+      queryClient.invalidateQueries({
+        queryKey: ["collection", playlistId, false],
+      });
+
+      // refresh the song-to-playlists lookup (thumbnails/counts change)
+      queryClient.invalidateQueries({
+        queryKey: ["playlistIdsBySong", songId],
+      });
+    },
+  });
+
   return {
     playlists: playlistsQuery.data ?? [],
     isLoading: playlistsQuery.isLoading,
@@ -80,5 +109,8 @@ export function useLibrary() {
 
     addSongToPlaylist: addSongToPlaylistMutation.mutateAsync,
     isAdding: addSongToPlaylistMutation.isPending,
+
+    removeSongFromPlaylist: removeSongFromPlaylistMutation.mutateAsync,
+    isRemoving: removeSongFromPlaylistMutation.isPending,
   };
 }
