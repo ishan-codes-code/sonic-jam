@@ -320,11 +320,11 @@ export const CollectionScreen = () => {
                     track={item}
                     onPress={handleSongPress}
                     isActive={isActive}
-                    onRemove={canRemoveSongs ? handleRemoveSong : undefined}
+                    onRemove={canRemoveSongs && !isRemoving ? handleRemoveSong : undefined}
                 />
             );
         },
-        [handleSongPress, handleRemoveSong, canRemoveSongs, currentSong]
+        [handleSongPress, handleRemoveSong, canRemoveSongs, isRemoving, currentSong]
     );
 
     const keyExtractor = useCallback((item: CollectionTrack) => item.id, []);
