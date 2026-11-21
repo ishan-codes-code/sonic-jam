@@ -2,21 +2,24 @@
 
 > Baseline commit `00a4fad` (2026-11-20). Counts generated with `wc -l` on that tree.
 > Total: **183 files, 15,855 lines** under `src/`.
+> Structural delta (uncommitted, 2026-11-21): +`src/features/server/` (7 files, 598 lines);
+> `apiClient.ts` 205→225, `_layout.tsx` 281→320, `playerSetup.ts` 61→66.
+> Working tree: **190 files, 16,517 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
 
-## `src/api` — 1 file, 205 lines
+## `src/api` — 1 file, 225 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/api/apiClient.ts` | 205 | Shared Axios client: `BASE_URL`/`MEDIA_URL`, auth + device-ID interceptors, 401 refresh queue, global toasts |
+| `src/api/apiClient.ts` | 225 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue, global toasts |
 
-## `src/app` — 20 files, 599 lines
+## `src/app` — 20 files, 638 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/app/_layout.tsx` | 281 | `RootLayout`: providers, `VersionGuard`/`AuthGuard`, `Stack`, `setupPlayer()`, background handler |
+| `src/app/_layout.tsx` | 320 | `RootLayout`: providers, `VersionGuard`/`ServerGuard`/`AuthGuard`, `Stack`, `setupPlayer()` (via `ServerGuard`), background handler |
 | `src/app/index.tsx` | 9 | Default route redirect to `/login` |
 | `src/app/player.tsx` | 4 | Route wrapper rendering `PlayerScreen` as full-screen modal |
 | `src/app/notification.click.tsx` | 7 | Notification-tap bounce route redirecting to `/player` |
@@ -195,7 +198,7 @@
 |------|------:|----------------|
 | `src/features/miniplayer/screens/MiniplayerScreen.tsx` | 194 | Persistent mini player (artwork, toggle, progress, playlist shortcut) |
 
-## `src/features/playback` — 39 files, 3,914 lines
+## `src/features/playback` — 39 files, 3,919 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -213,7 +216,7 @@
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
 | `src/features/playback/services/index.ts` | 11 | Service barrel (named exports) |
 | `src/features/playback/services/jobResolver.ts` | 13 | `resolveJob()` abstraction over polling |
-| `src/features/playback/services/playerSetup.ts` | 61 | `PLAYER_CONFIG` + `setupPlayer()` (cache, notification, progressSync URL) |
+| `src/features/playback/services/playerSetup.ts` | 66 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) |
 | `src/features/playback/services/pollingResolver.ts` | 162 | `pollJobStatus()` backoff loop with busy/retryAfter handling |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
 | `src/features/playback/services/smartQueueService.ts` | 422 | Radio pipeline: recommend → enrich → resolve → fill native queue |
@@ -278,6 +281,18 @@
 | `src/features/search/screens/SearchFocusScreen.tsx` | 193 | Focused search-results screen † |
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
+
+## `src/features/server` — 7 files, 598 lines
+
+| File | Lines | Responsibility |
+|------|------:|----------------|
+| `src/features/server/index.ts` | 30 | Barrel (screen, hook, store, validation, config/storage utils) |
+| `src/features/server/api/serverValidation.ts` | 97 | `checkServerConnection()`: unauthenticated `/auth/me` 401-probe with timeout, inline failure codes |
+| `src/features/server/hooks/useServerSetup.ts` | 59 | Setup form state + validate → check → save connect flow |
+| `src/features/server/screens/ServerSetupScreen.tsx` | 153 | First-launch "Connect your server" screen (Sonic dark/amber idiom) |
+| `src/features/server/store/serverStore.ts` | 97 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration, `setApiServerUrl` apply |
+| `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
+| `src/features/server/utils/serverStorage.ts` | 47 | AsyncStorage `@sonic_server_url` get/set/clear with self-healing reads |
 
 ## `src/features/song` — 2 files, 254 lines
 

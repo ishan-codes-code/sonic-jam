@@ -3,42 +3,47 @@ import { BASE_URL } from "@/api/apiClient";
 
 let isSetup = false;
 
-const PLAYER_CONFIG: PlayerConfig = {
-  contentType: "music",
+// Built lazily at setup time (not module scope) so the progress-sync URL
+// uses the runtime-configured server. setupPlayer() runs only after the
+// ServerGuard resolves, guaranteeing BASE_URL is already pointed correctly.
+function buildPlayerConfig(): PlayerConfig {
+  return {
+    contentType: "music",
 
-  handleAudioBecomingNoisy: true,
+    handleAudioBecomingNoisy: true,
 
-  cache: {
-    maxSizeBytes: 200 * 1024 * 1024, // 200 MB
-    preloading: {
-      window: 2,
+    cache: {
+      maxSizeBytes: 200 * 1024 * 1024, // 200 MB
+      preloading: {
+        window: 2,
+      },
     },
-  },
 
-  android: {
-    wakeMode: "network",
+    android: {
+      wakeMode: "network",
 
-    notification: {
-      channelId: "com.sonic.audio",
-      channelName: "Audio Playback",
-      smallIcon: "ic_notification",
+      notification: {
+        channelId: "com.sonic.audio",
+        channelName: "Audio Playback",
+        smallIcon: "ic_notification",
+      },
     },
-  },
 
-  progressSync: {
-    intervalSeconds: 30,
-    http: {
-      url: `${BASE_URL}/listening/progress-sync`,
-      headers: {},
+    progressSync: {
+      intervalSeconds: 30,
+      http: {
+        url: `${BASE_URL}/listening/progress-sync`,
+        headers: {},
+      },
     },
-  },
-};
+  };
+}
 
 export async function setupPlayer(): Promise<boolean> {
   if (isSetup) return true;
 
   try {
-    await TrackPlayer.setupPlayer(PLAYER_CONFIG);
+    await TrackPlayer.setupPlayer(buildPlayerConfig());
 
     TrackPlayer.setCommands({
       capabilities: [

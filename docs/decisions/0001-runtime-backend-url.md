@@ -31,6 +31,22 @@ Introduce ONE runtime server module as the single source of truth for the active
 3. Let each consumer (Axios, player, sharing) manage its own URL. Rejected: guarantees drift;
    server switching must be atomic (see ADR 0002).
 
+## Implementation note (2026-11-21, first-launch setup)
+
+The first-launch implementation (`src/features/server/`) deliberately deviates from the
+SecureStore choice above and persists the URL in AsyncStorage (`@sonic_server_url`):
+
+- The URL is non-secret configuration, same class as the cached remote config that
+  `versionService.ts` already keeps in AsyncStorage; SecureStore holds session secrets
+  (tokens, device ID) with keychain/keystore failure modes a plain setting should not inherit.
+- Separate stores keep lifecycles clean: a future server switch wipes tokens while keeping
+  (or replacing) the URL, instead of entangling both in one secret-clearing path.
+- No new dependency: `@react-native-async-storage/async-storage` is already installed and
+  used for search history, recent songs, and config caching.
+
+If this ADR is accepted as-written, either amend the storage choice to AsyncStorage or
+migrate the key to SecureStore with the justification above recorded.
+
 ## Consequences
 
 - Positive: one migration point, one validation path, atomic server switching.

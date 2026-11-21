@@ -6,6 +6,10 @@
 
 - Baseline commit: `00a4fad` (`00a4fad285c3cbf0f5ac8d4079a970bc643dddd2`, 2026-11-20).
 - Baseline stats: `src/` holds **183 files, 15,855 lines** (method: `wc -l`; per-file table in `docs/FILE_INVENTORY.md`).
+- Structural delta (uncommitted, 2026-11-21): +`src/features/server/` slice (7 files, 598 lines)
+  plus `ServerGuard` in `src/app/_layout.tsx` (+39), runtime URL support in `src/api/apiClient.ts`
+  (+20), lazy config in `playerSetup.ts` (+5). Working tree: **190 files, 16,517 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -37,7 +41,7 @@ Directories that intentionally DO NOT exist: `android/`, `ios/` (managed prebuil
 | Entry | File | Role |
 |-------|------|------|
 | JS entry | `package.json` main `expo-router/entry` | Expo Router bootstrap |
-| Root layout | `src/app/_layout.tsx` | Providers, `VersionGuard`, `AuthGuard`, `Stack`, `setupPlayer()`, background handler registration |
+| Root layout | `src/app/_layout.tsx` | Providers, `VersionGuard`, `ServerGuard`, `AuthGuard`, `Stack`, `setupPlayer()` (via `ServerGuard`), background handler registration |
 | Default route | `src/app/index.tsx` | Redirects to `/login`; guard decides final destination |
 | Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` | Unauthenticated stack |
 | Tabs group | `src/app/(tabs)/_layout.tsx` | Custom tab bar (Home, Search, Library, Processing) + hidden routes |
@@ -66,9 +70,9 @@ Line counts per file are in `docs/FILE_INVENTORY.md`. Structure:
 ```text
 src/
 ├── api/                          # shared network layer (1 file)
-│   └── apiClient.ts              # axios instance, BASE_URL/MEDIA_URL, token + device interceptors, 401 queue, toasts
+│   └── apiClient.ts              # axios instance, BASE_URL/MEDIA_URL (runtime-settable), token + device interceptors, 401 queue, toasts
 ├── app/                          # expo-router routes: thin wrappers + layouts (20 files)
-│   ├── _layout.tsx               # RootLayout: providers, guards, Stack, player setup
+│   ├── _layout.tsx               # RootLayout: providers, guards (Version/Server/Auth), Stack, player setup
 │   ├── index.tsx                 # default → /login redirect
 │   ├── player.tsx                # → PlayerScreen (full-screen modal)
 │   ├── notification.click.tsx    # notification tap → /player redirect
@@ -109,7 +113,7 @@ src/
 │   ├── theme.ts                  # THEME + NAV_THEME (dark forced in practice)
 │   └── utils.ts                  # cn() (clsx + tailwind-merge)
 ├── global.css                    # NativeWind entry (59 lines)
-└── features/                     # vertical feature slices (16 features, 141 files)
+└── features/                     # vertical feature slices (17 features, 148 files)
 ```
 ```text
 src/features/
@@ -194,6 +198,10 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
+├── server/                       # runtime server config + first-launch setup (7 files)
+│   ├── index.ts  api/serverValidation.ts  hooks/useServerSetup.ts
+│   ├── screens/ServerSetupScreen.tsx  store/serverStore.ts
+│   └── utils/serverConfig.ts  utils/serverStorage.ts
 └── song/                         # deep links + sharing (2 files)
     ├── screens/SongDeepLinkRouteScreen.tsx  utils/shareSong.ts
 ```
@@ -217,6 +225,7 @@ src/features/
 | `processing` | Job-center UI over `playback` job store | Job creation/polling (owned by `playback`) |
 | `profile` | Account display + logout entry | Auth mechanics (owned by `auth`) |
 | `search` | iTunes search, genre surface, search history/recents | Playback (calls `usePlayer`) |
+| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state | Auth session, playback engine, future server-switch UI (reserved) |
 | `song` | Deep-link resolution + share-link building | Player UI |
 
 Known boundary crossings (do not widen without an ADR): `library` invalidates `collections` query keys;
@@ -227,7 +236,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Shared need | Location | Rule |
 |-------------|----------|------|
-| Network client | `src/api/apiClient.ts` | Only Axios instance; feature APIs wrap it, never create their own backend client |
+| Network client | `src/api/apiClient.ts` | Only Axios instance; feature APIs wrap it, never create their own backend client (sole exception: the `server` validator's unauthenticated bootstrap `fetch`, which must run pre-config) |
 | UI primitives | `src/components/ui/` | shadcn-style; new primitives go here, not in features |
 | Shared interactive UI | `src/components/*.tsx` | Only when used by ≥2 features |
 | Theme/tokens | `src/lib/theme.ts` | `NAV_THEME`; NativeWind classes reference `tailwind.config.js` tokens |
@@ -241,8 +250,8 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Area | Files | Lines |
 |------|------:|------:|
-| `src/api` | 1 | 205 |
-| `src/app` | 20 | 599 |
+| `src/api` | 1 | 225 |
+| `src/app` | 20 | 638 |
 | `src/components` | 18 | 2,148 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
@@ -255,14 +264,15 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 3,914 |
+| `src/features/playback` | 39 | 3,919 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
+| `src/features/server` | 7 | 598 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **183** | **15,855** |
+| **Total** | **190** | **16,517** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (554), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (422), `components/RemoteSongListCard.tsx` (375),

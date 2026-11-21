@@ -5,8 +5,9 @@ import axios, {
 } from "axios";
 import { tokenStorage } from "@/features/auth/utils/tokenStorage";
 
-export const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
-export const MEDIA_URL = process.env.EXPO_PUBLIC_MEDIA_URL || BASE_URL;
+export let BASE_URL: string | undefined = process.env.EXPO_PUBLIC_API_URL;
+export let MEDIA_URL: string | undefined =
+  process.env.EXPO_PUBLIC_MEDIA_URL || BASE_URL;
 
 // --------------------------------------------------------------------------
 // Axios instance
@@ -16,6 +17,25 @@ export const apiClient: AxiosInstance = axios.create({
   timeout: 300_000, // 5 minutes (up to 300s for heavy downloads)
   headers: { "Content-Type": "application/json" },
 });
+
+// --------------------------------------------------------------------------
+// Runtime server URL
+// --------------------------------------------------------------------------
+// The server setup flow (src/features/server/) owns the persisted URL and
+// pushes it here at boot and after validation. `let` exports are live
+// bindings: every existing BASE_URL/MEDIA_URL reader (refresh calls, share
+// links, display helpers) picks up the new value with no changes, as long as
+// it reads at call time rather than baking the value at module scope.
+// --------------------------------------------------------------------------
+export function setApiServerUrl(serverUrl: string): void {
+  BASE_URL = serverUrl;
+  apiClient.defaults.baseURL = serverUrl;
+  // Preserve the original fallback rule: an explicit build-time media host
+  // stays pinned; otherwise media follows the active server.
+  if (!process.env.EXPO_PUBLIC_MEDIA_URL) {
+    MEDIA_URL = serverUrl;
+  }
+}
 
 import * as SecureStore from "expo-secure-store";
 

@@ -1,8 +1,21 @@
 # Contract: Server Health and Validation — **[Proposed]**
 
-Status: nothing here is implemented. No `/health` client, response type, or validation UI exists
-in the repo (verified). This file records what the self-host migration NEEDS so the backend can
-confirm shapes before any client code is written.
+Status: nothing here is implemented. No `/health` client, response type, or validation UI
+exists in the repo (verified 2026-11-21). This file records what the self-host migration NEEDS
+so the backend can confirm shapes before any client code is written.
+
+## Field verification (2026-11-21, live hosted backend)
+
+- `GET /health` → `404 {"statusCode":404,…,"message":"Cannot GET /health"}`. The endpoint
+  does not exist on the current backend; setup validation must NOT depend on it.
+- `GET /` → `200 "Hello World!"` (default NestJS root; not Sonic-specific, unused).
+- `GET /auth/me` without a token → `401 {"statusCode":401,…,"message":"Authentication
+  invalid"}`. The first-launch setup validator (`src/features/server/api/serverValidation.ts`)
+  relies on this: 401 + JSON body proves reachability and Sonic identity.
+- Smallest future contract (unchanged): unauthenticated `GET /health` → `200`
+  `{ status: 'ok', service: 'sonic', version }`, so the client can also check
+  version compatibility. When the backend ships it, add it as the first probe in
+  `serverValidation.ts` ahead of the `/auth/me` fallback.
 
 ## Needed: `GET /health` (or equivalent)
 

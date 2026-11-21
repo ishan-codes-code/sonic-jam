@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuth } from '@/features/auth';
 import TrackPlayer from '@rntp/player';
 import { PlaybackService, setupPlayer, PlaybackSync, usePlayer } from '@/features/playback';
+import { ServerSetupScreen, useServerStore } from '@/features/server';
 import { useVersionCheck } from '@/features/app-validations/hooks/useVersionCheck';
 
 import { PortalHost } from "@rn-primitives/portal";
@@ -39,6 +40,44 @@ import { OTAUpdateScreen } from '@/features/app-validations/screens/OTAUpdateScr
 SplashScreen.preventAutoHideAsync();
 
 TrackPlayer.registerBackgroundEventHandler(() => PlaybackService);
+
+// --------------------------------------------------------------------------
+// Guard: resolves the runtime server before anything backend-dependent runs
+// --------------------------------------------------------------------------
+function ServerGuard({ children }: { children: React.ReactNode }) {
+  const status = useServerStore((s) => s.status);
+  const loadServer = useServerStore((s) => s.loadServer);
+
+  // Run once on app boot — reads the persisted server (or migrates it)
+  useEffect(() => {
+    loadServer();
+  }, [loadServer]);
+
+  // The native player bakes the progress-sync URL at setup, so it must run
+  // only after the server is known (replaces the unconditional boot call).
+  useEffect(() => {
+    if (status === 'configured') {
+      setupPlayer();
+    }
+  }, [status]);
+
+  // While the stored config loads, show a loader — never the app or setup.
+  if (status === 'loading') {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color={"#FFD54F"} />
+      </View>
+    );
+  }
+
+  // No valid server: setup takes over the whole screen. It is rendered, not
+  // routed to, so it cannot be bypassed and no auth/app flash precedes it.
+  if (status === 'unconfigured') {
+    return <ServerSetupScreen />;
+  }
+
+  return <>{children}</>;
+}
 
 // --------------------------------------------------------------------------
 // Guard: redirects based on auth state after it is known
@@ -195,9 +234,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  useEffect(() => {
-    setupPlayer();
-  }, []);
+  // NOTE: setupPlayer() runs from ServerGuard once the server is known.
 
   // useEffect(() => {
   //   if (Platform.OS === 'android') {
@@ -231,33 +268,35 @@ export default function RootLayout() {
             <ToastProvider>
               <BottomSheetProvider>
                 <VersionGuard>
-                  <AuthGuard>
-                    <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-                    <Stack
-                      screenOptions={{
-                        headerShown: false,
-                        animation: 'fade',
-                        animationDuration: 200,
-                        contentStyle: { backgroundColor: navTheme.colors.background },
-                      }}
-                    >
-                      <Stack.Screen name="(tabs)" />
-                      <Stack.Screen name="(auth)" />
-
-                      <Stack.Screen
-                        name="player"
-                        options={{
-                          presentation: 'fullScreenModal',
-                          animation: 'slide_from_bottom',
-                          gestureEnabled: false,
+                  <ServerGuard>
+                    <AuthGuard>
+                      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+                      <Stack
+                        screenOptions={{
                           headerShown: false,
-                          contentStyle: { backgroundColor: 'transparent' }
+                          animation: 'fade',
+                          animationDuration: 200,
+                          contentStyle: { backgroundColor: navTheme.colors.background },
                         }}
-                      />
+                      >
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="(auth)" />
+
+                        <Stack.Screen
+                          name="player"
+                          options={{
+                            presentation: 'fullScreenModal',
+                            animation: 'slide_from_bottom',
+                            gestureEnabled: false,
+                            headerShown: false,
+                            contentStyle: { backgroundColor: 'transparent' }
+                          }}
+                        />
 
 
-                    </Stack>
-                  </AuthGuard>
+                      </Stack>
+                    </AuthGuard>
+                  </ServerGuard>
                 </VersionGuard>
               </BottomSheetProvider>
 
