@@ -90,6 +90,12 @@ export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
       if (isJobPollingCancelled(error)) {
         throw error;
       }
+      // A fetch that was in flight during a server switch rejects here with
+      // an old-server error: never mark the job failed (the registry was
+      // already cleared and the write would resurrect it).
+      if (generation !== pollingGeneration) {
+        throw new JobPollingCancelledError();
+      }
       const isInternetDrop =
         !error.response ||
         error.code === "ERR_NETWORK" ||
@@ -191,6 +197,9 @@ export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
   }
 
   const timeoutMsg = "Job timeout";
+  if (generation !== pollingGeneration) {
+    throw new JobPollingCancelledError();
+  }
   jobStore.updateJob(jobId, {
     status: "failed",
     error: timeoutMsg,

@@ -10,12 +10,18 @@ import type { PlaybackTrack } from '../types';
 
 const recoveryAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
+// Bumped by resetPlaybackRecovery() so a recovery already in flight can detect
+// a server switch and exit before touching state or the native player.
+let recoveryGeneration = 0;
+
 /**
- * Clears error-recovery attempt history. Used only by the server-switch
- * session reset so old-server failures cannot suppress new-server recovery.
+ * Clears error-recovery attempt history and invalidates any recovery in
+ * flight. Used only by the server-switch session reset so old-server failures
+ * cannot suppress new-server recovery.
  */
 export function resetPlaybackRecovery(): void {
     recoveryAttempts.clear();
+    recoveryGeneration++;
 }
 
 function canAttemptRecovery(songId: string): boolean {
@@ -129,10 +135,17 @@ export const PlaybackSync = () => {
             console.error('❌ [PlaybackError]', event.code, event.message);
 
             try {
+                // Capture the recovery generation: a server switch mid-recovery
+                // invalidates it, and every check below exits without touching
+                // the store or the native player.
+                const generation = recoveryGeneration;
+
                 const currentIndex = await TrackPlayer.getActiveMediaItemIndex();
                 if (currentIndex === null || currentIndex === undefined) return;
+                if (generation !== recoveryGeneration) return;
 
                 const queue = await TrackPlayer.getQueue();
+                if (generation !== recoveryGeneration) return;
                 const activeItem = queue[currentIndex] as PlaybackTrack;
                 if (!activeItem || !activeItem.song || !activeItem.song.id) return;
 
@@ -148,6 +161,7 @@ export const PlaybackSync = () => {
 
                 // 1. Fetch fresh song metadata and playback token from backend
                 const resolved = await resolveStream({ songId });
+                if (generation !== recoveryGeneration) return;
                 if (!resolved.playbackToken) {
                     throw new Error("No playback token returned during recovery");
                 }
@@ -156,6 +170,7 @@ export const PlaybackSync = () => {
                 const newTrack = await createPlaybackTrack(resolved.song, resolved.playbackToken, {
                     isManualAdd: activeItem.isManualAdd,
                 });
+                if (generation !== recoveryGeneration) return;
 
                 // 3. Update the trackMap in store
                 const store = usePlaybackStore.getState();
@@ -163,10 +178,12 @@ export const PlaybackSync = () => {
 
                 // 4. Record current position before replacing item to resume smoothly
                 const progress = await TrackPlayer.getProgress();
+                if (generation !== recoveryGeneration) return;
                 const resumePosition = progress.position;
 
                 // 5. Replace in the TrackPlayer queue
                 await TrackPlayer.replaceMediaItem(currentIndex, newTrack);
+                if (generation !== recoveryGeneration) return;
 
                 // 6. Play to load the new URL
                 await TrackPlayer.play();
@@ -178,11 +195,13 @@ export const PlaybackSync = () => {
                     const maxAttempts = 30; // 3 seconds timeout
                     while (attempts < maxAttempts) {
                         const currentProgress = await TrackPlayer.getProgress();
+                        if (generation !== recoveryGeneration) return;
                         if (currentProgress.duration > 0) {
                             await TrackPlayer.seekTo(resumePosition);
                             break;
                         }
                         await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                        if (generation !== recoveryGeneration) return;
                         attempts++;
                     }
                 }

@@ -109,7 +109,9 @@ export function useServerSwitch() {
     try {
       // 1. Stop playback via the same path AuthGuard uses on logout
       //    (native stop + queue clear + playback store reset incl. trackMap).
-      stop();
+      //    RNTP v5 stop()/clear() are synchronous, so teardown dispatches in
+      //    order; the await sequences it before the reset steps below.
+      await stop();
 
       // 2. Freeze in-flight work so old-server results cannot land in the
       //    fresh session (poll loops throw a filtered cancellation error).

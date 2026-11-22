@@ -46,10 +46,15 @@ function buildPlayerConfig(): PlayerConfig {
  * re-point progress sync (headers alone are updatable via
  * setProgressSyncToken). Callers must stop playback and clear the queue first.
  * A failed re-setup clears the guard so the next ensureSetup() retries.
+ *
+ * Sequencing note: every @rntp/player v5 control API is synchronous `void`
+ * (verified in audio.d.ts + the TurboModule spec), so destroy() dispatches
+ * before setupPlayer() in call order; the await yields between the two
+ * dispatches. There is no native completion handle to wait on.
  */
 export async function recreatePlayer(): Promise<boolean> {
   try {
-    TrackPlayer.destroy();
+    await TrackPlayer.destroy();
   } catch (error) {
     console.error("[playerSetup] Failed to destroy TrackPlayer:", error);
   }
