@@ -19,7 +19,9 @@
 > Structural delta (uncommitted, 2026-11-22, Android keyboard-aware scroll):
 > +`useKeyboardAwareScroll.ts` (65, shared auth + server); Login 141→146,
 > Signup 149→155, ServerSetupScreen 176→170 (blind scrollToEnd removed).
-> Working tree: **200 files, 17,430 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, 2026-11-22, keyboard-scroll geometry fix):
+> safe-area-top compensation in the hook (65→79).
+> Working tree: **200 files, 17,444 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -58,7 +60,7 @@
 | `src/app/(tabs)/search/[genre].tsx` | 4 | Route wrapper rendering `GenreScreen` |
 | `src/app/(tabs)/song/[id].tsx` | 4 | Route wrapper rendering `SongDeepLinkRouteScreen` |
 
-## `src/components` — 19 files, 2,213 lines
+## `src/components` — 19 files, 2,227 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -66,7 +68,7 @@
 | `src/components/AudioWave.tsx` | 94 | Audio waveform visual component † |
 | `src/components/GradientText.tsx` | 50 | Masked-view gradient text (used by library headers) † |
 | `src/components/RemoteSongListCard.tsx` | 375 | Swipeable song row with gesture-handler + haptics † |
-| `src/components/useKeyboardAwareScroll.ts` | 65 | Android-only focus-scroll hook: measured scroll of the focused input above the keyboard (auth + server) |
+| `src/components/useKeyboardAwareScroll.ts` | 79 | Android-only focus-scroll hook: measured scroll of the focused input above the keyboard, safe-area-top compensated (auth + server) |
 | `src/components/ui/accordion.tsx` | 141 | Accordion primitive over `@rn-primitives/accordion` † |
 | `src/components/ui/alert-dialog.tsx` | 158 | Alert-dialog primitive over `@rn-primitives/alert-dialog` † |
 | `src/components/ui/avatar.tsx` | 38 | Avatar/Image/Fallback primitives † |

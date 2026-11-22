@@ -34,6 +34,10 @@
   server) replaces the setup screen's blind `scrollToEnd` hack; Login 141→146,
   Signup 149→155, ServerSetupScreen 176→170. Working tree:
   **200 files, 17,430 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, keyboard-scroll geometry fix):
+  compensate the scroll API's full-screen assumption with the live safe-area
+  top inset (`useKeyboardAwareScroll` 65→79). Working tree:
+  **200 files, 17,444 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -285,7 +289,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 |------|------:|------:|
 | `src/api` | 1 | 225 |
 | `src/app` | 23 | 656 |
-| `src/components` | 19 | 2,213 |
+| `src/components` | 19 | 2,227 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
@@ -306,7 +310,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **200** | **17,430** |
+| **Total** | **200** | **17,444** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),

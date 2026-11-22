@@ -5,6 +5,7 @@ import {
   TextInput,
   type ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
 // --------------------------------------------------------------------------
@@ -22,10 +23,20 @@ import { useFocusEffect } from 'expo-router';
 // rect and the tracked keyboard metrics — no timeouts, no blind offsets.
 // iOS is untouched: the callbacks no-op there and the existing KAV padding +
 // auto-inset props keep working as before.
+//
+// Geometry note (verified in ScrollView.js): that API assumes the ScrollView
+// takes up the entire screen — it compares the content-relative input rect
+// against the screen-relative keyboard top, ignoring the ScrollView's own
+// screen offset. Our screens nest the ScrollView under a top safe-area inset
+// (KeyboardAvoidingView > SafeAreaView > ScrollView), so without compensation
+// every offset undershoots by the inset height and near-fold fields clamp to
+// a no-op. Passing the live top inset as additionalOffset corrects this
+// exactly on all three screens.
 // --------------------------------------------------------------------------
 
 export function useKeyboardAwareScroll() {
   const scrollViewRef = useRef<ScrollView>(null);
+  const { top: safeAreaTop } = useSafeAreaInsets();
 
   const scrollFocusedInputIntoView = useCallback(() => {
     // iOS already handles this via KAV padding + automaticallyAdjustKeyboardInsets.
@@ -37,10 +48,13 @@ export function useKeyboardAwareScroll() {
 
     scrollView.scrollResponderScrollNativeHandleToKeyboard(
       focusedInput,
-      0, // additionalOffset: rest the field exactly at the keyboard top
+      // Compensate the API's full-screen assumption with the ScrollView's
+      // exact screen offset (== safe-area top on these screens), so the
+      // field lands exactly at the keyboard top.
+      safeAreaTop,
       true, // preventNegativeScrollOffset: never scroll past content start
-    );
-  }, []);
+          );
+  }, [safeAreaTop]);
 
   // Initial focus: the keyboard opening is the signal. Scoped to the focused
   // route so stacked screens (e.g. Login under Server Setup review) don't
