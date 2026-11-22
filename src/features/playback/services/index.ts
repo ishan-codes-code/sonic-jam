@@ -1,8 +1,14 @@
 export { resolveJob } from "./jobResolver";
-export { setupPlayer } from "./playerSetup";
-export { pollJobStatus } from "./pollingResolver";
+export { recreatePlayer, setupPlayer } from "./playerSetup";
+export {
+  cancelAllJobPolling,
+  isJobPollingCancelled,
+  JobPollingCancelledError,
+  pollJobStatus,
+} from "./pollingResolver";
 export { PlaybackService } from "./trackPlayerService";
 export {
+  cancelSmartQueueWork,
   ensureSmartQueueActive,
   ensureSmartQueueWindow,
   handleSmartQueueMediaTransition,

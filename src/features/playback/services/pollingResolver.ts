@@ -6,6 +6,30 @@ import { useJobStore } from "../store/useJobStore";
 
 const MAX_TIMEOUT = 300000; // 5 min (important timeout fallback)
 
+// ─── Session generation ─────────────────────────────────────────────────────
+// Bumped by cancelAllJobPolling() during the server-switch session reset so
+// old-server polls stop before they can write into new-server state. The loop
+// checks the generation on every iteration and throws JobPollingCancelledError,
+// which resolveStream callers must let through silently (see usePlayer).
+
+let pollingGeneration = 0;
+
+/** Invalidate every in-flight pollJobStatus() loop. Never throws. */
+export function cancelAllJobPolling(): void {
+  pollingGeneration++;
+}
+
+export class JobPollingCancelledError extends Error {
+  constructor() {
+    super('Job polling cancelled (server switched)');
+    this.name = 'JobPollingCancelledError';
+  }
+}
+
+export function isJobPollingCancelled(error: unknown): boolean {
+  return error instanceof JobPollingCancelledError;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -46,13 +70,26 @@ export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
   let startTime = Date.now();
   let pollCount = 0;
   const jobStore = useJobStore.getState();
+  const generation = pollingGeneration;
 
   while (Date.now() - startTime < MAX_TIMEOUT) {
+    if (generation !== pollingGeneration) {
+      throw new JobPollingCancelledError();
+    }
+
     let response: PlayJobResponse | null = null;
 
     try {
       response = await playbackApi.getJob(jobId);
+      if (generation !== pollingGeneration) {
+        throw new JobPollingCancelledError();
+      }
     } catch (error: any) {
+      // Cancellation is not a server error: let it through without marking
+      // the (already cleared) job failed.
+      if (isJobPollingCancelled(error)) {
+        throw error;
+      }
       const isInternetDrop =
         !error.response ||
         error.code === "ERR_NETWORK" ||

@@ -10,6 +10,12 @@
   plus `ServerGuard` in `src/app/_layout.tsx` (+39), runtime URL support in `src/api/apiClient.ts`
   (+20), lazy config in `playerSetup.ts` (+5). Working tree: **190 files, 16,517 lines**.
   Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, Settings hub + Server Management):
+  +`src/features/settings/` slice (3 files, 155 lines), +`src/app/(tabs)/settings/` routes
+  (3 files, 15 lines) replacing `src/app/(tabs)/profile/index.tsx`, +server-switch UI in
+  `src/features/server/` (`ServerManagementScreen`, `useServerSwitch`; 2 files, 415 lines),
+  +playback session-reset primitives (+106). Working tree: **197 files, 17,208 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -92,8 +98,10 @@ src/
 │       │   ├── _layout.tsx       # nested stack shell
 │       │   ├── index.tsx         # SearchScreen ↔ SearchFocusScreen switch
 │       │   └── [genre].tsx       # → GenreScreen
-│       ├── profile/
-│       │   └── index.tsx         # → ProfileScreen (hidden tab)
+│       ├── settings/
+│       │   ├── index.tsx         # → SettingsScreen (hub, hidden tab)
+│       │   ├── account.tsx       # → ProfileScreen (existing, hidden tab)
+│       │   └── server.tsx        # → ServerManagementScreen (hidden tab)
 │       ├── collections/
 │       │   └── [id].tsx          # → CollectionScreen (hidden tab)
 │       ├── song/
@@ -113,7 +121,7 @@ src/
 │   ├── theme.ts                  # THEME + NAV_THEME (dark forced in practice)
 │   └── utils.ts                  # cn() (clsx + tailwind-merge)
 ├── global.css                    # NativeWind entry (59 lines)
-└── features/                     # vertical feature slices (17 features, 148 files)
+└── features/                     # vertical feature slices (18 features, 153 files)
 ```
 ```text
 src/features/
@@ -198,10 +206,13 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
-├── server/                       # runtime server config + first-launch setup (7 files)
-│   ├── index.ts  api/serverValidation.ts  hooks/useServerSetup.ts
-│   ├── screens/ServerSetupScreen.tsx  store/serverStore.ts
-│   └── utils/serverConfig.ts  utils/serverStorage.ts
+├── server/                       # runtime server config + setup/switch UI (9 files)
+│   ├── index.ts  api/serverValidation.ts
+│   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts
+│   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
+│   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverStorage.ts
+├── settings/                     # Settings hub (3 files)
+│   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx
 └── song/                         # deep links + sharing (2 files)
     ├── screens/SongDeepLinkRouteScreen.tsx  utils/shareSong.ts
 ```
@@ -225,7 +236,8 @@ src/features/
 | `processing` | Job-center UI over `playback` job store | Job creation/polling (owned by `playback`) |
 | `profile` | Account display + logout entry | Auth mechanics (owned by `auth`) |
 | `search` | iTunes search, genre surface, search history/recents | Playback (calls `usePlayer`) |
-| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state | Auth session, playback engine, future server-switch UI (reserved) |
+| `settings` | Settings hub list UI only (`SettingsScreen` + `SettingsRow`); links out to owning features | Account UI (owned by `profile`), server UI/logic (owned by `server`) |
+| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state, Server Management screen + switch orchestration (`useServerSwitch`, incl. the atomic session reset) | Auth session mechanics, playback engine internals (both called, not owned) |
 | `song` | Deep-link resolution + share-link building | Player UI |
 
 Known boundary crossings (do not widen without an ADR): `library` invalidates `collections` query keys;
@@ -251,7 +263,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | Area | Files | Lines |
 |------|------:|------:|
 | `src/api` | 1 | 225 |
-| `src/app` | 20 | 638 |
+| `src/app` | 22 | 650 |
 | `src/components` | 18 | 2,148 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
@@ -264,18 +276,19 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 3,919 |
+| `src/features/playback` | 39 | 4,025 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 7 | 598 |
+| `src/features/server` | 9 | 1,016 |
+| `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **190** | **16,517** |
+| **Total** | **197** | **17,208** |
 
-Largest files (watch for growth): `playback/hooks/usePlayer.ts` (554), `collections/screens/CollectionScreen.tsx`
-(483), `playback/services/smartQueueService.ts` (422), `components/RemoteSongListCard.tsx` (375),
+Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
+(483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),
 `components/AnimatedPressable.tsx` (337), `components/ui/dropdown-menu.tsx` (300).
 
 ## 8. Reference maintenance

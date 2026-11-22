@@ -10,6 +10,14 @@ import type { PlaybackTrack } from '../types';
 
 const recoveryAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
+/**
+ * Clears error-recovery attempt history. Used only by the server-switch
+ * session reset so old-server failures cannot suppress new-server recovery.
+ */
+export function resetPlaybackRecovery(): void {
+    recoveryAttempts.clear();
+}
+
 function canAttemptRecovery(songId: string): boolean {
     const now = Date.now();
     const attempt = recoveryAttempts.get(songId);

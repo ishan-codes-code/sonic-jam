@@ -17,6 +17,7 @@ import {
 } from "../utils/playbackHelpers";
 import { ensureFreshToken } from "@/features/auth/utils/tokenManager";
 import { toastImperative } from "@/features/Toast/utils/toastSingleton";
+import { isJobPollingCancelled } from "../services/pollingResolver";
 
 export function usePlayer() {
   const isSettingUp = useRef(false);
@@ -82,6 +83,9 @@ export function usePlayer() {
         store.notifyQueueUpdate();
         return track;
       } catch (error: any) {
+        // Server switch cancelled the resolve: the session was already reset,
+        // so there is no error to report and no toast to show.
+        if (isJobPollingCancelled(error)) return undefined;
         if (!options?.silent) {
           console.error("[usePlayer] enqueue error:", error);
           store.setError(error?.message ?? "Failed to add track");
@@ -157,6 +161,7 @@ export function usePlayer() {
         });
         store.notifyQueueUpdate();
       } catch (error: any) {
+        if (isJobPollingCancelled(error)) return;
         console.error("[usePlayer] playNext error:", error);
         store.setError(error?.message ?? "Failed to play next");
       }
@@ -191,6 +196,7 @@ export function usePlayer() {
         });
         store.notifyQueueUpdate();
       } catch (error: any) {
+        if (isJobPollingCancelled(error)) return;
         console.error("[usePlayer] addToQueue error:", error);
         store.setError(error?.message ?? "Failed to add to queue");
       }
@@ -338,6 +344,7 @@ export function usePlayer() {
 
         return track;
       } catch (error: any) {
+        if (isJobPollingCancelled(error)) return undefined;
         console.error("[usePlayer] play error:", error);
         store.setPendingJobId(null);
         store.setError(error?.message ?? "Failed to play song");
@@ -415,6 +422,7 @@ export function usePlayer() {
         store.setStream(getPlaybackUrl(firstSong));
         store.notifyQueueUpdate();
       } catch (error) {
+        if (isJobPollingCancelled(error)) return;
         console.error("[playPlaylist]", error);
         store.setError("Failed to play playlist");
       }

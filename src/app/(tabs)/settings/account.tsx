@@ -1,5 +1,5 @@
 import { ProfileScreen } from '@/features/profile/screens/ProfileScreen';
 
-export default function ProfileRoute() {
+export default function SettingsAccountRoute() {
   return <ProfileScreen />;
 }

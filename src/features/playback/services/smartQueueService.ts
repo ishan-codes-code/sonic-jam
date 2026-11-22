@@ -32,6 +32,19 @@ function resetRuntime() {
   isHandlingTransition.current = false;
 }
 
+// ─── Session generation ─────────────────────────────────────────────────────
+// Bumped by cancelSmartQueueWork() during the server-switch session reset.
+// In-flight recommendation fetches check it before writing so old-server
+// results cannot repopulate the freshly reset smart-queue store. (The
+// enrich/resolve/fill paths need no check: they no-op against a reset store.)
+
+let radioGeneration = 0;
+
+/** Invalidate in-flight smart-queue fetches. Never throws. */
+export function cancelSmartQueueWork(): void {
+  radioGeneration++;
+}
+
 function normalizeTrackText(value?: string) {
   return (value ?? "")
     .toLowerCase()
@@ -326,9 +339,11 @@ async function appendRecommendations(limit = DEFAULT_RECOMMENDATION_LIMIT) {
   if (isFetchingRecommendations.current) return;
 
   isFetchingRecommendations.current = true;
+  const generation = radioGeneration;
 
   try {
     const recs = await getRecommendations({ limit });
+    if (generation !== radioGeneration) return;
     if (recs.length === 0) return;
 
     const appendedTracks = useSmartQueueStore
@@ -395,8 +410,16 @@ export async function startSmartQueueRadio(
 ) {
   resetRuntime();
   usePlaybackStore.getState().setQueueType("radio");
+  const generation = radioGeneration;
 
   const recs = await getRecommendations({ limit });
+  if (generation !== radioGeneration) {
+    // A server switch reset the session mid-fetch: drop the stale result and
+    // restore the reset state instead of re-initializing the queue.
+    resetSmartQueueRadio();
+    usePlaybackStore.getState().setQueueType("manual");
+    return;
+  }
   if (recs.length === 0) return;
 
   useSmartQueueStore.getState().initSmartQueue(recs);

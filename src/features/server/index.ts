@@ -1,8 +1,11 @@
 // Screens
+export { ServerManagementScreen } from './screens/ServerManagementScreen';
 export { ServerSetupScreen } from './screens/ServerSetupScreen';
 
 // Hooks
 export { useServerSetup } from './hooks/useServerSetup';
+export { useServerSwitch } from './hooks/useServerSwitch';
+export type { ServerSwitchPhase } from './hooks/useServerSwitch';
 
 // Store
 export { useServerStore } from './store/serverStore';

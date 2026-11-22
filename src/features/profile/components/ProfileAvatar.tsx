@@ -20,8 +20,8 @@ export const ProfileAvatar = memo(
     const router = useRouter();
 
     const handlePress = () => {
-      // Routes to the profile screen as requested
-      router.push('/profile');
+      // Routes to the Settings hub (Account lives under Settings → Account).
+      router.push('/settings');
     };
 
     // Calculate a proportional size for the inner user icon
@@ -32,7 +32,7 @@ export const ProfileAvatar = memo(
         activeOpacity={0.8}
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel="Go to profile"
+        accessibilityLabel="Go to settings"
         style={[{ width: size, height: size }, style]}
         className={cn(
           'rounded-full bg-white/5 border border-white/10 items-center justify-center',
