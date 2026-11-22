@@ -4,7 +4,10 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 import { tokenStorage } from "@/features/auth/utils/tokenStorage";
-import { getSessionGeneration } from "@/features/server/utils/sessionGeneration";
+import {
+  getSessionGeneration,
+  onSessionInvalidated,
+} from "@/features/server/utils/sessionGeneration";
 
 export let BASE_URL: string | undefined = process.env.EXPO_PUBLIC_API_URL;
 export let MEDIA_URL: string | undefined =
@@ -83,21 +86,58 @@ apiClient.interceptors.request.use(
 import { toastImperative } from "@/features/Toast/utils/toastSingleton";
 
 let isRefreshing = false;
+// Generation that owns the in-flight refresh (consulted only while
+// isRefreshing). Lets a stale refresh settle without touching a newer
+// session's queue entries or releasing a newer refresh's flag.
+let refreshingGeneration = 0;
 let failedQueue: Array<{
   resolve: (value: string) => void;
   reject: (reason?: unknown) => void;
+  generation: number;
 }> = [];
 
-function processQueue(error: unknown, token: string | null = null) {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token!);
+function processQueue(
+  error: unknown,
+  token: string | null = null,
+  ownerGeneration: number,
+) {
+  const remaining: typeof failedQueue = [];
+  for (const entry of failedQueue) {
+    if (entry.generation !== ownerGeneration) {
+      remaining.push(entry);
+      continue;
     }
-  });
-  failedQueue = [];
+    if (error) {
+      entry.reject(error);
+    } else {
+      entry.resolve(token!);
+    }
+  }
+  failedQueue = remaining;
 }
+
+/**
+ * Fail every queue entry from a previous session. Runs synchronously inside
+ * invalidateSession() and on takeover, so pre-switch waiters settle at switch
+ * time instead of hanging on a dead refresh. Deliberately leaves
+ * isRefreshing/refreshingGeneration alone: the still-running refresh keeps
+ * ownership until it settles, and its own settle paths are generation-filtered.
+ */
+function rejectStaleQueueEntries(): void {
+  const currentGeneration = getSessionGeneration();
+  const staleError = new Error("Session changed during token refresh");
+  const remaining: typeof failedQueue = [];
+  for (const entry of failedQueue) {
+    if (entry.generation === currentGeneration) {
+      remaining.push(entry);
+    } else {
+      entry.reject(staleError);
+    }
+  }
+  failedQueue = remaining;
+}
+
+onSessionInvalidated(rejectStaleQueueEntries);
 
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -169,10 +209,14 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (isRefreshing) {
+    if (isRefreshing && refreshingGeneration === getSessionGeneration()) {
       // Queue requests that arrive while a refresh is in progress
       return new Promise<string>((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
+        failedQueue.push({
+          resolve,
+          reject,
+          generation: getSessionGeneration(),
+        });
       })
         .then((token) => {
           originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -181,8 +225,18 @@ apiClient.interceptors.response.use(
         .catch((err) => Promise.reject(err));
     }
 
+    if (isRefreshing) {
+      // The in-flight refresh belongs to a previous session: fail ITS waiters
+      // now and take over with a fresh refresh below instead of queueing
+      // behind it. isRefreshing stays true throughout — ownership moves to the
+      // new refresh, and the stale one's finally block is ownership-guarded,
+      // so the two overlapping refreshes cannot interfere.
+      rejectStaleQueueEntries();
+    }
+
     originalRequest._retry = true;
     isRefreshing = true;
+    refreshingGeneration = getSessionGeneration();
     // A server switch mid-refresh must not let Server A's result touch Server
     // B's session. Every await below yields to the event loop, so the check is
     // repeated before each write, not just once here.
@@ -204,10 +258,11 @@ apiClient.interceptors.response.use(
       );
 
       if (isStale()) {
-        // Server A's tokens must never land in Server B's session. Fail the
-        // queued requests; the new session is untouched.
+        // Server A's tokens must never land in Server B's session. Fail our
+        // own queued requests; the new session (and its queue entries) are
+        // untouched.
         const staleError = new Error("Session changed during token refresh");
-        processQueue(staleError, null);
+        processQueue(staleError, null, refreshGeneration);
         return Promise.reject(staleError);
       }
 
@@ -221,7 +276,7 @@ apiClient.interceptors.response.use(
         // and fail everything instead of retrying against the new server.
         await tokenStorage.clearTokens().catch(() => {});
         const staleError = new Error("Session changed during token refresh");
-        processQueue(staleError, null);
+        processQueue(staleError, null, refreshGeneration);
         return Promise.reject(staleError);
       }
 
@@ -231,30 +286,42 @@ apiClient.interceptors.response.use(
         await import("@/features/playback/hooks/useProgressSyncAuth");
       if (isStale()) {
         const staleError = new Error("Session changed during token refresh");
-        processQueue(staleError, null);
+        processQueue(staleError, null, refreshGeneration);
         return Promise.reject(staleError);
       }
       setProgressSyncToken(newAccessToken);
 
-      processQueue(null, newAccessToken);
+      processQueue(null, newAccessToken, refreshGeneration);
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return apiClient(originalRequest);
     } catch (refreshError) {
       if (isStale()) {
         // A stale refresh failing must never log out the new session: fail
-        // the queued Server A requests, but leave Server B's tokens/state alone.
-        processQueue(refreshError, null);
+        // our own queued Server A requests, but leave Server B's tokens/state alone.
+        processQueue(refreshError, null, refreshGeneration);
         return Promise.reject(refreshError);
       }
-      processQueue(refreshError, null);
-      // Clear tokens + trigger logout via the auth store
+      processQueue(refreshError, null, refreshGeneration);
+      // Clear tokens + trigger logout via the auth store. A switch can land
+      // inside either await below, so generation is re-checked before each
+      // auth-state mutation: a stale refresh must never log out the new session.
       await tokenStorage.clearTokens();
+      if (isStale()) {
+        return Promise.reject(refreshError);
+      }
       // Lazy import to avoid circular dependency
       const { useAuthStore } = await import("../features/auth/store/authStore");
+      if (isStale()) {
+        return Promise.reject(refreshError);
+      }
       useAuthStore.getState().resetAuth();
       return Promise.reject(refreshError);
     } finally {
-      isRefreshing = false;
+      // Only the current owner releases the flag: a stale refresh settling
+      // after a takeover must not unlock a newer refresh's critical section.
+      if (refreshingGeneration === refreshGeneration) {
+        isRefreshing = false;
+      }
     }
   },
 );

@@ -36,4 +36,5 @@ export type { ServerSwitchDeps } from './utils/serverSwitch';
 export {
   getSessionGeneration,
   invalidateSession,
+  onSessionInvalidated,
 } from './utils/sessionGeneration';

@@ -50,7 +50,12 @@
   (first-time stale-token clear, storage-failure safe load), `serverStorage`
   47→45, `serverValidation` 97→112, `useServerSetup` 103→124, hook 126→137,
   `serverSwitch` 67→71, `index` 35→39. Working tree:
-  **201 files, 17,714 lines**. Re-baseline the commit hash on commit.
+  **201 files, 17,714 lines** (committed as f7166a0 without re-baseline).
+- Structural delta (uncommitted, PR #10 follow-up: token-refresh race close):
+  generation-tagged refresh queue + ownership (`apiClient` 260→327),
+  `tokenManager` 144→161 (takeover + guarded finally), `sessionGeneration`
+  23→53 (invalidation listeners), `index` 39→40. Working tree:
+  **201 files, 17,829 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -301,14 +306,14 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Area | Files | Lines |
 |------|------:|------:|
-| `src/api` | 1 | 260 |
+| `src/api` | 1 | 327 |
 | `src/app` | 23 | 656 |
 | `src/components` | 19 | 2,285 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 959 |
+| `src/features/auth` | 15 | 976 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
@@ -319,12 +324,12 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 11 | 1,206 |
+| `src/features/server` | 11 | 1,237 |
 | `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **201** | **17,714** |
+| **Total** | **201** | **17,829** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),
