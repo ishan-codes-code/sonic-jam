@@ -20,7 +20,12 @@ import { Icon } from '@/components/ui/icon';
 
 export const SignupScreen = () => {
   const router = useRouter();
-  const { scrollViewRef, onInputFocus } = useKeyboardAwareScroll();
+  const {
+    scrollViewRef,
+    onInputFocus,
+    onContentSizeChange,
+    keyboardBottomPadding,
+  } = useKeyboardAwareScroll();
   const {
     name, setName,
     email, setEmail,
@@ -40,10 +45,14 @@ export const SignupScreen = () => {
   <SafeAreaView className="flex-1">
     <ScrollView
       ref={scrollViewRef}
-      contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+      contentContainerStyle={{
+        paddingHorizontal: 24,
+        paddingBottom: 40 + keyboardBottomPadding,
+      }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets={true}
+      onContentSizeChange={onContentSizeChange}
     >
           <AuthHeader
             title="Join Sonic"

@@ -38,6 +38,11 @@
   compensate the scroll API's full-screen assumption with the live safe-area
   top inset (`useKeyboardAwareScroll` 65→79). Working tree:
   **200 files, 17,444 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, dynamic keyboard bottom padding):
+  hook tracks keyboard height and exposes bottom padding (79→126); scrolling
+  is sequenced after the range grows via onContentSizeChange. Login 146→155,
+  Signup 155→164, ServerSetupScreen 170→176. Working tree:
+  **200 files, 17,515 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -289,12 +294,12 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 |------|------:|------:|
 | `src/api` | 1 | 225 |
 | `src/app` | 23 | 656 |
-| `src/components` | 19 | 2,227 |
+| `src/components` | 19 | 2,274 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 918 |
+| `src/features/auth` | 15 | 936 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
@@ -305,12 +310,12 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 10 | 1,110 |
+| `src/features/server` | 10 | 1,116 |
 | `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **200** | **17,444** |
+| **Total** | **200** | **17,515** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),

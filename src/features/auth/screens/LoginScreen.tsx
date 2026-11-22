@@ -21,7 +21,12 @@ import { Icon } from '@/components/ui/icon';
 
 export const LoginScreen = () => {
   const router = useRouter();
-  const { scrollViewRef, onInputFocus } = useKeyboardAwareScroll();
+  const {
+    scrollViewRef,
+    onInputFocus,
+    onContentSizeChange,
+    keyboardBottomPadding,
+  } = useKeyboardAwareScroll();
   const {
     email, setEmail,
     password, setPassword,
@@ -40,10 +45,14 @@ export const LoginScreen = () => {
   <SafeAreaView className="flex-1">
     <ScrollView
       ref={scrollViewRef}
-      contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+      contentContainerStyle={{
+        paddingHorizontal: 24,
+        paddingBottom: 40 + keyboardBottomPadding,
+      }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets={true}
+      onContentSizeChange={onContentSizeChange}
     >
           {/* Back to the Server Setup review (prefilled, editable) */}
           <View className="mb-2 flex-row items-center pt-2">

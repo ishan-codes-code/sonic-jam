@@ -16,7 +16,12 @@ import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
 import { useServerSetup } from '../hooks/useServerSetup';
 
 export const ServerSetupScreen = () => {
-  const { scrollViewRef, onInputFocus } = useKeyboardAwareScroll();
+  const {
+    scrollViewRef,
+    onInputFocus,
+    onContentSizeChange,
+    keyboardBottomPadding,
+  } = useKeyboardAwareScroll();
   const {
     url,
     setUrl,
@@ -41,13 +46,14 @@ export const ServerSetupScreen = () => {
           ref={scrollViewRef}
           contentContainerStyle={{
             paddingHorizontal: 24,
-            paddingBottom: 40,
+            paddingBottom: 40 + keyboardBottomPadding,
             flexGrow: 1,
             justifyContent: 'center',
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
+          onContentSizeChange={onContentSizeChange}
         >
           {/* Brand */}
           <View className="mb-8 items-center">

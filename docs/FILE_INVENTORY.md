@@ -21,7 +21,10 @@
 > Signup 149→155, ServerSetupScreen 176→170 (blind scrollToEnd removed).
 > Structural delta (uncommitted, 2026-11-22, keyboard-scroll geometry fix):
 > safe-area-top compensation in the hook (65→79).
-> Working tree: **200 files, 17,444 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, 2026-11-22, dynamic keyboard bottom padding):
+> hook tracks keyboard height + exposes padding (79→126), scroll sequenced via
+> onContentSizeChange; Login 146→155, Signup 155→164, Setup 170→176.
+> Working tree: **200 files, 17,515 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -60,7 +63,7 @@
 | `src/app/(tabs)/search/[genre].tsx` | 4 | Route wrapper rendering `GenreScreen` |
 | `src/app/(tabs)/song/[id].tsx` | 4 | Route wrapper rendering `SongDeepLinkRouteScreen` |
 
-## `src/components` — 19 files, 2,227 lines
+## `src/components` — 19 files, 2,274 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -68,7 +71,7 @@
 | `src/components/AudioWave.tsx` | 94 | Audio waveform visual component † |
 | `src/components/GradientText.tsx` | 50 | Masked-view gradient text (used by library headers) † |
 | `src/components/RemoteSongListCard.tsx` | 375 | Swipeable song row with gesture-handler + haptics † |
-| `src/components/useKeyboardAwareScroll.ts` | 79 | Android-only focus-scroll hook: measured scroll of the focused input above the keyboard, safe-area-top compensated (auth + server) |
+| `src/components/useKeyboardAwareScroll.ts` | 126 | Android-only keyboard hook: live keyboard-height bottom padding + measured focus scroll sequenced after range growth (auth + server) |
 | `src/components/ui/accordion.tsx` | 141 | Accordion primitive over `@rn-primitives/accordion` † |
 | `src/components/ui/alert-dialog.tsx` | 158 | Alert-dialog primitive over `@rn-primitives/alert-dialog` † |
 | `src/components/ui/avatar.tsx` | 38 | Avatar/Image/Fallback primitives † |
@@ -126,7 +129,7 @@
 | `src/features/artwork-colors/hooks/useArtworkColors.ts` | 75 | Cache-seeded hook with stale-URL guard |
 | `src/features/artwork-colors/services/artworkColorService.ts` | 160 | Palette extraction + 150-entry LRU cache + fallback |
 
-## `src/features/auth` — 15 files, 918 lines
+## `src/features/auth` — 15 files, 936 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -139,8 +142,8 @@
 | `src/features/auth/hooks/useAuth.ts` | 39 | Stable-reference wrapper over `useAuthStore` |
 | `src/features/auth/hooks/useLogin.ts` | 44 | Login form state + validation + submit |
 | `src/features/auth/hooks/useSignup.ts` | 62 | Signup form state + validation + submit + redirect |
-| `src/features/auth/screens/LoginScreen.tsx` | 146 | Login form UI + back button to Server Setup review + keyboard-aware scroll wiring |
-| `src/features/auth/screens/SignupScreen.tsx` | 155 | Signup form UI + keyboard-aware scroll wiring |
+| `src/features/auth/screens/LoginScreen.tsx` | 155 | Login form UI + back button to Server Setup review + dynamic keyboard padding/scroll wiring |
+| `src/features/auth/screens/SignupScreen.tsx` | 164 | Signup form UI + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/store/authStore.ts` | 134 | Session state: login/signup/logout/`checkAuth`/`resetAuth` |
 | `src/features/auth/utils/tokenManager.ts` | 121 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh |
 | `src/features/auth/utils/tokenStorage.ts` | 32 | SecureStore token get/save/clear |
@@ -303,7 +306,7 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 10 files, 1,110 lines
+## `src/features/server` — 10 files, 1,116 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -312,7 +315,7 @@
 | `src/features/server/hooks/useServerSetup.ts` | 103 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed) |
 | `src/features/server/hooks/useServerSwitch.ts` | 138 | Switch form state + validate → confirm → shared `performServerSwitch()` |
 | `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server, prefilled edit, validate → confirm, inline states |
-| `src/features/server/screens/ServerSetupScreen.tsx` | 170 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + keyboard-aware scroll wiring |
+| `src/features/server/screens/ServerSetupScreen.tsx` | 176 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring |
 | `src/features/server/store/serverStore.ts` | 97 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration, `setApiServerUrl` apply |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverStorage.ts` | 47 | AsyncStorage `@sonic_server_url` get/set/clear with self-healing reads |
