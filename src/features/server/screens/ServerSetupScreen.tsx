@@ -1,8 +1,8 @@
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { Info, Server } from 'lucide-react-native';
-import React from 'react';
+import { Check, Info, Server } from 'lucide-react-native';
+import React, { useRef } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useServerSetup } from '../hooks/useServerSetup';
 
 export const ServerSetupScreen = () => {
+  const scrollRef = useRef<ScrollView>(null);
   const {
     url,
     setUrl,
@@ -22,7 +23,12 @@ export const ServerSetupScreen = () => {
     isConnecting,
     showLocalhostHint,
     handleConnect,
+    isUrlUnchanged,
   } = useServerSetup();
+
+  // The input already holds the verified, configured URL → continue with it.
+  // Anything else → validate + connect (first launch or a changed URL).
+  const connectLabel = isUrlUnchanged ? 'Continue' : 'Connect';
 
   return (
     <KeyboardAvoidingView
@@ -31,6 +37,7 @@ export const ServerSetupScreen = () => {
     >
       <SafeAreaView className="flex-1">
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{
             paddingHorizontal: 24,
             paddingBottom: 40,
@@ -97,7 +104,23 @@ export const ServerSetupScreen = () => {
                 returnKeyType="go"
                 onSubmitEditing={handleConnect}
                 editable={!isConnecting}
+                onFocus={() => {
+                  // The centered content doesn't reliably shift above the
+                  // keyboard on its own: scroll the input + CTA into view
+                  // once the keyboard layout has settled.
+                  setTimeout(() => {
+                    scrollRef.current?.scrollToEnd({ animated: true });
+                  }, 300);
+                }}
               />
+              {isUrlUnchanged ? (
+                <Icon
+                  as={Check}
+                  size={18}
+                  className="shrink-0 text-emerald-400"
+                  strokeWidth={2.5}
+                />
+              ) : null}
             </View>
             <Text className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
               Examples: https://backend-sonic.onrender.com ·{'\n'}
@@ -126,7 +149,7 @@ export const ServerSetupScreen = () => {
             onPress={handleConnect}
             disabled={isConnecting}
             accessibilityRole="button"
-            accessibilityLabel="Connect to server"
+            accessibilityLabel={connectLabel}
             accessibilityState={{ disabled: isConnecting, busy: isConnecting }}
             className="mt-5 h-[52px] w-full items-center justify-center rounded-md bg-amber-300"
             style={({ pressed }) => ({
@@ -142,7 +165,7 @@ export const ServerSetupScreen = () => {
               </View>
             ) : (
               <Text className="text-[15px] font-display text-secondary">
-                Connect
+                {connectLabel}
               </Text>
             )}
           </Pressable>

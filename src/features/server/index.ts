@@ -31,3 +31,5 @@ export {
   getStoredServerUrl,
   setStoredServerUrl,
 } from './utils/serverStorage';
+export { performServerSwitch } from './utils/serverSwitch';
+export type { ServerSwitchDeps } from './utils/serverSwitch';

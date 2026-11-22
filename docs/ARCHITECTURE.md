@@ -16,6 +16,19 @@
   `src/features/server/` (`ServerManagementScreen`, `useServerSwitch`; 2 files, 415 lines),
   +playback session-reset primitives (+106). Working tree: **197 files, 17,208 lines**.
   Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, Login → Server Setup review):
+  +`src/app/(auth)/server-setup.tsx` route (5 lines) + shared `performServerSwitch()`
+  (`src/features/server/utils/serverSwitch.ts`, 67 lines) extracted from `useServerSwitch`;
+  also records the earlier race-fix drift (+32 playback). Working tree:
+  **199 files, 17,341 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, contextual setup CTA):
+  `useServerSetup` 89→105 + `ServerSetupScreen` 171→180 (Login/Continue label).
+  Working tree: **199 files, 17,366 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, setup CTA + keyboard polish):
+  no back button, Continue + green check when the configured URL is untouched,
+  focus scrolls the input above the keyboard. `useServerSetup` 105→103,
+  `ServerSetupScreen` 180→176. Working tree: **199 files, 17,360 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -49,7 +62,7 @@ Directories that intentionally DO NOT exist: `android/`, `ios/` (managed prebuil
 | JS entry | `package.json` main `expo-router/entry` | Expo Router bootstrap |
 | Root layout | `src/app/_layout.tsx` | Providers, `VersionGuard`, `ServerGuard`, `AuthGuard`, `Stack`, `setupPlayer()` (via `ServerGuard`), background handler registration |
 | Default route | `src/app/index.tsx` | Redirects to `/login`; guard decides final destination |
-| Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` | Unauthenticated stack |
+| Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` + `server-setup.tsx` | Unauthenticated stack |
 | Tabs group | `src/app/(tabs)/_layout.tsx` | Custom tab bar (Home, Search, Library, Processing) + hidden routes |
 | Home nested | `src/app/(tabs)/home/_layout.tsx` | Feed/Recents header + nested stack (`index`, `recents`) |
 | Search nested | `src/app/(tabs)/search/_layout.tsx` | Nested stack (`index`, `[genre]`) |
@@ -85,7 +98,8 @@ src/
 │   ├── (auth)/
 │   │   ├── _layout.tsx           # auth stack (login, signup)
 │   │   ├── login.tsx             # → LoginScreen
-│   │   └── signup.tsx            # → SignupScreen
+│   │   ├── signup.tsx            # → SignupScreen
+│   │   └── server-setup.tsx      # → ServerSetupScreen (review mode)
 │   └── (tabs)/
 │       ├── _layout.tsx           # custom tab bar + hidden-route registration
 │       ├── library.tsx           # → LibraryScreen
@@ -211,6 +225,7 @@ src/features/
 │   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts
 │   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
 │   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverStorage.ts
+│   └── utils/serverSwitch.ts  # shared performServerSwitch()
 ├── settings/                     # Settings hub (3 files)
 │   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx
 └── song/                         # deep links + sharing (2 files)
@@ -237,7 +252,7 @@ src/features/
 | `profile` | Account display + logout entry | Auth mechanics (owned by `auth`) |
 | `search` | iTunes search, genre surface, search history/recents | Playback (calls `usePlayer`) |
 | `settings` | Settings hub list UI only (`SettingsScreen` + `SettingsRow`); links out to owning features | Account UI (owned by `profile`), server UI/logic (owned by `server`) |
-| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state, Server Management screen + switch orchestration (`useServerSwitch`, incl. the atomic session reset) | Auth session mechanics, playback engine internals (both called, not owned) |
+| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state, Server Management screen + switch orchestration (`performServerSwitch`, incl. the atomic session reset) | Auth session mechanics, playback engine internals (both called, not owned) |
 | `song` | Deep-link resolution + share-link building | Player UI |
 
 Known boundary crossings (do not widen without an ADR): `library` invalidates `collections` query keys;
@@ -263,29 +278,29 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | Area | Files | Lines |
 |------|------:|------:|
 | `src/api` | 1 | 225 |
-| `src/app` | 22 | 650 |
+| `src/app` | 23 | 656 |
 | `src/components` | 18 | 2,148 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 893 |
+| `src/features/auth` | 15 | 907 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 4,025 |
+| `src/features/playback` | 39 | 4,057 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 9 | 1,016 |
+| `src/features/server` | 10 | 1,116 |
 | `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **197** | **17,208** |
+| **Total** | **199** | **17,360** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),

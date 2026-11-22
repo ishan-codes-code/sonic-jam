@@ -1,17 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/features/auth/store/authStore';
-import { tokenStorage } from '@/features/auth/utils/tokenStorage';
-import { cancelAllJobPolling } from '@/features/playback/services/pollingResolver';
-import { setProgressSyncToken } from '@/features/playback/hooks/useProgressSyncAuth';
 import { usePlayer } from '@/features/playback/hooks/usePlayer';
-import { recreatePlayer } from '@/features/playback/services/playerSetup';
-import {
-  cancelSmartQueueWork,
-  resetSmartQueueRadio,
-} from '@/features/playback/services/smartQueueService';
-import { resetPlaybackRecovery } from '@/features/playback/components/PlaybackSync';
-import { useJobStore } from '@/features/playback/store/useJobStore';
 import { toastImperative } from '@/features/Toast/utils/toastSingleton';
 import { checkServerConnection } from '../api/serverValidation';
 import { useServerStore } from '../store/serverStore';
@@ -20,6 +9,7 @@ import {
   normalizeServerUrl,
   validateServerUrl,
 } from '../utils/serverConfig';
+import { performServerSwitch } from '../utils/serverSwitch';
 
 export type ServerSwitchPhase =
   | 'editing'
@@ -41,7 +31,6 @@ export type ServerSwitchPhase =
  */
 export function useServerSwitch() {
   const currentUrl = useServerStore((s) => s.serverUrl);
-  const setServer = useServerStore((s) => s.setServer);
   const queryClient = useQueryClient();
   const { stop } = usePlayer();
 
@@ -107,38 +96,11 @@ export function useServerSwitch() {
     setFieldError(null);
 
     try {
-      // 1. Invalidate old-server work synchronously, before the first await,
-      //    so nothing in flight can land once the switch begins (poll loops
-      //    throw a filtered cancellation error; radio/recovery check theirs).
-      cancelAllJobPolling();
-      cancelSmartQueueWork();
-      resetSmartQueueRadio();
-      useJobStore.getState().clearJobs();
-      resetPlaybackRecovery();
-
-      // 2. Stop playback via the same path AuthGuard uses on logout
-      //    (native stop + queue clear + playback store reset incl. trackMap).
-      //    RNTP v5 stop()/clear() are synchronous, so teardown dispatches in
-      //    order; the await sequences it before the reset steps below.
-      await stop();
-
-      // 3. Clear the native progress-sync auth header.
-      await setProgressSyncToken(null);
-
-      // 4. Drop every server-derived React Query cache entry.
-      queryClient.clear();
-
-      // 5. End the old-server session (same sequence as the 401 interceptor).
-      await tokenStorage.clearTokens();
-      useAuthStore.getState().resetAuth();
-
-      // 6. Persist + apply the new server only now that nothing old remains.
-      await setServer(validatedUrl);
-
-      // 7. Re-point the native player (incl. the baked progress-sync URL) at
-      //    the new server. Best-effort: a failure leaves the setup guard open
-      //    so the next ensureSetup() retries.
-      await recreatePlayer();
+      // Shared atomic switch (ADR 0002): reset → setServer → recreatePlayer.
+      await performServerSwitch(validatedUrl, {
+        queryClient,
+        stopPlayback: stop,
+      });
 
       toastImperative.show({
         type: 'success',

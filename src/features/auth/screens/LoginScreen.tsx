@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,6 +42,19 @@ export const LoginScreen = () => {
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets={true}
     >
+          {/* Back to the Server Setup review (prefilled, editable) */}
+          <View className="mb-2 flex-row items-center pt-2">
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Back to server setup"
+              activeOpacity={0.8}
+              onPress={() => router.push('/server-setup')}
+              className="h-11 w-11 items-center justify-center rounded-xl border border-white/5 bg-card"
+            >
+              <Icon as={ArrowLeft} size={24} className="text-foreground" />
+            </TouchableOpacity>
+          </View>
+
           <AuthHeader
             title="Welcome back"
             subtitle="Sign in to continue your sonic journey."
