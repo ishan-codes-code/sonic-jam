@@ -4,7 +4,27 @@
 > Total: **183 files, 15,855 lines** under `src/`.
 > Structural delta (uncommitted, 2026-11-21): +`src/features/server/` (7 files, 598 lines);
 > `apiClient.ts` 205→225, `_layout.tsx` 281→320, `playerSetup.ts` 61→66.
-> Working tree: **190 files, 16,517 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, 2026-11-22, Settings hub + Server Management):
+> +`src/features/settings/` (3 files, 155 lines), +`src/app/(tabs)/settings/` (3 files, 15 lines)
+> replacing `src/app/(tabs)/profile/index.tsx`, +`ServerManagementScreen` (241) +
+> `useServerSwitch` (174) in `src/features/server/`, +playback reset primitives (+106).
+> Structural delta (uncommitted, 2026-11-22, Login → Server Setup review):
+> +`src/app/(auth)/server-setup.tsx` (5) +`utils/serverSwitch.ts` (67, extracted from
+> `useServerSwitch` 174→138); also records earlier race-fix drift (+32 playback).
+> Structural delta (uncommitted, 2026-11-22, contextual setup CTA):
+> `useServerSetup` 89→105 + `ServerSetupScreen` 171→180 (Login/Continue label).
+> Structural delta (uncommitted, 2026-11-22, setup CTA + keyboard polish):
+> no back button, Continue + green check when untouched, focus scrolls input up.
+> `useServerSetup` 105→103, `ServerSetupScreen` 180→176.
+> Structural delta (uncommitted, 2026-11-22, Android keyboard-aware scroll):
+> +`useKeyboardAwareScroll.ts` (65, shared auth + server); Login 141→146,
+> Signup 149→155, ServerSetupScreen 176→170 (blind scrollToEnd removed).
+> Structural delta (uncommitted, 2026-11-22, keyboard-scroll geometry fix):
+> safe-area-top compensation in the hook (65→79).
+> Structural delta (uncommitted, 2026-11-22, dynamic keyboard bottom padding):
+> hook tracks keyboard height + exposes padding (79→126), scroll sequenced via
+> onContentSizeChange; Login 146→155, Signup 155→164, Setup 170→176.
+> Working tree: **200 files, 17,515 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -15,7 +35,7 @@
 |------|------:|----------------|
 | `src/api/apiClient.ts` | 225 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue, global toasts |
 
-## `src/app` — 20 files, 638 lines
+## `src/app` — 23 files, 656 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -23,10 +43,11 @@
 | `src/app/index.tsx` | 9 | Default route redirect to `/login` |
 | `src/app/player.tsx` | 4 | Route wrapper rendering `PlayerScreen` as full-screen modal |
 | `src/app/notification.click.tsx` | 7 | Notification-tap bounce route redirecting to `/player` |
-| `src/app/(auth)/_layout.tsx` | 10 | Auth stack layout (`login`, `signup`) |
+| `src/app/(auth)/_layout.tsx` | 11 | Auth stack layout (`login`, `signup`, `server-setup`) |
 | `src/app/(auth)/login.tsx` | 5 | Route wrapper rendering `LoginScreen` |
 | `src/app/(auth)/signup.tsx` | 5 | Route wrapper rendering `SignupScreen` |
-| `src/app/(tabs)/_layout.tsx` | 154 | Custom tab bar (Home/Search/Library/Processing) + hidden-route registration |
+| `src/app/(auth)/server-setup.tsx` | 5 | Route wrapper rendering `ServerSetupScreen` (Login review mode) |
+| `src/app/(tabs)/_layout.tsx` | 156 | Custom tab bar (Home/Search/Library/Processing) + hidden-route registration |
 | `src/app/(tabs)/library.tsx` | 4 | Route wrapper rendering `LibraryScreen` |
 | `src/app/(tabs)/processing.tsx` | 5 | Route wrapper rendering `ProcessingScreen` |
 | `src/app/(tabs)/about/developers.tsx` | 4 | Route wrapper rendering `DeveloperScreen` |
@@ -34,13 +55,15 @@
 | `src/app/(tabs)/home/_layout.tsx` | 42 | Feed/Recents `TabHeader` + nested stack (`index`, `recents`) |
 | `src/app/(tabs)/home/index.tsx` | 20 | Feed tab: renders `HomeFeedScreen` with `play()` wiring |
 | `src/app/(tabs)/home/recents.tsx` | 6 | Recents tab: renders `HistoryScreen` |
-| `src/app/(tabs)/profile/index.tsx` | 5 | Route wrapper rendering `ProfileScreen` |
+| `src/app/(tabs)/settings/index.tsx` | 5 | Route wrapper rendering `SettingsScreen` (hub) |
+| `src/app/(tabs)/settings/account.tsx` | 5 | Route wrapper rendering `ProfileScreen` |
+| `src/app/(tabs)/settings/server.tsx` | 5 | Route wrapper rendering `ServerManagementScreen` |
 | `src/app/(tabs)/search/_layout.tsx` | 14 | Search nested-stack shell |
 | `src/app/(tabs)/search/index.tsx` | 11 | Toggles `SearchScreen` ↔ `SearchFocusScreen` on focus state |
 | `src/app/(tabs)/search/[genre].tsx` | 4 | Route wrapper rendering `GenreScreen` |
 | `src/app/(tabs)/song/[id].tsx` | 4 | Route wrapper rendering `SongDeepLinkRouteScreen` |
 
-## `src/components` — 18 files, 2,148 lines
+## `src/components` — 19 files, 2,274 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -48,6 +71,7 @@
 | `src/components/AudioWave.tsx` | 94 | Audio waveform visual component † |
 | `src/components/GradientText.tsx` | 50 | Masked-view gradient text (used by library headers) † |
 | `src/components/RemoteSongListCard.tsx` | 375 | Swipeable song row with gesture-handler + haptics † |
+| `src/components/useKeyboardAwareScroll.ts` | 126 | Android-only keyboard hook: live keyboard-height bottom padding + measured focus scroll sequenced after range growth (auth + server) |
 | `src/components/ui/accordion.tsx` | 141 | Accordion primitive over `@rn-primitives/accordion` † |
 | `src/components/ui/alert-dialog.tsx` | 158 | Alert-dialog primitive over `@rn-primitives/alert-dialog` † |
 | `src/components/ui/avatar.tsx` | 38 | Avatar/Image/Fallback primitives † |
@@ -105,7 +129,7 @@
 | `src/features/artwork-colors/hooks/useArtworkColors.ts` | 75 | Cache-seeded hook with stale-URL guard |
 | `src/features/artwork-colors/services/artworkColorService.ts` | 160 | Palette extraction + 150-entry LRU cache + fallback |
 
-## `src/features/auth` — 15 files, 893 lines
+## `src/features/auth` — 15 files, 936 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -118,8 +142,8 @@
 | `src/features/auth/hooks/useAuth.ts` | 39 | Stable-reference wrapper over `useAuthStore` |
 | `src/features/auth/hooks/useLogin.ts` | 44 | Login form state + validation + submit |
 | `src/features/auth/hooks/useSignup.ts` | 62 | Signup form state + validation + submit + redirect |
-| `src/features/auth/screens/LoginScreen.tsx` | 127 | Login form UI |
-| `src/features/auth/screens/SignupScreen.tsx` | 149 | Signup form UI † |
+| `src/features/auth/screens/LoginScreen.tsx` | 155 | Login form UI + back button to Server Setup review + dynamic keyboard padding/scroll wiring |
+| `src/features/auth/screens/SignupScreen.tsx` | 164 | Signup form UI + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/store/authStore.ts` | 134 | Session state: login/signup/logout/`checkAuth`/`resetAuth` |
 | `src/features/auth/utils/tokenManager.ts` | 121 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh |
 | `src/features/auth/utils/tokenStorage.ts` | 32 | SecureStore token get/save/clear |
@@ -198,7 +222,7 @@
 |------|------:|----------------|
 | `src/features/miniplayer/screens/MiniplayerScreen.tsx` | 194 | Persistent mini player (artwork, toggle, progress, playlist shortcut) |
 
-## `src/features/playback` — 39 files, 3,919 lines
+## `src/features/playback` — 39 files, 4,057 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -210,23 +234,23 @@
 | `src/features/playback/api/playbackApi.ts` | 42 | `resolveStream()`: ready-vs-job dispatch + payload validation |
 | `src/features/playback/api/recommendationApi.ts` | 51 | `getRecommendations()` mapping + silent `[]` on error |
 | `src/features/playback/hooks/index.ts` | 2 | Re-exports `usePlayer`, `useSmartQueue` |
-| `src/features/playback/hooks/usePlayer.ts` | 554 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file) |
+| `src/features/playback/hooks/usePlayer.ts` | 562 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation |
 | `src/features/playback/hooks/useProgressSyncAuth.ts` | 50 | Native progress-sync header auth (`setProgressSyncToken` + hook) |
 | `src/features/playback/hooks/useSmartQueue.ts` | 26 | Transition listener + `loadRecommendations()` trigger |
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
-| `src/features/playback/services/index.ts` | 11 | Service barrel (named exports) |
+| `src/features/playback/services/index.ts` | 17 | Service barrel (named exports) |
 | `src/features/playback/services/jobResolver.ts` | 13 | `resolveJob()` abstraction over polling |
-| `src/features/playback/services/playerSetup.ts` | 66 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) |
-| `src/features/playback/services/pollingResolver.ts` | 162 | `pollJobStatus()` backoff loop with busy/retryAfter handling |
+| `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
+| `src/features/playback/services/pollingResolver.ts` | 208 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
-| `src/features/playback/services/smartQueueService.ts` | 422 | Radio pipeline: recommend → enrich → resolve → fill native queue |
+| `src/features/playback/services/smartQueueService.ts` | 444 | Radio pipeline: recommend → enrich → resolve → fill native queue + generation-guarded `cancelSmartQueueWork()` |
 | `src/features/playback/services/trackPlayerService.ts` | 84 | Headless `PlaybackService`: remote controls + background transition |
 | `src/features/playback/store/index.ts` | 3 | Re-exports the three playback stores |
-| `src/features/playback/store/useJobStore.ts` | 71 | Job registry (`waiting/active/completed/failed`) |
+| `src/features/playback/store/useJobStore.ts` | 77 | Job registry (`waiting/active/completed/failed`) + `clearJobs()` for session reset |
 | `src/features/playback/store/usePlaybackStore.ts` | 195 | Core playback state + `trackMap` mirror |
 | `src/features/playback/store/useSmartQueueStore.ts` | 122 | Smart-queue tracks + cancel/init/append state |
 | `src/features/playback/components/index.ts` | 1 | Re-exports `PlaybackSync` |
-| `src/features/playback/components/PlaybackSync.tsx` | 291 | Foreground native→store sync + error recovery + transition handling |
+| `src/features/playback/components/PlaybackSync.tsx` | 318 | Foreground native→store sync + generation-guarded error recovery + transition handling + `resetPlaybackRecovery()` |
 | `src/features/playback/components/PlaybackLoadingIndicator.tsx` | 73 | Circular/job progress loading indicators † |
 | `src/features/playback/components/PlayerArtwork.tsx` | 38 | Hero artwork view † |
 | `src/features/playback/components/PlayerBackground.tsx` | 25 | Dynamic gradient background † |
@@ -282,17 +306,28 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 7 files, 598 lines
+## `src/features/server` — 10 files, 1,116 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 30 | Barrel (screen, hook, store, validation, config/storage utils) |
+| `src/features/server/index.ts` | 35 | Barrel (screens, hooks, store, validation, config/storage/switch utils) |
 | `src/features/server/api/serverValidation.ts` | 97 | `checkServerConnection()`: unauthenticated `/auth/me` 401-probe with timeout, inline failure codes |
-| `src/features/server/hooks/useServerSetup.ts` | 59 | Setup form state + validate → check → save connect flow |
-| `src/features/server/screens/ServerSetupScreen.tsx` | 153 | First-launch "Connect your server" screen (Sonic dark/amber idiom) |
+| `src/features/server/hooks/useServerSetup.ts` | 103 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed) |
+| `src/features/server/hooks/useServerSwitch.ts` | 138 | Switch form state + validate → confirm → shared `performServerSwitch()` |
+| `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server, prefilled edit, validate → confirm, inline states |
+| `src/features/server/screens/ServerSetupScreen.tsx` | 176 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring |
 | `src/features/server/store/serverStore.ts` | 97 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration, `setApiServerUrl` apply |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverStorage.ts` | 47 | AsyncStorage `@sonic_server_url` get/set/clear with self-healing reads |
+| `src/features/server/utils/serverSwitch.ts` | 67 | Shared `performServerSwitch()`: atomic session reset → `setServer` → player recreate |
+
+## `src/features/settings` — 3 files, 155 lines
+
+| File | Lines | Responsibility |
+|------|------:|----------------|
+| `src/features/settings/index.ts` | 6 | Barrel (screen + row component) |
+| `src/features/settings/components/SettingsRow.tsx` | 83 | Reusable settings row: icon tile, label, description, chevron |
+| `src/features/settings/screens/SettingsScreen.tsx` | 66 | Settings hub: Account & Profile + Server Management entries |
 
 ## `src/features/song` — 2 files, 254 lines
 

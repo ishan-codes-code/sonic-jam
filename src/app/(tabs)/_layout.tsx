@@ -145,7 +145,9 @@ export default function TabLayout() {
       <Tabs.Screen name="search" />
       <Tabs.Screen name="library" />
       <Tabs.Screen name="processing" />
-      <Tabs.Screen name="profile/index" options={{ href: null }} />
+      <Tabs.Screen name="settings/index" options={{ href: null }} />
+      <Tabs.Screen name="settings/account" options={{ href: null }} />
+      <Tabs.Screen name="settings/server" options={{ href: null }} />
       <Tabs.Screen name="collections/[id]" options={{ href: null }} />
       <Tabs.Screen name="about/developers" options={{ href: null }} />
       <Tabs.Screen name="song/[id]" options={{ href: null }} />

@@ -41,3 +41,20 @@ no cancellation, smart radio depends on `/recommend`, and the native progress-sy
   operates on one consistent server.
 - Negative: depends on an unverified native API; the fallback (restart) hurts UX and must be an
   explicit product decision, not an accident.
+
+## Implementation note (2026-11-22, Settings hub + Server Management)
+
+Implemented alongside ADR 0002 in `useServerSwitch.ts`:
+
+- Decision 1: the switch calls `stop()` first (native stop + queue clear + playback store
+  reset incl. `trackMap`); playback never migrates.
+- Decision 2: the native queue is cleared, never rebuilt — queued intents would re-resolve
+  via `POST /song/play` on next play. No stream URLs or `playbackToken`s cross over.
+- Decision 3: verified — `@rntp/player` v5 exposes `destroy()` ("call `setupPlayer()`
+  again to use the player") but no progress-sync URL update. New `recreatePlayer()` in
+  `playerSetup.ts` (destroy + guard reset + `setupPlayer()`) re-points progress sync at
+  the new server during the switch, so no restart fallback or stale-URL limitation
+  remains. A failed re-setup leaves the guard open for the next `ensureSetup()` retry.
+- Decision 4: `pollJobStatus()` gained a generation guard (`cancelAllJobPolling()` +
+  `JobPollingCancelledError`, silently ignored by every `usePlayer` resolve site), and
+  smart-queue fetches gained `cancelSmartQueueWork()` with post-fetch generation checks.

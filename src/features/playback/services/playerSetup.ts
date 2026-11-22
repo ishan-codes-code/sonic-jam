@@ -39,6 +39,29 @@ function buildPlayerConfig(): PlayerConfig {
   };
 }
 
+/**
+ * Tears down the native player and sets it up again with the CURRENT runtime
+ * server URL. Used only by the server-switch session reset: @rntp/player
+ * exposes no progress-sync URL update API, so recreate is the only way to
+ * re-point progress sync (headers alone are updatable via
+ * setProgressSyncToken). Callers must stop playback and clear the queue first.
+ * A failed re-setup clears the guard so the next ensureSetup() retries.
+ *
+ * Sequencing note: every @rntp/player v5 control API is synchronous `void`
+ * (verified in audio.d.ts + the TurboModule spec), so destroy() dispatches
+ * before setupPlayer() in call order; the await yields between the two
+ * dispatches. There is no native completion handle to wait on.
+ */
+export async function recreatePlayer(): Promise<boolean> {
+  try {
+    await TrackPlayer.destroy();
+  } catch (error) {
+    console.error("[playerSetup] Failed to destroy TrackPlayer:", error);
+  }
+  isSetup = false;
+  return setupPlayer();
+}
+
 export async function setupPlayer(): Promise<boolean> {
   if (isSetup) return true;
 
