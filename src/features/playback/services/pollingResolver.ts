@@ -19,6 +19,16 @@ export function cancelAllJobPolling(): void {
   pollingGeneration++;
 }
 
+/**
+ * Current polling generation. Stream resolution captures this BEFORE its
+ * initial `/songs/play` request and passes it back into pollJobStatus(), so a
+ * pre-poll response that arrives after a server switch is rejected instead of
+ * starting a poll (or resurrecting job state) for the new session.
+ */
+export function getPollingGeneration(): number {
+  return pollingGeneration;
+}
+
 export class JobPollingCancelledError extends Error {
   constructor() {
     super('Job polling cancelled (server switched)');
@@ -66,11 +76,24 @@ function getNextPollInterval(pollCount: number): number {
 
 // ─── Implementation ─────────────────────────────────────────────────────────
 
-export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
+export async function pollJobStatus(
+  jobId: string,
+  expectedGeneration?: number,
+): Promise<ResolvedStream> {
   let startTime = Date.now();
   let pollCount = 0;
   const jobStore = useJobStore.getState();
   const generation = pollingGeneration;
+
+  // The resolve operation started before the initial `/songs/play` request on
+  // an older generation: the server switched mid-flight. Reject before any
+  // poll or job-store write can touch the new session.
+  if (
+    expectedGeneration !== undefined &&
+    expectedGeneration !== generation
+  ) {
+    throw new JobPollingCancelledError();
+  }
 
   while (Date.now() - startTime < MAX_TIMEOUT) {
     if (generation !== pollingGeneration) {

@@ -90,6 +90,17 @@ export function useKeyboardAwareScroll() {
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android') return;
+      // The listeners below only fire while this route is focused, so a
+      // show/hide that happened on another route leaves this screen's padding
+      // stale. Re-sync from the live keyboard metrics on every refocus.
+      const metrics = Keyboard.metrics();
+      if (metrics != null && metrics.height > 0) {
+        keyboardOpenRef.current = true;
+        setKeyboardHeight(metrics.height);
+      } else {
+        keyboardOpenRef.current = false;
+        setKeyboardHeight(0);
+      }
       const showSubscription = Keyboard.addListener(
         'keyboardDidShow',
         (event) => {

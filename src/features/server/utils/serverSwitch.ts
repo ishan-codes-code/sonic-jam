@@ -11,6 +11,7 @@ import {
 import { useJobStore } from '@/features/playback/store/useJobStore';
 import type { QueryClient } from '@tanstack/react-query';
 import { useServerStore } from '../store/serverStore';
+import { invalidateSession } from './sessionGeneration';
 
 export interface ServerSwitchDeps {
   queryClient: QueryClient;
@@ -34,7 +35,10 @@ export async function performServerSwitch(
 ): Promise<void> {
   // 1. Invalidate old-server work synchronously, before the first await,
   //    so nothing in flight can land once the switch begins (poll loops
-  //    throw a filtered cancellation error; radio/recovery check theirs).
+  //    throw a filtered cancellation error; radio/recovery check theirs;
+  //    in-flight token refreshes see the bumped session generation and skip
+  //    every write to the new session).
+  invalidateSession();
   cancelAllJobPolling();
   cancelSmartQueueWork();
   resetSmartQueueRadio();

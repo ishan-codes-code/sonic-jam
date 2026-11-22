@@ -1,5 +1,6 @@
 import { tokenStorage } from './tokenStorage';
 import { BASE_URL } from '@/api/apiClient';
+import { getSessionGeneration } from '@/features/server/utils/sessionGeneration';
 
 // Buffer time (in ms) before actual expiry to treat the token as expired.
 // This prevents edge cases where the token expires mid-request.
@@ -46,6 +47,12 @@ export function isTokenExpired(expiryMs: number): boolean {
 let refreshPromise: Promise<string | null> | null = null;
 
 async function doRefresh(): Promise<string | null> {
+  // A server switch mid-refresh must not let Server A's result touch Server
+  // B's session. Every await below yields to the event loop, so the check is
+  // repeated before each write, not just once here.
+  const refreshGeneration = getSessionGeneration();
+  const isStale = () => refreshGeneration !== getSessionGeneration();
+
   try {
     const refreshToken = await tokenStorage.getRefreshToken();
     if (!refreshToken) return null;
@@ -57,6 +64,10 @@ async function doRefresh(): Promise<string | null> {
     });
 
     if (!response.ok) {
+      if (isStale()) {
+        // A stale refresh failing must never log out the new session.
+        return null;
+      }
       // Refresh failed — force logout via authStore
       const { useAuthStore } = await import('../store/authStore');
       useAuthStore.getState().resetAuth();
@@ -69,12 +80,24 @@ async function doRefresh(): Promise<string | null> {
       refreshToken: string;
     };
 
+    if (isStale()) {
+      // Server A's tokens must never land in Server B's session.
+      return null;
+    }
     await tokenStorage.saveTokens(data.accessToken, data.refreshToken);
+
+    if (isStale()) {
+      // The switch landed inside the save above: undo our own write (a
+      // switched-to session holds no tokens yet, so these can only be ours).
+      await tokenStorage.clearTokens().catch(() => null);
+      return null;
+    }
 
     // Keep the native player's progressSync headers up to date
     const { setProgressSyncToken } = await import(
       '@/features/playback/hooks/useProgressSyncAuth'
     );
+    if (isStale()) return null;
     await setProgressSyncToken(data.accessToken);
 
     return data.accessToken;

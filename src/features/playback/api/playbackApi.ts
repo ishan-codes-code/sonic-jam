@@ -1,5 +1,9 @@
 import type { PlaySongDto, PlayResponseDto, ResolvedStream } from "../types";
 import { resolveJob } from "../services/jobResolver";
+import {
+  getPollingGeneration,
+  JobPollingCancelledError,
+} from "../services/pollingResolver";
 import { playbackApi } from "./playback.api";
 
 export async function resolveStream(
@@ -25,11 +29,21 @@ export async function resolveStream(
       );
     }
   }
+  // Capture before the initial network request: a server switch that lands
+  // while `/songs/play` is in flight must invalidate this whole operation.
+  const generation = getPollingGeneration();
   const response: PlayResponseDto = await playbackApi.play(payload);
+
+  // Stale Server A response: reject before it can start polling, register a
+  // job, or hand a foreign stream to the new session. Callers already let
+  // JobPollingCancelledError through silently (see usePlayer).
+  if (generation !== getPollingGeneration()) {
+    throw new JobPollingCancelledError();
+  }
 
   if (response.type === "job") {
     options?.onJob?.(response.jobId);
-    return resolveJob(response.jobId);
+    return resolveJob(response.jobId, generation);
   }
 
   // response.type === 'ready'

@@ -13,23 +13,21 @@ import { normalizeServerUrl } from './serverConfig';
 const SERVER_URL_KEY = '@sonic_server_url';
 
 /**
- * Read the persisted server URL. Returns null when nothing is stored, the
- * value is malformed (self-heals by clearing it), or storage is unavailable.
+ * Read the persisted server URL. Returns null only when nothing is stored or
+ * the value is malformed (self-heals by clearing it). THROWS when storage
+ * itself fails, so callers can tell "no server configured" apart from "the
+ * stored server could not be read" and must not migrate over an unread URL.
  */
 export async function getStoredServerUrl(): Promise<string | null> {
-  try {
-    const raw = await AsyncStorage.getItem(SERVER_URL_KEY);
-    if (!raw) return null;
+  const raw = await AsyncStorage.getItem(SERVER_URL_KEY);
+  if (!raw) return null;
 
-    const normalized = normalizeServerUrl(raw);
-    if (!normalized) {
-      await AsyncStorage.removeItem(SERVER_URL_KEY).catch(() => {});
-      return null;
-    }
-    return normalized;
-  } catch {
+  const normalized = normalizeServerUrl(raw);
+  if (!normalized) {
+    await AsyncStorage.removeItem(SERVER_URL_KEY).catch(() => {});
     return null;
   }
+  return normalized;
 }
 
 /** Persist the (already normalized) server URL. Throws when storage fails. */
