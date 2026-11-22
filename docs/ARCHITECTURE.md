@@ -43,6 +43,14 @@
   is sequenced after the range grows via onContentSizeChange. Login 146→155,
   Signup 155→164, ServerSetupScreen 170→176. Working tree:
   **200 files, 17,515 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, PR #10 review races):
+  +`utils/sessionGeneration.ts` (23); refresh guards (`apiClient` 225→260,
+  `tokenManager` 121→144), pre-request polling capture (`pollingResolver`
+  208→231, `playbackApi` 42→56, `jobResolver` 13→16), `serverStore` 97→122
+  (first-time stale-token clear, storage-failure safe load), `serverStorage`
+  47→45, `serverValidation` 97→112, `useServerSetup` 103→124, hook 126→137,
+  `serverSwitch` 67→71, `index` 35→39. Working tree:
+  **201 files, 17,714 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -235,12 +243,13 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
-├── server/                       # runtime server config + setup/switch UI (9 files)
+├── server/                       # runtime server config + setup/switch UI (11 files)
 │   ├── index.ts  api/serverValidation.ts
 │   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts
 │   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
 │   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverStorage.ts
-│   └── utils/serverSwitch.ts  # shared performServerSwitch()
+│   ├── utils/serverSwitch.ts  # shared performServerSwitch()
+│   └── utils/sessionGeneration.ts  # refresh invalidation counter
 ├── settings/                     # Settings hub (3 files)
 │   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx
 └── song/                         # deep links + sharing (2 files)
@@ -267,7 +276,7 @@ src/features/
 | `profile` | Account display + logout entry | Auth mechanics (owned by `auth`) |
 | `search` | iTunes search, genre surface, search history/recents | Playback (calls `usePlayer`) |
 | `settings` | Settings hub list UI only (`SettingsScreen` + `SettingsRow`); links out to owning features | Account UI (owned by `profile`), server UI/logic (owned by `server`) |
-| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state, Server Management screen + switch orchestration (`performServerSwitch`, incl. the atomic session reset) | Auth session mechanics, playback engine internals (both called, not owned) |
+| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state, Server Management screen + switch orchestration (`performServerSwitch` + session generation, incl. the atomic session reset) | Auth session mechanics, playback engine internals (both called, not owned) |
 | `song` | Deep-link resolution + share-link building | Player UI |
 
 Known boundary crossings (do not widen without an ADR): `library` invalidates `collections` query keys;
@@ -292,30 +301,30 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Area | Files | Lines |
 |------|------:|------:|
-| `src/api` | 1 | 225 |
+| `src/api` | 1 | 260 |
 | `src/app` | 23 | 656 |
-| `src/components` | 19 | 2,274 |
+| `src/components` | 19 | 2,285 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 936 |
+| `src/features/auth` | 15 | 959 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 4,057 |
+| `src/features/playback` | 39 | 4,097 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 10 | 1,116 |
+| `src/features/server` | 11 | 1,206 |
 | `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **200** | **17,515** |
+| **Total** | **201** | **17,714** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),

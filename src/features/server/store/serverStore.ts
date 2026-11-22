@@ -38,7 +38,16 @@ let loadPromise: Promise<void> | null = null;
 async function doLoad(): Promise<void> {
   const set = useServerStore.setState;
 
-  const stored = await getStoredServerUrl();
+  let stored: string | null;
+  try {
+    stored = await getStoredServerUrl();
+  } catch {
+    // Storage is unreadable: the stored URL may still exist, so never run the
+    // migration below — persisting the baked URL now could overwrite the
+    // user's real server. Stay unconfigured without writing anything.
+    set({ serverUrl: null, status: 'unconfigured' });
+    return;
+  }
   if (stored) {
     setApiServerUrl(stored);
     set({ serverUrl: stored, status: 'configured' });
@@ -82,6 +91,22 @@ export const useServerStore = create<ServerState>((set) => ({
     const normalized = normalizeServerUrl(serverUrl);
     if (!normalized) {
       throw new Error('Invalid server URL.');
+    }
+    if (useServerStore.getState().serverUrl === null) {
+      // First-time setup: any stored tokens predate this server — they linger
+      // from a previous install/session whose server record is gone — so drop
+      // them before applying the new server instead of letting the boot auth
+      // check offer them to a stranger. The upgrade migration never passes
+      // through here (doLoad persists directly), and switches arrive already
+      // configured after performServerSwitch cleared the old session, so
+      // valid credentials are never cleared by this branch.
+      await tokenStorage.clearTokens();
+      // Lazy import: the server store already sits below apiClient, so a
+      // static authStore import would risk a cycle (authApi -> apiClient).
+      const { useAuthStore } = await import(
+        '@/features/auth/store/authStore'
+      );
+      useAuthStore.getState().resetAuth();
     }
     // Persist first: a save failure must not leave the app pointed at a
     // server it will forget on restart.

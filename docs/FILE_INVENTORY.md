@@ -24,7 +24,15 @@
 > Structural delta (uncommitted, 2026-11-22, dynamic keyboard bottom padding):
 > hook tracks keyboard height + exposes padding (79→126), scroll sequenced via
 > onContentSizeChange; Login 146→155, Signup 155→164, Setup 170→176.
-> Working tree: **200 files, 17,515 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, 2026-11-22, PR #10 review races):
+> +`utils/sessionGeneration.ts` (23); `apiClient` 225→260 + `tokenManager`
+> 121→144 (session-generation refresh guards); `pollingResolver` 208→231 +
+> `playbackApi` 42→56 + `jobResolver` 13→16 (pre-request generation capture);
+> `serverStore` 97→122 (first-time stale-token clear, storage-failure safe
+> load); `serverStorage` 47→45 (reads throw on failure); `serverValidation`
+> 97→112 (NestJS-shape identity check); `useServerSetup` 103→124 (attempt
+> guards); hook 126→137 (focus re-sync); `serverSwitch` 67→71, `index` 35→39.
+> Working tree: **201 files, 17,714 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -33,7 +41,7 @@
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/api/apiClient.ts` | 225 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue, global toasts |
+| `src/api/apiClient.ts` | 260 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (session-generation guarded), global toasts |
 
 ## `src/app` — 23 files, 656 lines
 
@@ -71,7 +79,7 @@
 | `src/components/AudioWave.tsx` | 94 | Audio waveform visual component † |
 | `src/components/GradientText.tsx` | 50 | Masked-view gradient text (used by library headers) † |
 | `src/components/RemoteSongListCard.tsx` | 375 | Swipeable song row with gesture-handler + haptics † |
-| `src/components/useKeyboardAwareScroll.ts` | 126 | Android-only keyboard hook: live keyboard-height bottom padding + measured focus scroll sequenced after range growth (auth + server) |
+| `src/components/useKeyboardAwareScroll.ts` | 137 | Android-only keyboard hook: live keyboard-height bottom padding + measured focus scroll sequenced after range growth (auth + server) + focus-time metrics re-sync |
 | `src/components/ui/accordion.tsx` | 141 | Accordion primitive over `@rn-primitives/accordion` † |
 | `src/components/ui/alert-dialog.tsx` | 158 | Alert-dialog primitive over `@rn-primitives/alert-dialog` † |
 | `src/components/ui/avatar.tsx` | 38 | Avatar/Image/Fallback primitives † |
@@ -145,7 +153,7 @@
 | `src/features/auth/screens/LoginScreen.tsx` | 155 | Login form UI + back button to Server Setup review + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/screens/SignupScreen.tsx` | 164 | Signup form UI + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/store/authStore.ts` | 134 | Session state: login/signup/logout/`checkAuth`/`resetAuth` |
-| `src/features/auth/utils/tokenManager.ts` | 121 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh |
+| `src/features/auth/utils/tokenManager.ts` | 144 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh (session-generation guarded) |
 | `src/features/auth/utils/tokenStorage.ts` | 32 | SecureStore token get/save/clear |
 | `src/features/auth/utils/validation.ts` | 16 | `validateLogin`/`validateSignup` field rules |
 ## `src/features/collections` — 8 files, 1,364 lines
@@ -231,7 +239,7 @@
 | `src/features/playback/utils/playbackHelpers.ts` | 45 | `createPlaybackTrack()`, display-only `getPlaybackUrl()`, no-op `syncQueueTokens()` |
 | `src/features/playback/api/index.ts` | 1 | Re-exports `playbackApi` resolver module |
 | `src/features/playback/api/playback.api.ts` | 25 | Endpoints: `POST /song/play`, `GET /song/job/:id`, `POST /listening/event` |
-| `src/features/playback/api/playbackApi.ts` | 42 | `resolveStream()`: ready-vs-job dispatch + payload validation |
+| `src/features/playback/api/playbackApi.ts` | 56 | `resolveStream()`: ready-vs-job dispatch + payload validation + pre-request polling-generation capture |
 | `src/features/playback/api/recommendationApi.ts` | 51 | `getRecommendations()` mapping + silent `[]` on error |
 | `src/features/playback/hooks/index.ts` | 2 | Re-exports `usePlayer`, `useSmartQueue` |
 | `src/features/playback/hooks/usePlayer.ts` | 562 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation |
@@ -239,9 +247,9 @@
 | `src/features/playback/hooks/useSmartQueue.ts` | 26 | Transition listener + `loadRecommendations()` trigger |
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
 | `src/features/playback/services/index.ts` | 17 | Service barrel (named exports) |
-| `src/features/playback/services/jobResolver.ts` | 13 | `resolveJob()` abstraction over polling |
+| `src/features/playback/services/jobResolver.ts` | 16 | `resolveJob()` abstraction over polling (passes expected generation through) |
 | `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
-| `src/features/playback/services/pollingResolver.ts` | 208 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) |
+| `src/features/playback/services/pollingResolver.ts` | 231 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
 | `src/features/playback/services/smartQueueService.ts` | 444 | Radio pipeline: recommend → enrich → resolve → fill native queue + generation-guarded `cancelSmartQueueWork()` |
 | `src/features/playback/services/trackPlayerService.ts` | 84 | Headless `PlaybackService`: remote controls + background transition |
@@ -306,20 +314,21 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 10 files, 1,116 lines
+## `src/features/server` — 11 files, 1,206 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 35 | Barrel (screens, hooks, store, validation, config/storage/switch utils) |
-| `src/features/server/api/serverValidation.ts` | 97 | `checkServerConnection()`: unauthenticated `/auth/me` 401-probe with timeout, inline failure codes |
-| `src/features/server/hooks/useServerSetup.ts` | 103 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed) |
+| `src/features/server/index.ts` | 39 | Barrel (screens, hooks, store, validation, config/storage/switch/session-generation utils) |
+| `src/features/server/api/serverValidation.ts` | 112 | `checkServerConnection()`: unauthenticated `/auth/me` 401 + NestJS-shape probe with timeout, inline failure codes |
+| `src/features/server/hooks/useServerSetup.ts` | 124 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed; attempt/mounted guards) |
 | `src/features/server/hooks/useServerSwitch.ts` | 138 | Switch form state + validate → confirm → shared `performServerSwitch()` |
 | `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server, prefilled edit, validate → confirm, inline states |
 | `src/features/server/screens/ServerSetupScreen.tsx` | 176 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring |
-| `src/features/server/store/serverStore.ts` | 97 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration, `setApiServerUrl` apply |
+| `src/features/server/store/serverStore.ts` | 122 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration (storage-failure safe), first-time stale-token clear, `setApiServerUrl` apply |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
-| `src/features/server/utils/serverStorage.ts` | 47 | AsyncStorage `@sonic_server_url` get/set/clear with self-healing reads |
-| `src/features/server/utils/serverSwitch.ts` | 67 | Shared `performServerSwitch()`: atomic session reset → `setServer` → player recreate |
+| `src/features/server/utils/serverStorage.ts` | 45 | AsyncStorage `@sonic_server_url` get/set/clear; reads throw on storage failure (missing ≠ unreadable) |
+| `src/features/server/utils/serverSwitch.ts` | 71 | Shared `performServerSwitch()`: session invalidate + atomic session reset → `setServer` → player recreate |
+| `src/features/server/utils/sessionGeneration.ts` | 23 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards |
 
 ## `src/features/settings` — 3 files, 155 lines
 

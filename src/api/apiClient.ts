@@ -4,6 +4,7 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 import { tokenStorage } from "@/features/auth/utils/tokenStorage";
+import { getSessionGeneration } from "@/features/server/utils/sessionGeneration";
 
 export let BASE_URL: string | undefined = process.env.EXPO_PUBLIC_API_URL;
 export let MEDIA_URL: string | undefined =
@@ -182,6 +183,11 @@ apiClient.interceptors.response.use(
 
     originalRequest._retry = true;
     isRefreshing = true;
+    // A server switch mid-refresh must not let Server A's result touch Server
+    // B's session. Every await below yields to the event loop, so the check is
+    // repeated before each write, not just once here.
+    const refreshGeneration = getSessionGeneration();
+    const isStale = () => refreshGeneration !== getSessionGeneration();
 
     try {
       const refreshToken = await tokenStorage.getRefreshToken();
@@ -197,20 +203,49 @@ apiClient.interceptors.response.use(
         { headers: { "Content-Type": "application/json" } },
       );
 
+      if (isStale()) {
+        // Server A's tokens must never land in Server B's session. Fail the
+        // queued requests; the new session is untouched.
+        const staleError = new Error("Session changed during token refresh");
+        processQueue(staleError, null);
+        return Promise.reject(staleError);
+      }
+
       const newAccessToken = data.accessToken;
       const newRefreshToken = data.refreshToken;
       await tokenStorage.saveTokens(newAccessToken, newRefreshToken);
+
+      if (isStale()) {
+        // The switch landed inside the save above: undo our own write (a
+        // switched-to session holds no tokens yet, so these can only be ours)
+        // and fail everything instead of retrying against the new server.
+        await tokenStorage.clearTokens().catch(() => {});
+        const staleError = new Error("Session changed during token refresh");
+        processQueue(staleError, null);
+        return Promise.reject(staleError);
+      }
 
       // Update native progressSync headers with the new token
       // Lazy imported to prevent circular dependencies (apiClient -> authStore)
       const { setProgressSyncToken } =
         await import("@/features/playback/hooks/useProgressSyncAuth");
+      if (isStale()) {
+        const staleError = new Error("Session changed during token refresh");
+        processQueue(staleError, null);
+        return Promise.reject(staleError);
+      }
       setProgressSyncToken(newAccessToken);
 
       processQueue(null, newAccessToken);
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return apiClient(originalRequest);
     } catch (refreshError) {
+      if (isStale()) {
+        // A stale refresh failing must never log out the new session: fail
+        // the queued Server A requests, but leave Server B's tokens/state alone.
+        processQueue(refreshError, null);
+        return Promise.reject(refreshError);
+      }
       processQueue(refreshError, null);
       // Clear tokens + trigger logout via the auth store
       await tokenStorage.clearTokens();

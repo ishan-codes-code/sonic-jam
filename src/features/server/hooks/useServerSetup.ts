@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlayer } from '@/features/playback/hooks/usePlayer';
@@ -25,6 +25,18 @@ export function useServerSetup() {
   const queryClient = useQueryClient();
   const { stop } = usePlayer();
   const router = useRouter();
+
+  // Guards the async connect flow: a validation result (or switch) that
+  // finishes after the user left this screen or started a newer attempt must
+  // not touch server state, navigate, or overwrite newer field feedback.
+  const attemptRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   function setUrl(next: string) {
     setUrlState(next);
@@ -54,9 +66,14 @@ export function useServerSetup() {
       return;
     }
 
+    const attempt = ++attemptRef.current;
+    const isCurrent = () =>
+      mountedRef.current && attempt === attemptRef.current;
+
     setIsConnecting(true);
     try {
       const result = await checkServerConnection(url);
+      if (!isCurrent()) return;
       if (!result.ok) {
         setFieldError(result.message);
         return;
@@ -77,17 +94,21 @@ export function useServerSetup() {
       } else {
         await setServer(result.serverUrl);
       }
-      if (currentUrl) {
+      if (currentUrl && isCurrent()) {
         // Review mode: back to Login. First launch stays put — the
         // ServerGuard advances automatically on 'configured'.
         router.back();
       }
     } catch {
+      if (!isCurrent()) return;
       setFieldError(
         "Couldn't save the server address on this device. Please try again.",
       );
     } finally {
-      setIsConnecting(false);
+      // A superseded attempt must not clear the spinner of the newer one.
+      if (isCurrent()) {
+        setIsConnecting(false);
+      }
     }
   }
 

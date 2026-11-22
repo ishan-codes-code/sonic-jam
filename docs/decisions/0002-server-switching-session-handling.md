@@ -48,6 +48,10 @@ route `/settings/server`), following the decision's 5 steps with two refinements
 - Step 2 uses local `tokenStorage.clearTokens()` + `resetAuth()` (the 401-interceptor
   sequence) with NO best-effort server logout call, so a dead previous server cannot stall
   the switch. Device ID stays global per the default.
+- Step 1 additionally bumps the session generation (`invalidateSession()` in
+  `src/features/server/utils/sessionGeneration.ts`): an in-flight token refresh
+  for the old server detects the bump and skips every write (save/clear tokens,
+  progress-sync headers, `resetAuth()`) instead of touching the new session.
 - Step 3 is implemented as ordered calls in the hook rather than a shared
   `clearSessionCaches()` helper: `stop()` (AuthGuard's path), `cancelAllJobPolling()` +
   `cancelSmartQueueWork()` (generation guards), `resetSmartQueueRadio()`,
