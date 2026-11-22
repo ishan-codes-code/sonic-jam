@@ -29,6 +29,11 @@
   focus scrolls the input above the keyboard. `useServerSetup` 105→103,
   `ServerSetupScreen` 180→176. Working tree: **199 files, 17,360 lines**.
   Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, Android keyboard-aware scroll):
+  +`src/components/useKeyboardAwareScroll.ts` (65 lines, shared by auth +
+  server) replaces the setup screen's blind `scrollToEnd` hack; Login 141→146,
+  Signup 149→155, ServerSetupScreen 176→170. Working tree:
+  **200 files, 17,430 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -125,6 +130,7 @@ src/
 ├── components/                   # shared UI (18 files)
 │   ├── AnimatedPressable.tsx     # reanimated pressable primitive
 │   ├── AudioWave.tsx             # audio waveform visual
+│   ├── useKeyboardAwareScroll.ts # Android focus-scroll hook (auth + server)
 │   ├── GradientText.tsx          # masked-view gradient text (used by library headers)
 │   ├── RemoteSongListCard.tsx    # swipeable song row (gesture-handler + haptics)
 │   └── ui/                       # shadcn-style primitives over @rn-primitives (14 files)
@@ -279,12 +285,12 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 |------|------:|------:|
 | `src/api` | 1 | 225 |
 | `src/app` | 23 | 656 |
-| `src/components` | 18 | 2,148 |
+| `src/components` | 19 | 2,213 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 907 |
+| `src/features/auth` | 15 | 918 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
@@ -295,12 +301,12 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 10 | 1,116 |
+| `src/features/server` | 10 | 1,110 |
 | `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **199** | **17,360** |
+| **Total** | **200** | **17,430** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),

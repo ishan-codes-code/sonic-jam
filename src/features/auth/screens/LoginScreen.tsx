@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
 import { AuthFooter } from '../components/AuthFooter';
 import { AuthHeader } from '../components/AuthHeader';
 import { useLogin } from '../hooks/useLogin';
@@ -20,6 +21,7 @@ import { Icon } from '@/components/ui/icon';
 
 export const LoginScreen = () => {
   const router = useRouter();
+  const { scrollViewRef, onInputFocus } = useKeyboardAwareScroll();
   const {
     email, setEmail,
     password, setPassword,
@@ -37,6 +39,7 @@ export const LoginScreen = () => {
 >
   <SafeAreaView className="flex-1">
     <ScrollView
+      ref={scrollViewRef}
       contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
@@ -85,6 +88,7 @@ export const LoginScreen = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
             </View>
           </View>
@@ -104,6 +108,7 @@ export const LoginScreen = () => {
                 onChangeText={(t) => { setPassword(t); setFieldError(null); }}
                 secureTextEntry={!showPassword}
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}

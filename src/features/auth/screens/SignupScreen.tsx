@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
 import { AuthFooter } from '../components/AuthFooter';
 import { AuthHeader } from '../components/AuthHeader';
 import { useSignup } from '../hooks/useSignup';
@@ -19,6 +20,7 @@ import { Icon } from '@/components/ui/icon';
 
 export const SignupScreen = () => {
   const router = useRouter();
+  const { scrollViewRef, onInputFocus } = useKeyboardAwareScroll();
   const {
     name, setName,
     email, setEmail,
@@ -37,6 +39,7 @@ export const SignupScreen = () => {
 >
   <SafeAreaView className="flex-1">
     <ScrollView
+      ref={scrollViewRef}
       contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
@@ -71,6 +74,7 @@ export const SignupScreen = () => {
                 onChangeText={(t) => { setName(t); clearFieldError(); }}
                 autoCapitalize="words"
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
             </View>
           </View>
@@ -93,6 +97,7 @@ export const SignupScreen = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
             </View>
           </View>
@@ -113,6 +118,7 @@ export const SignupScreen = () => {
                 onChangeText={(t) => { setPassword(t); clearFieldError(); }}
                 secureTextEntry={!showPassword}
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}

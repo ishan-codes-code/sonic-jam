@@ -2,7 +2,7 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { Check, Info, Server } from 'lucide-react-native';
-import React, { useRef } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,10 +12,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
 import { useServerSetup } from '../hooks/useServerSetup';
 
 export const ServerSetupScreen = () => {
-  const scrollRef = useRef<ScrollView>(null);
+  const { scrollViewRef, onInputFocus } = useKeyboardAwareScroll();
   const {
     url,
     setUrl,
@@ -37,7 +38,7 @@ export const ServerSetupScreen = () => {
     >
       <SafeAreaView className="flex-1">
         <ScrollView
-          ref={scrollRef}
+          ref={scrollViewRef}
           contentContainerStyle={{
             paddingHorizontal: 24,
             paddingBottom: 40,
@@ -104,14 +105,7 @@ export const ServerSetupScreen = () => {
                 returnKeyType="go"
                 onSubmitEditing={handleConnect}
                 editable={!isConnecting}
-                onFocus={() => {
-                  // The centered content doesn't reliably shift above the
-                  // keyboard on its own: scroll the input + CTA into view
-                  // once the keyboard layout has settled.
-                  setTimeout(() => {
-                    scrollRef.current?.scrollToEnd({ animated: true });
-                  }, 300);
-                }}
+                onFocus={onInputFocus}
               />
               {isUrlUnchanged ? (
                 <Icon
