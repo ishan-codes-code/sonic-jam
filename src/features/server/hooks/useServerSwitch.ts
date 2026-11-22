@@ -107,22 +107,22 @@ export function useServerSwitch() {
     setFieldError(null);
 
     try {
-      // 1. Stop playback via the same path AuthGuard uses on logout
+      // 1. Invalidate old-server work synchronously, before the first await,
+      //    so nothing in flight can land once the switch begins (poll loops
+      //    throw a filtered cancellation error; radio/recovery check theirs).
+      cancelAllJobPolling();
+      cancelSmartQueueWork();
+      resetSmartQueueRadio();
+      useJobStore.getState().clearJobs();
+      resetPlaybackRecovery();
+
+      // 2. Stop playback via the same path AuthGuard uses on logout
       //    (native stop + queue clear + playback store reset incl. trackMap).
       //    RNTP v5 stop()/clear() are synchronous, so teardown dispatches in
       //    order; the await sequences it before the reset steps below.
       await stop();
 
-      // 2. Freeze in-flight work so old-server results cannot land in the
-      //    fresh session (poll loops throw a filtered cancellation error).
-      cancelAllJobPolling();
-      cancelSmartQueueWork();
-
-      // 3. Clear playback-side session state: smart radio (+ module
-      //    singletons), job registry, recovery history, sync headers.
-      resetSmartQueueRadio();
-      useJobStore.getState().clearJobs();
-      resetPlaybackRecovery();
+      // 3. Clear the native progress-sync auth header.
       await setProgressSyncToken(null);
 
       // 4. Drop every server-derived React Query cache entry.

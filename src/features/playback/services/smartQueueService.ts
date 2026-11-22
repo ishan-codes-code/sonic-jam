@@ -414,10 +414,9 @@ export async function startSmartQueueRadio(
 
   const recs = await getRecommendations({ limit });
   if (generation !== radioGeneration) {
-    // A server switch reset the session mid-fetch: drop the stale result and
-    // restore the reset state instead of re-initializing the queue.
-    resetSmartQueueRadio();
-    usePlaybackStore.getState().setQueueType("manual");
+    // A server switch reset the session mid-fetch: drop the stale result.
+    // The switch already performed the reset; touching global state here
+    // could clobber a newer session.
     return;
   }
   if (recs.length === 0) return;
