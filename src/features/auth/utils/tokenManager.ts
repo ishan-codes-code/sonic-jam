@@ -45,6 +45,10 @@ export function isTokenExpired(expiryMs: number): boolean {
 // --------------------------------------------------------------------------
 
 let refreshPromise: Promise<string | null> | null = null;
+// Generation that owns the in-flight refresh (consulted only while
+// refreshPromise is set). Lets a stale refresh settle without clearing a
+// newer session's shared promise.
+let refreshPromiseGeneration = 0;
 
 async function doRefresh(): Promise<string | null> {
   // A server switch mid-refresh must not let Server A's result touch Server
@@ -68,8 +72,13 @@ async function doRefresh(): Promise<string | null> {
         // A stale refresh failing must never log out the new session.
         return null;
       }
-      // Refresh failed — force logout via authStore
+      // Refresh failed — force logout via authStore. A switch can land inside
+      // the import below, so generation is re-checked before touching auth
+      // state: a stale refresh must never log out the new session.
       const { useAuthStore } = await import('../store/authStore');
+      if (isStale()) {
+        return null;
+      }
       useAuthStore.getState().resetAuth();
       await tokenStorage.clearTokens();
       return null;
@@ -104,7 +113,11 @@ async function doRefresh(): Promise<string | null> {
   } catch {
     return null;
   } finally {
-    refreshPromise = null;
+    // Only the current owner releases the shared promise: a stale refresh
+    // settling after a takeover must not clear a newer refresh.
+    if (refreshPromiseGeneration === refreshGeneration) {
+      refreshPromise = null;
+    }
   }
 }
 
@@ -135,8 +148,12 @@ export async function ensureFreshToken(): Promise<string | null> {
   // Token is still fresh — no work needed
   if (!isTokenExpired(expiryMs)) return token;
 
-  // Token is expired. Deduplicate concurrent refresh calls.
-  if (!refreshPromise) {
+  // Token is expired. Deduplicate concurrent refresh calls — but never await
+  // a previous session's refresh: take over with a fresh one instead (the
+  // stale one's finally block is ownership-guarded, and its own stale checks
+  // keep it from touching the new session).
+  if (!refreshPromise || refreshPromiseGeneration !== getSessionGeneration()) {
+    refreshPromiseGeneration = getSessionGeneration();
     refreshPromise = doRefresh();
   }
 

@@ -32,16 +32,21 @@
 > load); `serverStorage` 47→45 (reads throw on failure); `serverValidation`
 > 97→112 (NestJS-shape identity check); `useServerSetup` 103→124 (attempt
 > guards); hook 126→137 (focus re-sync); `serverSwitch` 67→71, `index` 35→39.
-> Working tree: **201 files, 17,714 lines**. Re-baseline on commit.
+> Working tree: **201 files, 17,714 lines** (committed as f7166a0 without re-baseline).
+> Structural delta (uncommitted, PR #10 follow-up: token-refresh race close):
+> generation-tagged refresh queue + ownership (`apiClient` 260→327),
+> `tokenManager` 144→161 (takeover + guarded finally), `sessionGeneration`
+> 23→53 (invalidation listeners), `index` 39→40.
+> Working tree: **201 files, 17,829 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
 
-## `src/api` — 1 file, 225 lines
+## `src/api` — 1 file, 327 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/api/apiClient.ts` | 260 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (session-generation guarded), global toasts |
+| `src/api/apiClient.ts` | 327 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (generation-tagged, takeover, ownership-guarded), global toasts |
 
 ## `src/app` — 23 files, 656 lines
 
@@ -137,7 +142,7 @@
 | `src/features/artwork-colors/hooks/useArtworkColors.ts` | 75 | Cache-seeded hook with stale-URL guard |
 | `src/features/artwork-colors/services/artworkColorService.ts` | 160 | Palette extraction + 150-entry LRU cache + fallback |
 
-## `src/features/auth` — 15 files, 936 lines
+## `src/features/auth` — 15 files, 976 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -153,7 +158,7 @@
 | `src/features/auth/screens/LoginScreen.tsx` | 155 | Login form UI + back button to Server Setup review + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/screens/SignupScreen.tsx` | 164 | Signup form UI + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/store/authStore.ts` | 134 | Session state: login/signup/logout/`checkAuth`/`resetAuth` |
-| `src/features/auth/utils/tokenManager.ts` | 144 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh (session-generation guarded) |
+| `src/features/auth/utils/tokenManager.ts` | 161 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh (generation-guarded, takeover, ownership-guarded finally) |
 | `src/features/auth/utils/tokenStorage.ts` | 32 | SecureStore token get/save/clear |
 | `src/features/auth/utils/validation.ts` | 16 | `validateLogin`/`validateSignup` field rules |
 ## `src/features/collections` — 8 files, 1,364 lines
@@ -314,11 +319,11 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 11 files, 1,206 lines
+## `src/features/server` — 11 files, 1,237 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 39 | Barrel (screens, hooks, store, validation, config/storage/switch/session-generation utils) |
+| `src/features/server/index.ts` | 40 | Barrel (screens, hooks, store, validation, config/storage/switch/session-generation utils) |
 | `src/features/server/api/serverValidation.ts` | 112 | `checkServerConnection()`: unauthenticated `/auth/me` 401 + NestJS-shape probe with timeout, inline failure codes |
 | `src/features/server/hooks/useServerSetup.ts` | 124 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed; attempt/mounted guards) |
 | `src/features/server/hooks/useServerSwitch.ts` | 138 | Switch form state + validate → confirm → shared `performServerSwitch()` |
@@ -328,7 +333,7 @@
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverStorage.ts` | 45 | AsyncStorage `@sonic_server_url` get/set/clear; reads throw on storage failure (missing ≠ unreadable) |
 | `src/features/server/utils/serverSwitch.ts` | 71 | Shared `performServerSwitch()`: session invalidate + atomic session reset → `setServer` → player recreate |
-| `src/features/server/utils/sessionGeneration.ts` | 23 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards |
+| `src/features/server/utils/sessionGeneration.ts` | 53 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards + `onSessionInvalidated()` settle hook |
 
 ## `src/features/settings` — 3 files, 155 lines
 
