@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { usePlaybackState, useProgress, PlaybackState as State, default as TrackPlayer, Event, useIsPlaying, RepeatMode } from '@rntp/player';
+import { AppState, AppStateStatus } from 'react-native';
+import { usePlaybackState, useProgress, default as TrackPlayer, Event, useIsPlaying, RepeatMode } from '@rntp/player';
 import { usePlaybackStore } from '../store/usePlaybackStore';
-import { extractArtworkColors } from '@/features/artwork-colors';
 import { useProgressSyncAuth } from '../hooks/useProgressSyncAuth';
 import { useSmartQueue } from '../hooks/useSmartQueue';
 import { resolveStream } from '../api/playbackApi';
 import { createPlaybackTrack } from '../utils/playbackHelpers';
+import { resolveStoreStatus, syncPlayerFromNative, syncTrackMetadata } from '../services/nativeSync';
 import type { PlaybackTrack } from '../types';
 
 const recoveryAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -54,6 +55,7 @@ function canAttemptRecovery(songId: string): boolean {
  *
  * Also handles:
  * - Track change → update currentSong & extract artwork colors
+ * - App foreground → full native resync (tracks auto-advanced in background)
  *
  * Queue extension (radio mode auto-fill) is handled by trackPlayerService
  * so it runs in background regardless of component lifecycle.
@@ -101,9 +103,11 @@ export const PlaybackSync = () => {
         if (rnkpState === undefined) return;
 
         const { status } = usePlaybackStore.getState();
+        // Shared mapping (also used by the foreground resync): null = no change.
+        const next = resolveStoreStatus(rnkpState, isPlaying, status);
 
         // 1. Error state is highest priority
-        if (rnkpState === State.Error) {
+        if (next === 'error') {
             if (status !== 'error') setError('Playback error occurred');
             return;
         }
@@ -117,17 +121,33 @@ export const PlaybackSync = () => {
         }
 
         // 3. Normal native state sync
-        if (isPlaying) {
-            if (status !== 'playing') setStatus('playing');
-        } else if (rnkpState === State.Buffering) {
-            if (status !== 'loading') setStatus('loading');
-        } else if (rnkpState === State.Ended) {
-            if (status !== 'stopped') setStatus('stopped');
-        } else {
-            // Ready/Idle but not playing = Paused
-            if (status !== 'paused' && status !== 'idle') setStatus('paused');
-        }
+        if (next) setStatus(next);
     }, [rnkpState, isPlaying, setStatus, setError, pendingJobId]);
+
+    // ── Foreground resync ──────────────────────────────────────
+    // Native events can be missed/throttled while the app is backgrounded
+    // (auto-advance, lock-screen/notification controls), leaving the store —
+    // and artwork/artist/colors/play-pause UI — stale. Re-read the live
+    // native state on mount and whenever the app returns to the foreground.
+    const appState = useRef(AppState.currentState);
+    useEffect(() => {
+        void syncPlayerFromNative();
+
+        const subscription = AppState.addEventListener(
+            'change',
+            (nextState: AppStateStatus) => {
+                if (
+                    appState.current.match(/inactive|background/) &&
+                    nextState === 'active'
+                ) {
+                    void syncPlayerFromNative();
+                }
+                appState.current = nextState;
+            }
+        );
+
+        return () => subscription.remove();
+    }, []);
 
     // ── Listeners: Error & State ─────────────────────────────────
     useEffect(() => {
@@ -283,30 +303,8 @@ export const PlaybackSync = () => {
                 store.setManualInsertIndex(null);
 
                 if (fullTrack && fullTrack.song) {
-                    store.setCurrentSong(fullTrack.song, fullTrack);
-
-
-                    if (fullTrack.url) {
-                        const url = fullTrack.url;
-                        const streamUrl = typeof url === 'string'
-                            ? url
-                            : (typeof url === 'object' ? url.uri : undefined);
-
-                        if (streamUrl) store.setStream(streamUrl);
-                    }
-
-                    // Extract colors for the UI
-                    const artwork = fullTrack.artworkUrl ?? fullTrack.song?.image;
-                    const artworkUri = typeof artwork === 'string'
-                        ? artwork
-                        : (typeof artwork === 'object' ? artwork.uri : undefined);
-
-                    extractArtworkColors(artworkUri).then((colors) => {
-                        usePlaybackStore.getState().setTrackColors({
-                            primary: colors.primary,
-                            secondary: colors.secondary,
-                        });
-                    });
+                    // Shared with the headless handler + foreground resync
+                    await syncTrackMetadata(fullTrack);
                 }
             }
         });

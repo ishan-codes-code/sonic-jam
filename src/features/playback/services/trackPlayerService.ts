@@ -6,6 +6,7 @@ import TrackPlayer, {
 } from "@rntp/player";
 import { RepeatManager } from "./repeatManager";
 import { handleSmartQueueMediaTransition } from "./smartQueueService";
+import { syncPlayerFromNative } from "./nativeSync";
 
 // This file MUST be a separate module registered with RNTP.
 // It runs in a background thread and handles remote control events
@@ -76,6 +77,11 @@ async function handleMediaItemTransition(event: MediaItemTransitionEvent) {
         store.setCurrentSong(track.song, track);
       }
     }
+
+    // Re-read live native state (stream URL, artwork colors, status,
+    // position) so the headless side stays in sync with the foreground
+    // listener. Idempotent: skips work when nothing changed.
+    await syncPlayerFromNative();
 
     await handleSmartQueueMediaTransition();
   } catch (error) {
