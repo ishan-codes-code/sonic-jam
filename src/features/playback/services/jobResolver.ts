@@ -8,6 +8,9 @@ import type { ResolvedStream } from '../types';
  * Currently uses polling, but can be replaced with WebSockets or other 
  * implementations in the future without changing the business logic.
  */
-export async function resolveJob(jobId: string): Promise<ResolvedStream> {
-    return pollJobStatus(jobId);
+export async function resolveJob(
+    jobId: string,
+    expectedGeneration?: number,
+): Promise<ResolvedStream> {
+    return pollJobStatus(jobId, expectedGeneration);
 }

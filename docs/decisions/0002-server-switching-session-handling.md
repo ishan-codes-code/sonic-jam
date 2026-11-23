@@ -39,3 +39,26 @@ Server switching performs an atomic session reset, reusing the logout path:
 - Negative: switching is destructive to in-flight playback and cached data by design — the UI must
   say so before confirming.
 - Requires: `AbortSignal`/generation guard for polling loops, and the progress-sync URL update from ADR 0003.
+
+## Implementation note (2026-11-22, Settings hub + Server Management)
+
+Implemented in `src/features/server/hooks/useServerSwitch.ts` (`ServerManagementScreen`,
+route `/settings/server`), following the decision's 5 steps with two refinements:
+
+- Step 2 uses local `tokenStorage.clearTokens()` + `resetAuth()` (the 401-interceptor
+  sequence) with NO best-effort server logout call, so a dead previous server cannot stall
+  the switch. Device ID stays global per the default.
+- Step 1 additionally bumps the session generation (`invalidateSession()` in
+  `src/features/server/utils/sessionGeneration.ts`): an in-flight token refresh
+  for the old server detects the bump and skips every write (save/clear tokens,
+  progress-sync headers, `resetAuth()`) instead of touching the new session.
+- Step 3 is implemented as ordered calls in the hook rather than a shared
+  `clearSessionCaches()` helper: `stop()` (AuthGuard's path), `cancelAllJobPolling()` +
+  `cancelSmartQueueWork()` (generation guards), `resetSmartQueueRadio()`,
+  `useJobStore.clearJobs()` (new), `resetPlaybackRecovery()` (new),
+  `setProgressSyncToken(null)`, `queryClient.clear()` (via `useQueryClient`, so the
+  `_layout.tsx` singleton is untouched). Logout itself is unchanged and still does not
+  clear React Query — extracting a shared reset for both paths remains future work.
+- The UI warns (sign-out + playback stop) on-screen and requires explicit confirmation
+  after successful validation; validation failure, cancel, and same-URL input perform
+  no reset. `AuthGuard` routes to `/login` on the resulting unauthenticated status.

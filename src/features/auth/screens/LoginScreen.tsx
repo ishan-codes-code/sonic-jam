@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -7,11 +7,13 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
 import { AuthFooter } from '../components/AuthFooter';
 import { AuthHeader } from '../components/AuthHeader';
 import { useLogin } from '../hooks/useLogin';
@@ -19,6 +21,12 @@ import { Icon } from '@/components/ui/icon';
 
 export const LoginScreen = () => {
   const router = useRouter();
+  const {
+    scrollViewRef,
+    onInputFocus,
+    onContentSizeChange,
+    keyboardBottomPadding,
+  } = useKeyboardAwareScroll();
   const {
     email, setEmail,
     password, setPassword,
@@ -36,11 +44,29 @@ export const LoginScreen = () => {
 >
   <SafeAreaView className="flex-1">
     <ScrollView
-      contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+      ref={scrollViewRef}
+      contentContainerStyle={{
+        paddingHorizontal: 24,
+        paddingBottom: 40 + keyboardBottomPadding,
+      }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets={true}
+      onContentSizeChange={onContentSizeChange}
     >
+          {/* Back to the Server Setup review (prefilled, editable) */}
+          <View className="mb-2 flex-row items-center pt-2">
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Back to server setup"
+              activeOpacity={0.8}
+              onPress={() => router.push('/server-setup')}
+              className="h-11 w-11 items-center justify-center rounded-xl border border-white/5 bg-card"
+            >
+              <Icon as={ArrowLeft} size={24} className="text-foreground" />
+            </TouchableOpacity>
+          </View>
+
           <AuthHeader
             title="Welcome back"
             subtitle="Sign in to continue your sonic journey."
@@ -71,6 +97,7 @@ export const LoginScreen = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
             </View>
           </View>
@@ -90,6 +117,7 @@ export const LoginScreen = () => {
                 onChangeText={(t) => { setPassword(t); setFieldError(null); }}
                 secureTextEntry={!showPassword}
                 editable={!isLoading}
+                onFocus={onInputFocus}
               />
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}

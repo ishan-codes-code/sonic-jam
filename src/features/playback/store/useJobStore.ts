@@ -26,6 +26,8 @@ type JobStore = {
     addJob: (jobId: string, metadata?: { song?: Song; payload?: PlaySongDto }) => void;
     updateJob: (jobId: string, data: Partial<JobItem>) => void;
     removeJob: (jobId: string) => void;
+    /** Drop every job. Used only by the server-switch session reset (paired with polling cancellation). */
+    clearJobs: () => void;
 };
 
 export const useJobStore = create<JobStore>((set) => ({
@@ -68,4 +70,8 @@ export const useJobStore = create<JobStore>((set) => ({
         delete newJobs[jobId];
         return { jobs: newJobs };
     }),
+
+    clearJobs: () => set((state) =>
+        Object.keys(state.jobs).length === 0 ? state : { jobs: {} },
+    ),
 }));

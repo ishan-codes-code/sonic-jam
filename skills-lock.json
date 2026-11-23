@@ -1,0 +1,362 @@
+{
+  "version": 2,
+  "skills": {
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "a7424777b7f81e3eb9b4556d29fe233553736d8255780d3e1feea190fef61fef"
+    },
+    "deploy-to-vercel": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/deploy-to-vercel/SKILL.md",
+      "computedHash": "66b99dfa063b1c405155e9bffd99c04ca3e312e81b168d540b757bb194b7400a"
+    },
+    "diagnosing-superpowers": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/diagnosing-superpowers/SKILL.md",
+      "computedHash": "44d0295c3d59d6418f80c96e40d8e7b7ece99513ab6e63e5d04b1cf87cc5bbab"
+    },
+    "dispatching-parallel-agents": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/dispatching-parallel-agents/SKILL.md",
+      "computedHash": "d799e464fdfb0edc80b3b7ad7cce03e64ee07fc5db231c988688a81438503659"
+    },
+    "eas-app-stores": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-app-stores/SKILL.md",
+      "computedHash": "ca85dba408f185f1613fef04a488df7d22ce31acdec830c804d98cb4f6952a45"
+    },
+    "eas-hosting": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-hosting/SKILL.md",
+      "computedHash": "1be2040dcd1667861f442dcffce1887c3ccf504b527629e8e68d9d4b0bf46435"
+    },
+    "eas-observe": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-observe/SKILL.md",
+      "computedHash": "8ba4902769ded976de7b4a38e92850636bf0c79503bc2593d85ad3fa451a344a"
+    },
+    "eas-simulator": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-simulator/SKILL.md",
+      "computedHash": "fa7ad9c43f69dfad87552861ec3468db149990048a009f7f732c8127be3e3c95"
+    },
+    "eas-update": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-update/SKILL.md",
+      "computedHash": "db37be6aabbea1fd305d80c5a1b0e2c061028ad278e1ca4d0811ed9354af64e3"
+    },
+    "eas-update-insights": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-update-insights/SKILL.md",
+      "computedHash": "da6a363d46b711aeb89b35a43ca18efa14041936194895ff29a03df8da2eefb3"
+    },
+    "eas-workflows": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/eas-workflows/SKILL.md",
+      "computedHash": "b739a2c65fa06935af11986d2775d64a42dde9cfa548dd5eec2d0e3e813691c3"
+    },
+    "executing-plans": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/executing-plans/SKILL.md",
+      "computedHash": "58b364f6e3f64602c7cfd0b34ceaad9de95d41fe7e4b46b274843ba19fc01ccc"
+    },
+    "expo-animation": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-animation/SKILL.md",
+      "computedHash": "7f28a298611a9440484836c2d02366bff5cdbe4c1c4cc2a1965ffe2eb075ffae"
+    },
+    "expo-app-clip": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-app-clip/SKILL.md",
+      "computedHash": "cfa08b24b98cc0d58af19547d940c9350584f2879a6f939fe4a8359efefc86a9"
+    },
+    "expo-brownfield": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-brownfield/SKILL.md",
+      "computedHash": "3f9c60e85959ef08a89878998a03d296d33350f9581a1a06680d4afd23686578"
+    },
+    "expo-data-fetching": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-data-fetching/SKILL.md",
+      "computedHash": "b9341ed3d50395ddf0dd09f8c81022ee303ad0947d7ff0acd38b7bf5ee8de20f"
+    },
+    "expo-design-system": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-design-system/SKILL.md",
+      "computedHash": "817613a0a2f7beab0d919b45c8c1aaa9e3d3a50c054eec959c6484248cfcbec9"
+    },
+    "expo-dev-client": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-dev-client/SKILL.md",
+      "computedHash": "d57782a2f5e92847b5bde90900c25f06ffa201e93da81e58e576c046077eb944"
+    },
+    "expo-dom": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-dom/SKILL.md",
+      "computedHash": "eb211170e3cd6b72c6bed26c18586a5ad6d48a45fc481f1b411682c4f7c39ae2"
+    },
+    "expo-examples": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-examples/SKILL.md",
+      "computedHash": "3021281ea809d9974e83691c2893a793c8fe36c4ef292c8dabc52c98f69c79fa"
+    },
+    "expo-migrate-module": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo-experiments/skills/expo-migrate-module/SKILL.md",
+      "computedHash": "da5d3de10dc6503f8b0eb8b6cc2d8b371baddcd56b76968c57cf96d5eedf135f"
+    },
+    "expo-module": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-module/SKILL.md",
+      "computedHash": "0b34d929db086777de7134db7fa7c7264e86152ec203feb255ae0bab82d01e69"
+    },
+    "expo-native-ui": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-native-ui/SKILL.md",
+      "computedHash": "7062d8239c825963bc4487678165c843594b9950276b18f1c5d48179414518eb"
+    },
+    "expo-overview": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-overview/SKILL.md",
+      "computedHash": "c59584f70706a6873c5c1f3ee1f9005fc00bdd40de731645c1b7091a1fd2397d"
+    },
+    "expo-project-structure": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-project-structure/SKILL.md",
+      "computedHash": "1d8d0089c3f367cda801f2b675d8df6b773806b62ffb8d88b390bed9f10fa607"
+    },
+    "expo-router": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-router/SKILL.md",
+      "computedHash": "9c3a05a145ceec25ccca5c733b9403b03c7174c60c48c017009c2c5a1a68c8cb"
+    },
+    "expo-skill-eval": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/expo-skill-eval/SKILL.md",
+      "computedHash": "640c580a7cbf133477b5cb44cecd81bfc73dade6fe2eb34dd083f5de857ea18a"
+    },
+    "expo-ui": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-ui/SKILL.md",
+      "computedHash": "7cc34e3ee3d44ee6f754f4cc57bf64d18225ec8d8993d9540a33b9779c540de4"
+    },
+    "expo-upgrade": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-upgrade/SKILL.md",
+      "computedHash": "e7963891b55078eec241470f30ebd45afe0d3b7f1363d62e26f5af1b32382f7e"
+    },
+    "expo-web-to-native": {
+      "source": "expo/skills",
+      "commit": "88d9bd79f3fa8452a778fbac65bae162c0b32ce4",
+      "sourceType": "github",
+      "skillPath": "plugins/expo/skills/expo-web-to-native/SKILL.md",
+      "computedHash": "929ec0dd459885036ea615ee65199983afa9ca1bb624c6fb116ce4eabd6a6643"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "commit": "57217cf86ba38148a57af9e90d14a4c049558330",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "7bc223e2aafbdbf6e50ea243ba6ef67fe432bb069ab439fea0390795dac0bf7f"
+    },
+    "finishing-a-development-branch": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/finishing-a-development-branch/SKILL.md",
+      "computedHash": "7e24d821d45b8f10773edd9f1a4be2fac90eedae4f8fc8e70e34e27e44d3f3c0"
+    },
+    "receiving-code-review": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/receiving-code-review/SKILL.md",
+      "computedHash": "528d336858d6f7d22cfcb887a249409ce682cb7d37a939cb15a82f2576a35876"
+    },
+    "requesting-code-review": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/requesting-code-review/SKILL.md",
+      "computedHash": "32bcc25e8c3315d0150f646ee0067c9d4bfbc7719c34012db9c202e17cce8a14"
+    },
+    "subagent-driven-development": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/subagent-driven-development/SKILL.md",
+      "computedHash": "da0ad5e635b6ff70c2b6dbf25e51ae6ca1cad6beebfc61a791195675468c492e"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "79ff0583175346e39431b0dc713b223edd1bd7a7ea2b6c8b78b2fb9a3fed6782"
+    },
+    "test-driven-development": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/test-driven-development/SKILL.md",
+      "computedHash": "2782702b2cf69ace085ed30d067b6f8bfd2d777ad51770fc5bdae9cb5c1b5c04"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "commit": "6ec2bb58334ca3014573c4cbd4834ee3a40afd9d",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "ecbf45740eab6a35db93506396f68969ad80e2615f24e3c767a4decc9430751c"
+    },
+    "using-git-worktrees": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/using-git-worktrees/SKILL.md",
+      "computedHash": "b69324cb5e5ba5b846fc2ae2811616008dc6f19858245100e472713190d4c9e4"
+    },
+    "using-superpowers": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/using-superpowers/SKILL.md",
+      "computedHash": "6a9104fac7e16c3cec2bc118943aefd331cac35b4cfabd427cea4dc16337c6a5"
+    },
+    "vercel-cli-with-tokens": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-cli-with-tokens/SKILL.md",
+      "computedHash": "a294080c5464284c5ed06bde9e5bf0fb16981958600f4ae829eaab5d7f17d29a"
+    },
+    "vercel-composition-patterns": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/composition-patterns/SKILL.md",
+      "computedHash": "f711ed8b16162eaa712abbcdbbae6c926f86c57e60127735fecc3ad0dd85b3fa"
+    },
+    "vercel-optimize": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/vercel-optimize/SKILL.md",
+      "computedHash": "f69b2d70e9928eb4ae0b0acdaabb2ba2f42ba694aa33df52b4ee41e8fb9ced60"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "7991ed4fbecdac23f47c1a40c243e00a212a9e7f3604db93959b3ae11dffe299"
+    },
+    "vercel-react-native-skills": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-skills/SKILL.md",
+      "computedHash": "4c160f1f4e623b989cadb71f42a0813be574d172acf5e32a6411c87f3e28c05a"
+    },
+    "vercel-react-view-transitions": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/react-view-transitions/SKILL.md",
+      "computedHash": "d5bdffc1f132ae0d6d9260c260ae206d48cd83cb148e3e3b75fc1a3b94b249fa"
+    },
+    "verification-before-completion": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/verification-before-completion/SKILL.md",
+      "computedHash": "09b0e3a4689c1c38a3b8fc6ef57a1d4165aa33c0013d546dbde9dd348941a319"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "5994e4cfd86144903d2ba750f862b9e36af15e3297aac983679e347b99f6cb71"
+    },
+    "writing-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/writing-guidelines/SKILL.md",
+      "computedHash": "fe1390adbe2f7ba68d5fb85d3b14a1d55e71ce04cff5c175245c550d1c3a6f7e"
+    },
+    "writing-plans": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/writing-plans/SKILL.md",
+      "computedHash": "ef082ddb5354d736059397133b3682e8a0c85c57906affe47c9da354cbb7c91e"
+    },
+    "writing-skills": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/writing-skills/SKILL.md",
+      "computedHash": "50d87a4c2c6a9d60156ccfdbe844e0a11678968157e494a8a8c02377c273483a"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { tokenStorage } from './tokenStorage';
 import { BASE_URL } from '@/api/apiClient';
+import { getSessionGeneration } from '@/features/server/utils/sessionGeneration';
 
 // Buffer time (in ms) before actual expiry to treat the token as expired.
 // This prevents edge cases where the token expires mid-request.
@@ -44,21 +45,53 @@ export function isTokenExpired(expiryMs: number): boolean {
 // --------------------------------------------------------------------------
 
 let refreshPromise: Promise<string | null> | null = null;
+// Generation that owns the in-flight refresh (consulted only while
+// refreshPromise is set). Lets a stale refresh settle without clearing a
+// newer session's shared promise.
+let refreshPromiseGeneration = 0;
 
 async function doRefresh(): Promise<string | null> {
+  // Capture the session identity (generation + URL) in one synchronous
+  // block. A switch always bumps the generation before applying a new URL, so
+  // a matching generation below also proves the captured URL is current.
+  // Every await below yields to the event loop, so staleness is re-checked
+  // before each write and each request — never assumed from an old check.
+  const refreshGeneration = getSessionGeneration();
+  const refreshUrl = BASE_URL;
+  const isStale = () => refreshGeneration !== getSessionGeneration();
+
   try {
     const refreshToken = await tokenStorage.getRefreshToken();
     if (!refreshToken) return null;
 
-    const response = await fetch(`${BASE_URL}/auth/refresh`, {
+    if (isStale()) {
+      // The token above was read for the captured session: a switch landing
+      // inside the read must abort here, before Server A's refresh token is
+      // ever sent anywhere.
+      return null;
+    }
+
+    // Uses the captured URL (== current URL while fresh) so the token can
+    // only ever be sent to the server that issued it — never to a newer
+    // server.
+    const response = await fetch(`${refreshUrl}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
 
     if (!response.ok) {
-      // Refresh failed — force logout via authStore
+      if (isStale()) {
+        // A stale refresh failing must never log out the new session.
+        return null;
+      }
+      // Refresh failed — force logout via authStore. A switch can land inside
+      // the import below, so generation is re-checked before touching auth
+      // state: a stale refresh must never log out the new session.
       const { useAuthStore } = await import('../store/authStore');
+      if (isStale()) {
+        return null;
+      }
       useAuthStore.getState().resetAuth();
       await tokenStorage.clearTokens();
       return null;
@@ -69,19 +102,47 @@ async function doRefresh(): Promise<string | null> {
       refreshToken: string;
     };
 
-    await tokenStorage.saveTokens(data.accessToken, data.refreshToken);
+    if (isStale()) {
+      // Server A's tokens must never land in Server B's session.
+      return null;
+    }
+    // Generation-validated, serialized write: skipped (false) if a switch
+    // landed first, so Server A's tokens can never overwrite the new
+    // session's credentials.
+    const saved = await tokenStorage.saveTokensIfCurrent(
+      data.accessToken,
+      data.refreshToken,
+      refreshGeneration,
+    );
+
+    if (!saved || isStale()) {
+      // Skipped as stale, or a switch landed inside the save: exit WITHOUT
+      // destructive cleanup. The switch's own serialized clear removes
+      // anything this refresh wrote (it is ordered after it), while a blind
+      // clear here could wipe the newer session's credentials.
+      return null;
+    }
 
     // Keep the native player's progressSync headers up to date
     const { setProgressSyncToken } = await import(
       '@/features/playback/hooks/useProgressSyncAuth'
     );
+    if (isStale()) return null;
     await setProgressSyncToken(data.accessToken);
 
+    // The sole caller feeds this return value straight into setProgressSyncToken,
+    // so a switch inside the await above must downgrade it to null rather than
+    // hand out the old session's access token.
+    if (isStale()) return null;
     return data.accessToken;
   } catch {
     return null;
   } finally {
-    refreshPromise = null;
+    // Only the current owner releases the shared promise: a stale refresh
+    // settling after a takeover must not clear a newer refresh.
+    if (refreshPromiseGeneration === refreshGeneration) {
+      refreshPromise = null;
+    }
   }
 }
 
@@ -112,8 +173,12 @@ export async function ensureFreshToken(): Promise<string | null> {
   // Token is still fresh — no work needed
   if (!isTokenExpired(expiryMs)) return token;
 
-  // Token is expired. Deduplicate concurrent refresh calls.
-  if (!refreshPromise) {
+  // Token is expired. Deduplicate concurrent refresh calls — but never await
+  // a previous session's refresh: take over with a fresh one instead (the
+  // stale one's finally block is ownership-guarded, and its own stale checks
+  // keep it from touching the new session).
+  if (!refreshPromise || refreshPromiseGeneration !== getSessionGeneration()) {
+    refreshPromiseGeneration = getSessionGeneration();
     refreshPromise = doRefresh();
   }
 

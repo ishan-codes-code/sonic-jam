@@ -20,7 +20,7 @@ export default function TabHeader({ value, setValue }: TabsHeaderProps) {
             className="w-full h-auto flex-row justify-start items-center gap-2 px-1 bg-transparent"
             accessibilityRole="tablist"
         >
-            {/* Profile Avatar — navigates to /profile on press */}
+            {/* Profile Avatar — navigates to /settings on press */}
             <ProfileAvatar size={35} />
 
             {TABS.map((tab) => {

@@ -6,6 +6,62 @@
 
 - Baseline commit: `00a4fad` (`00a4fad285c3cbf0f5ac8d4079a970bc643dddd2`, 2026-11-20).
 - Baseline stats: `src/` holds **183 files, 15,855 lines** (method: `wc -l`; per-file table in `docs/FILE_INVENTORY.md`).
+- Structural delta (uncommitted, 2026-11-21): +`src/features/server/` slice (7 files, 598 lines)
+  plus `ServerGuard` in `src/app/_layout.tsx` (+39), runtime URL support in `src/api/apiClient.ts`
+  (+20), lazy config in `playerSetup.ts` (+5). Working tree: **190 files, 16,517 lines**.
+  Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, Settings hub + Server Management):
+  +`src/features/settings/` slice (3 files, 155 lines), +`src/app/(tabs)/settings/` routes
+  (3 files, 15 lines) replacing `src/app/(tabs)/profile/index.tsx`, +server-switch UI in
+  `src/features/server/` (`ServerManagementScreen`, `useServerSwitch`; 2 files, 415 lines),
+  +playback session-reset primitives (+106). Working tree: **197 files, 17,208 lines**.
+  Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, Login → Server Setup review):
+  +`src/app/(auth)/server-setup.tsx` route (5 lines) + shared `performServerSwitch()`
+  (`src/features/server/utils/serverSwitch.ts`, 67 lines) extracted from `useServerSwitch`;
+  also records the earlier race-fix drift (+32 playback). Working tree:
+  **199 files, 17,341 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, contextual setup CTA):
+  `useServerSetup` 89→105 + `ServerSetupScreen` 171→180 (Login/Continue label).
+  Working tree: **199 files, 17,366 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, setup CTA + keyboard polish):
+  no back button, Continue + green check when the configured URL is untouched,
+  focus scrolls the input above the keyboard. `useServerSetup` 105→103,
+  `ServerSetupScreen` 180→176. Working tree: **199 files, 17,360 lines**.
+  Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, Android keyboard-aware scroll):
+  +`src/components/useKeyboardAwareScroll.ts` (65 lines, shared by auth +
+  server) replaces the setup screen's blind `scrollToEnd` hack; Login 141→146,
+  Signup 149→155, ServerSetupScreen 176→170. Working tree:
+  **200 files, 17,430 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, keyboard-scroll geometry fix):
+  compensate the scroll API's full-screen assumption with the live safe-area
+  top inset (`useKeyboardAwareScroll` 65→79). Working tree:
+  **200 files, 17,444 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, dynamic keyboard bottom padding):
+  hook tracks keyboard height and exposes bottom padding (79→126); scrolling
+  is sequenced after the range grows via onContentSizeChange. Login 146→155,
+  Signup 155→164, ServerSetupScreen 170→176. Working tree:
+  **200 files, 17,515 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, 2026-11-22, PR #10 review races):
+  +`utils/sessionGeneration.ts` (23); refresh guards (`apiClient` 225→260,
+  `tokenManager` 121→144), pre-request polling capture (`pollingResolver`
+  208→231, `playbackApi` 42→56, `jobResolver` 13→16), `serverStore` 97→122
+  (first-time stale-token clear, storage-failure safe load), `serverStorage`
+  47→45, `serverValidation` 97→112, `useServerSetup` 103→124, hook 126→137,
+  `serverSwitch` 67→71, `index` 35→39. Working tree:
+  **201 files, 17,714 lines** (committed as f7166a0 without re-baseline).
+- Structural delta (uncommitted, PR #10 follow-up: token-refresh race close):
+  generation-tagged refresh queue + ownership (`apiClient` 260→327),
+  `tokenManager` 144→161 (takeover + guarded finally), `sessionGeneration`
+  23→53 (invalidation listeners), `index` 39→40. Working tree:
+  **201 files, 17,829 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, PR #10 audit fixes: storage race close):
+  serialized + generation-stamped token storage (`tokenStorage` 32→95);
+  captured-URL + `saveTokensIfCurrent` refreshes (`apiClient` 327→349,
+  `tokenManager` 161→186); radio guards (`smartQueueService` 444→491);
+  `playPlaylist` cancellation return (`usePlayer` 562→566). Working tree:
+  **201 files, 17,990 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -37,9 +93,9 @@ Directories that intentionally DO NOT exist: `android/`, `ios/` (managed prebuil
 | Entry | File | Role |
 |-------|------|------|
 | JS entry | `package.json` main `expo-router/entry` | Expo Router bootstrap |
-| Root layout | `src/app/_layout.tsx` | Providers, `VersionGuard`, `AuthGuard`, `Stack`, `setupPlayer()`, background handler registration |
+| Root layout | `src/app/_layout.tsx` | Providers, `VersionGuard`, `ServerGuard`, `AuthGuard`, `Stack`, `setupPlayer()` (via `ServerGuard`), background handler registration |
 | Default route | `src/app/index.tsx` | Redirects to `/login`; guard decides final destination |
-| Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` | Unauthenticated stack |
+| Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` + `server-setup.tsx` | Unauthenticated stack |
 | Tabs group | `src/app/(tabs)/_layout.tsx` | Custom tab bar (Home, Search, Library, Processing) + hidden routes |
 | Home nested | `src/app/(tabs)/home/_layout.tsx` | Feed/Recents header + nested stack (`index`, `recents`) |
 | Search nested | `src/app/(tabs)/search/_layout.tsx` | Nested stack (`index`, `[genre]`) |
@@ -66,16 +122,17 @@ Line counts per file are in `docs/FILE_INVENTORY.md`. Structure:
 ```text
 src/
 ├── api/                          # shared network layer (1 file)
-│   └── apiClient.ts              # axios instance, BASE_URL/MEDIA_URL, token + device interceptors, 401 queue, toasts
+│   └── apiClient.ts              # axios instance, BASE_URL/MEDIA_URL (runtime-settable), token + device interceptors, 401 queue, toasts
 ├── app/                          # expo-router routes: thin wrappers + layouts (20 files)
-│   ├── _layout.tsx               # RootLayout: providers, guards, Stack, player setup
+│   ├── _layout.tsx               # RootLayout: providers, guards (Version/Server/Auth), Stack, player setup
 │   ├── index.tsx                 # default → /login redirect
 │   ├── player.tsx                # → PlayerScreen (full-screen modal)
 │   ├── notification.click.tsx    # notification tap → /player redirect
 │   ├── (auth)/
 │   │   ├── _layout.tsx           # auth stack (login, signup)
 │   │   ├── login.tsx             # → LoginScreen
-│   │   └── signup.tsx            # → SignupScreen
+│   │   ├── signup.tsx            # → SignupScreen
+│   │   └── server-setup.tsx      # → ServerSetupScreen (review mode)
 │   └── (tabs)/
 │       ├── _layout.tsx           # custom tab bar + hidden-route registration
 │       ├── library.tsx           # → LibraryScreen
@@ -88,8 +145,10 @@ src/
 │       │   ├── _layout.tsx       # nested stack shell
 │       │   ├── index.tsx         # SearchScreen ↔ SearchFocusScreen switch
 │       │   └── [genre].tsx       # → GenreScreen
-│       ├── profile/
-│       │   └── index.tsx         # → ProfileScreen (hidden tab)
+│       ├── settings/
+│       │   ├── index.tsx         # → SettingsScreen (hub, hidden tab)
+│       │   ├── account.tsx       # → ProfileScreen (existing, hidden tab)
+│       │   └── server.tsx        # → ServerManagementScreen (hidden tab)
 │       ├── collections/
 │       │   └── [id].tsx          # → CollectionScreen (hidden tab)
 │       ├── song/
@@ -99,6 +158,7 @@ src/
 ├── components/                   # shared UI (18 files)
 │   ├── AnimatedPressable.tsx     # reanimated pressable primitive
 │   ├── AudioWave.tsx             # audio waveform visual
+│   ├── useKeyboardAwareScroll.ts # Android focus-scroll hook (auth + server)
 │   ├── GradientText.tsx          # masked-view gradient text (used by library headers)
 │   ├── RemoteSongListCard.tsx    # swipeable song row (gesture-handler + haptics)
 │   └── ui/                       # shadcn-style primitives over @rn-primitives (14 files)
@@ -109,7 +169,7 @@ src/
 │   ├── theme.ts                  # THEME + NAV_THEME (dark forced in practice)
 │   └── utils.ts                  # cn() (clsx + tailwind-merge)
 ├── global.css                    # NativeWind entry (59 lines)
-└── features/                     # vertical feature slices (16 features, 141 files)
+└── features/                     # vertical feature slices (18 features, 153 files)
 ```
 ```text
 src/features/
@@ -194,6 +254,15 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
+├── server/                       # runtime server config + setup/switch UI (11 files)
+│   ├── index.ts  api/serverValidation.ts
+│   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts
+│   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
+│   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverStorage.ts
+│   ├── utils/serverSwitch.ts  # shared performServerSwitch()
+│   └── utils/sessionGeneration.ts  # refresh invalidation counter
+├── settings/                     # Settings hub (3 files)
+│   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx
 └── song/                         # deep links + sharing (2 files)
     ├── screens/SongDeepLinkRouteScreen.tsx  utils/shareSong.ts
 ```
@@ -217,6 +286,8 @@ src/features/
 | `processing` | Job-center UI over `playback` job store | Job creation/polling (owned by `playback`) |
 | `profile` | Account display + logout entry | Auth mechanics (owned by `auth`) |
 | `search` | iTunes search, genre surface, search history/recents | Playback (calls `usePlayer`) |
+| `settings` | Settings hub list UI only (`SettingsScreen` + `SettingsRow`); links out to owning features | Account UI (owned by `profile`), server UI/logic (owned by `server`) |
+| `server` | Runtime server URL: normalize/validate, AsyncStorage persistence, connection validation, setup screen + gate state, Server Management screen + switch orchestration (`performServerSwitch` + session generation, incl. the atomic session reset) | Auth session mechanics, playback engine internals (both called, not owned) |
 | `song` | Deep-link resolution + share-link building | Player UI |
 
 Known boundary crossings (do not widen without an ADR): `library` invalidates `collections` query keys;
@@ -227,7 +298,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Shared need | Location | Rule |
 |-------------|----------|------|
-| Network client | `src/api/apiClient.ts` | Only Axios instance; feature APIs wrap it, never create their own backend client |
+| Network client | `src/api/apiClient.ts` | Only Axios instance; feature APIs wrap it, never create their own backend client (sole exception: the `server` validator's unauthenticated bootstrap `fetch`, which must run pre-config) |
 | UI primitives | `src/components/ui/` | shadcn-style; new primitives go here, not in features |
 | Shared interactive UI | `src/components/*.tsx` | Only when used by ≥2 features |
 | Theme/tokens | `src/lib/theme.ts` | `NAV_THEME`; NativeWind classes reference `tailwind.config.js` tokens |
@@ -241,31 +312,33 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Area | Files | Lines |
 |------|------:|------:|
-| `src/api` | 1 | 205 |
-| `src/app` | 20 | 599 |
-| `src/components` | 18 | 2,148 |
+| `src/api` | 1 | 349 |
+| `src/app` | 23 | 656 |
+| `src/components` | 19 | 2,285 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 893 |
+| `src/features/auth` | 15 | 1064 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 3,914 |
+| `src/features/playback` | 39 | 4,148 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
+| `src/features/server` | 11 | 1,237 |
+| `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **183** | **15,855** |
+| **Total** | **201** | **17,990** |
 
-Largest files (watch for growth): `playback/hooks/usePlayer.ts` (554), `collections/screens/CollectionScreen.tsx`
-(483), `playback/services/smartQueueService.ts` (422), `components/RemoteSongListCard.tsx` (375),
+Largest files (watch for growth): `playback/hooks/usePlayer.ts` (566), `collections/screens/CollectionScreen.tsx`
+(483), `playback/services/smartQueueService.ts` (491), `components/RemoteSongListCard.tsx` (375),
 `components/AnimatedPressable.tsx` (337), `components/ui/dropdown-menu.tsx` (300).
 
 ## 8. Reference maintenance

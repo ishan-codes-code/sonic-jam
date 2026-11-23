@@ -46,3 +46,6 @@ app-example
 /skills
 
 /ditched
+
+# Locally installed agent skills
+.agents/skills/

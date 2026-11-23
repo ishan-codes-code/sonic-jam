@@ -3,42 +3,70 @@ import { BASE_URL } from "@/api/apiClient";
 
 let isSetup = false;
 
-const PLAYER_CONFIG: PlayerConfig = {
-  contentType: "music",
+// Built lazily at setup time (not module scope) so the progress-sync URL
+// uses the runtime-configured server. setupPlayer() runs only after the
+// ServerGuard resolves, guaranteeing BASE_URL is already pointed correctly.
+function buildPlayerConfig(): PlayerConfig {
+  return {
+    contentType: "music",
 
-  handleAudioBecomingNoisy: true,
+    handleAudioBecomingNoisy: true,
 
-  cache: {
-    maxSizeBytes: 200 * 1024 * 1024, // 200 MB
-    preloading: {
-      window: 2,
+    cache: {
+      maxSizeBytes: 200 * 1024 * 1024, // 200 MB
+      preloading: {
+        window: 2,
+      },
     },
-  },
 
-  android: {
-    wakeMode: "network",
+    android: {
+      wakeMode: "network",
 
-    notification: {
-      channelId: "com.sonic.audio",
-      channelName: "Audio Playback",
-      smallIcon: "ic_notification",
+      notification: {
+        channelId: "com.sonic.audio",
+        channelName: "Audio Playback",
+        smallIcon: "ic_notification",
+      },
     },
-  },
 
-  progressSync: {
-    intervalSeconds: 30,
-    http: {
-      url: `${BASE_URL}/listening/progress-sync`,
-      headers: {},
+    progressSync: {
+      intervalSeconds: 30,
+      http: {
+        url: `${BASE_URL}/listening/progress-sync`,
+        headers: {},
+      },
     },
-  },
-};
+  };
+}
+
+/**
+ * Tears down the native player and sets it up again with the CURRENT runtime
+ * server URL. Used only by the server-switch session reset: @rntp/player
+ * exposes no progress-sync URL update API, so recreate is the only way to
+ * re-point progress sync (headers alone are updatable via
+ * setProgressSyncToken). Callers must stop playback and clear the queue first.
+ * A failed re-setup clears the guard so the next ensureSetup() retries.
+ *
+ * Sequencing note: every @rntp/player v5 control API is synchronous `void`
+ * (verified in audio.d.ts + the TurboModule spec), so destroy() dispatches
+ * before setupPlayer() in call order; the await yields between the two
+ * dispatches. There is no native completion handle to wait on.
+ */
+export async function recreatePlayer(): Promise<boolean> {
+  try {
+    await TrackPlayer.destroy();
+  } catch (error) {
+    console.error("[playerSetup] Failed to destroy TrackPlayer:", error);
+  }
+  isSetup = false;
+  return setupPlayer();
+}
 
 export async function setupPlayer(): Promise<boolean> {
   if (isSetup) return true;
 
   try {
-    await TrackPlayer.setupPlayer(PLAYER_CONFIG);
+    await TrackPlayer.setupPlayer(buildPlayerConfig());
 
     TrackPlayer.setCommands({
       capabilities: [

@@ -6,6 +6,40 @@ import { useJobStore } from "../store/useJobStore";
 
 const MAX_TIMEOUT = 300000; // 5 min (important timeout fallback)
 
+// ─── Session generation ─────────────────────────────────────────────────────
+// Bumped by cancelAllJobPolling() during the server-switch session reset so
+// old-server polls stop before they can write into new-server state. The loop
+// checks the generation on every iteration and throws JobPollingCancelledError,
+// which resolveStream callers must let through silently (see usePlayer).
+
+let pollingGeneration = 0;
+
+/** Invalidate every in-flight pollJobStatus() loop. Never throws. */
+export function cancelAllJobPolling(): void {
+  pollingGeneration++;
+}
+
+/**
+ * Current polling generation. Stream resolution captures this BEFORE its
+ * initial `/songs/play` request and passes it back into pollJobStatus(), so a
+ * pre-poll response that arrives after a server switch is rejected instead of
+ * starting a poll (or resurrecting job state) for the new session.
+ */
+export function getPollingGeneration(): number {
+  return pollingGeneration;
+}
+
+export class JobPollingCancelledError extends Error {
+  constructor() {
+    super('Job polling cancelled (server switched)');
+    this.name = 'JobPollingCancelledError';
+  }
+}
+
+export function isJobPollingCancelled(error: unknown): boolean {
+  return error instanceof JobPollingCancelledError;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,17 +76,49 @@ function getNextPollInterval(pollCount: number): number {
 
 // ─── Implementation ─────────────────────────────────────────────────────────
 
-export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
+export async function pollJobStatus(
+  jobId: string,
+  expectedGeneration?: number,
+): Promise<ResolvedStream> {
   let startTime = Date.now();
   let pollCount = 0;
   const jobStore = useJobStore.getState();
+  const generation = pollingGeneration;
+
+  // The resolve operation started before the initial `/songs/play` request on
+  // an older generation: the server switched mid-flight. Reject before any
+  // poll or job-store write can touch the new session.
+  if (
+    expectedGeneration !== undefined &&
+    expectedGeneration !== generation
+  ) {
+    throw new JobPollingCancelledError();
+  }
 
   while (Date.now() - startTime < MAX_TIMEOUT) {
+    if (generation !== pollingGeneration) {
+      throw new JobPollingCancelledError();
+    }
+
     let response: PlayJobResponse | null = null;
 
     try {
       response = await playbackApi.getJob(jobId);
+      if (generation !== pollingGeneration) {
+        throw new JobPollingCancelledError();
+      }
     } catch (error: any) {
+      // Cancellation is not a server error: let it through without marking
+      // the (already cleared) job failed.
+      if (isJobPollingCancelled(error)) {
+        throw error;
+      }
+      // A fetch that was in flight during a server switch rejects here with
+      // an old-server error: never mark the job failed (the registry was
+      // already cleared and the write would resurrect it).
+      if (generation !== pollingGeneration) {
+        throw new JobPollingCancelledError();
+      }
       const isInternetDrop =
         !error.response ||
         error.code === "ERR_NETWORK" ||
@@ -154,6 +220,9 @@ export async function pollJobStatus(jobId: string): Promise<ResolvedStream> {
   }
 
   const timeoutMsg = "Job timeout";
+  if (generation !== pollingGeneration) {
+    throw new JobPollingCancelledError();
+  }
   jobStore.updateJob(jobId, {
     status: "failed",
     error: timeoutMsg,
