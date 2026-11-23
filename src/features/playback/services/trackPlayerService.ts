@@ -6,6 +6,7 @@ import TrackPlayer, {
 } from "@rntp/player";
 import { RepeatManager } from "./repeatManager";
 import { handleSmartQueueMediaTransition } from "./smartQueueService";
+import { syncPlayerFromNative, syncTrackMetadata } from "./nativeSync";
 
 // This file MUST be a separate module registered with RNTP.
 // It runs in a background thread and handles remote control events
@@ -68,14 +69,20 @@ async function handleMediaItemTransition(event: MediaItemTransitionEvent) {
     // handlePlaybackEnd will check the repeatMode
     await RepeatManager.handlePlaybackEnd();
 
-    // RNTP v5 strips custom properties.
-    // We recover the full track (and Song) from our zustand trackMap.
+    // RNTP v5 strips custom properties: recover the full track (and Song)
+    // from our zustand trackMap, then apply complete metadata (song +
+    // stream URL + colors) like the foreground listener does.
     if (event.item && event.item.mediaId) {
       const track = store.trackMap[event.item.mediaId];
       if (track && track.song) {
-        store.setCurrentSong(track.song, track);
+        await syncTrackMetadata(track);
       }
     }
+
+    // Re-read live native state (stream URL, artwork colors, status,
+    // position) so the headless side stays in sync with the foreground
+    // listener. Idempotent: skips work when nothing changed.
+    await syncPlayerFromNative();
 
     await handleSmartQueueMediaTransition();
   } catch (error) {

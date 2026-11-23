@@ -44,6 +44,20 @@
 > 161→186); radio guards (`smartQueueService` 444→491); `playPlaylist`
 > cancellation return (`usePlayer` 562→566).
 > Working tree: **201 files, 17,990 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, foreground playback resync):
+> +`services/nativeSync.ts` (142, shared native→store resync); `PlaybackSync`
+> 318→316 (extracted metadata/status mapping, AppState foreground resync);
+> `trackPlayerService` 84→90 (headless resync call).
+> Working tree: **202 files, 18,136 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, resync optimistic-song guard):
+> `nativeSync` 142→149 (skip track sync while a stream request is pending).
+> Working tree: **202 files, 18,143 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, resync error-priority fix):
+> `nativeSync` 149→152 (native errors applied before the pending-job guard).
+> Working tree: **202 files, 18,146 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, headless full-metadata fix):
+> `trackPlayerService` 90→91 (transition applies `syncTrackMetadata` directly).
+> Working tree: **202 files, 18,147 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -241,7 +255,7 @@
 |------|------:|----------------|
 | `src/features/miniplayer/screens/MiniplayerScreen.tsx` | 194 | Persistent mini player (artwork, toggle, progress, playlist shortcut) |
 
-## `src/features/playback` — 39 files, 4,148 lines
+## `src/features/playback` — 40 files, 4,305 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -259,17 +273,18 @@
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
 | `src/features/playback/services/index.ts` | 17 | Service barrel (named exports) |
 | `src/features/playback/services/jobResolver.ts` | 16 | `resolveJob()` abstraction over polling (passes expected generation through) |
+| `src/features/playback/services/nativeSync.ts` | 152 | Shared native→store resync (`syncPlayerFromNative` + `syncTrackMetadata` + `resolveStoreStatus`); lazy store imports for headless use |
 | `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
 | `src/features/playback/services/pollingResolver.ts` | 231 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
 | `src/features/playback/services/smartQueueService.ts` | 491 | Radio pipeline: recommend → enrich → resolve → fill native queue; consistent radio-generation checks on every async path |
-| `src/features/playback/services/trackPlayerService.ts` | 84 | Headless `PlaybackService`: remote controls + background transition |
+| `src/features/playback/services/trackPlayerService.ts` | 91 | Headless `PlaybackService`: remote controls + background transition + native resync |
 | `src/features/playback/store/index.ts` | 3 | Re-exports the three playback stores |
 | `src/features/playback/store/useJobStore.ts` | 77 | Job registry (`waiting/active/completed/failed`) + `clearJobs()` for session reset |
 | `src/features/playback/store/usePlaybackStore.ts` | 195 | Core playback state + `trackMap` mirror |
 | `src/features/playback/store/useSmartQueueStore.ts` | 122 | Smart-queue tracks + cancel/init/append state |
 | `src/features/playback/components/index.ts` | 1 | Re-exports `PlaybackSync` |
-| `src/features/playback/components/PlaybackSync.tsx` | 318 | Foreground native→store sync + generation-guarded error recovery + transition handling + `resetPlaybackRecovery()` |
+| `src/features/playback/components/PlaybackSync.tsx` | 316 | Foreground native→store sync + generation-guarded error recovery + transition handling + foreground resync + `resetPlaybackRecovery()` |
 | `src/features/playback/components/PlaybackLoadingIndicator.tsx` | 73 | Circular/job progress loading indicators † |
 | `src/features/playback/components/PlayerArtwork.tsx` | 38 | Hero artwork view † |
 | `src/features/playback/components/PlayerBackground.tsx` | 25 | Dynamic gradient background † |

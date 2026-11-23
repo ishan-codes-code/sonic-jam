@@ -62,6 +62,20 @@
   `tokenManager` 161→186); radio guards (`smartQueueService` 444→491);
   `playPlaylist` cancellation return (`usePlayer` 562→566). Working tree:
   **201 files, 17,990 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, foreground playback resync):
+  +`playback/services/nativeSync.ts` (142, shared native→store resync);
+  `PlaybackSync` 318→316 (extracted metadata/status mapping, AppState
+  foreground resync); `trackPlayerService` 84→90 (headless resync call).
+  Working tree: **202 files, 18,136 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, resync optimistic-song guard):
+  `nativeSync` 142→149 (skip track sync while a stream request is pending).
+  Working tree: **202 files, 18,143 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, resync error-priority fix):
+  `nativeSync` 149→152 (native errors applied before the pending-job guard).
+  Working tree: **202 files, 18,146 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, headless full-metadata fix):
+  `trackPlayerService` 90→91 (transition applies `syncTrackMetadata` directly).
+  Working tree: **202 files, 18,147 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -226,13 +240,13 @@ src/features/
 │       components/PlaylistGridItem.tsx  components/PlaylistListItem.tsx
 ├── miniplayer/                   # persistent mini player (1 file)
 │   └── screens/MiniplayerScreen.tsx
-├── playback/                     # audio engine + queue + radio (39 files, largest slice)
+├── playback/                     # audio engine + queue + radio (40 files, largest slice)
 │   ├── index.ts  types/index.ts  utils/playbackHelpers.ts
 │   ├── api/index.ts  api/playback.api.ts  api/playbackApi.ts  api/recommendationApi.ts
 │   ├── hooks/index.ts  hooks/usePlayer.ts  hooks/useProgressSyncAuth.ts  hooks/useSmartQueue.ts
 │   ├── screens/PlayerScreen.tsx
-│   ├── services/index.ts  services/jobResolver.ts  services/playerSetup.ts
-│   ├── services/pollingResolver.ts  services/repeatManager.ts
+│   ├── services/index.ts  services/jobResolver.ts  services/nativeSync.ts
+│   ├── services/playerSetup.ts  services/pollingResolver.ts  services/repeatManager.ts
 │   ├── services/smartQueueService.ts  services/trackPlayerService.ts
 │   ├── store/index.ts  store/useJobStore.ts  store/usePlaybackStore.ts  store/useSmartQueueStore.ts
 │   └── components/index.ts  components/PlaybackSync.tsx  components/PlaybackLoadingIndicator.tsx
@@ -326,7 +340,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 4,148 |
+| `src/features/playback` | 40 | 4,305 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
@@ -335,7 +349,7 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **201** | **17,990** |
+| **Total** | **202** | **18,147** |
 
 Largest files (watch for growth): `playback/hooks/usePlayer.ts` (566), `collections/screens/CollectionScreen.tsx`
 (483), `playback/services/smartQueueService.ts` (491), `components/RemoteSongListCard.tsx` (375),
