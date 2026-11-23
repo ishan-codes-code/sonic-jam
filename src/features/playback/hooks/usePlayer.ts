@@ -45,23 +45,44 @@ export function usePlayer() {
 
   // ── Helper: Dead-player retry ──────────────────────────────────
   // When Android has killed the native service, queue-building calls are
-  // silent no-ops and getQueue() stays empty. Recreate once and let the
-  // caller redo its native calls via rebuild; true = the native queue is
-  // non-empty afterwards. Callers show the error + bail on false.
+  // silent no-ops and getQueue() stays empty. After a recreate the native
+  // MediaController reconnects asynchronously and commands sent before it
+  // connects are silently dropped, so poll + rebuild until the queue lands.
+  // rebuild() only runs while the queue is still empty — nothing is added
+  // twice. True = the native queue is non-empty. Callers show the error +
+  // bail on false.
   const ensureNativeQueue = useCallback(
     async (rebuild: () => Promise<void>): Promise<boolean> => {
+      const sleep = (ms: number) =>
+        new Promise<void>((resolve) => setTimeout(resolve, ms));
+      const queueAlive = async (): Promise<boolean> => {
+        try {
+          return (await TrackPlayer.getQueue()).length > 0;
+        } catch {
+          return false;
+        }
+      };
+      const pollAndRebuild = async (): Promise<boolean> => {
+        for (let attempt = 0; attempt < 8; attempt++) {
+          await sleep(400);
+          if (await queueAlive()) return true;
+          await rebuild();
+          if (await queueAlive()) return true;
+        }
+        return false;
+      };
+
       try {
         if ((await TrackPlayer.getQueue()).length > 0) return true;
       } catch {
         // Fall through to recreate — a throw also means dead.
       }
       await recreatePlayer();
-      await rebuild();
-      try {
-        return (await TrackPlayer.getQueue()).length > 0;
-      } catch {
-        return false;
-      }
+      if (await pollAndRebuild()) return true;
+      // One last chance: recreate again (fresh controller build) + one
+      // more round of the same loop before giving up.
+      await recreatePlayer();
+      return pollAndRebuild();
     },
     [],
   );
@@ -186,7 +207,10 @@ export function usePlayer() {
 
         await loadNext();
         if (!(await ensureNativeQueue(loadNext))) {
-          store.setError("Player unavailable, please restart the app");
+          console.warn(
+            "[usePlayer] playNext: native queue still empty after recreate retries",
+          );
+          store.setError("Couldn't start playback. Tap the song to try again.");
           return;
         }
         toastImperative.show({
@@ -229,7 +253,10 @@ export function usePlayer() {
 
         await loadAppend();
         if (!(await ensureNativeQueue(loadAppend))) {
-          store.setError("Player unavailable, please restart the app");
+          console.warn(
+            "[usePlayer] addToQueue: native queue still empty after recreate retries",
+          );
+          store.setError("Couldn't start playback. Tap the song to try again.");
           return;
         }
         toastImperative.show({
@@ -385,7 +412,10 @@ export function usePlayer() {
 
         await loadTrack();
         if (!(await ensureNativeQueue(loadTrack))) {
-          store.setError("Player unavailable, please restart the app");
+          console.warn(
+            "[usePlayer] play: native queue still empty after recreate retries",
+          );
+          store.setError("Couldn't start playback. Tap the song to try again.");
           return undefined;
         }
 
@@ -477,7 +507,10 @@ export function usePlayer() {
 
         await loadPlaylist();
         if (!(await ensureNativeQueue(loadPlaylist))) {
-          store.setError("Player unavailable, please restart the app");
+          console.warn(
+            "[usePlayer] playPlaylist: native queue still empty after recreate retries",
+          );
+          store.setError("Couldn't start playback. Tap the song to try again.");
           return;
         }
 

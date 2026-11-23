@@ -129,7 +129,11 @@ export async function syncPlayerFromNative(): Promise<void> {
     // this module runs in the headless service (hard rule 1).
     if (await isNativePlayerDead()) {
       const { recreatePlayer } = await import("./playerSetup");
-      await recreatePlayer();
+      const recreated = await recreatePlayer();
+      if (!recreated) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await recreatePlayer();
+      }
       const deadStore = usePlaybackStore.getState();
       deadStore.clearCurrentSong();
       deadStore.clearStream();
