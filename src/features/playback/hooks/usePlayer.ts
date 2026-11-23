@@ -28,6 +28,11 @@ export function usePlayer() {
   // onto the previous one, so queue state is always consistent.
   const queueOpLock = useRef<Promise<void>>(Promise.resolve());
 
+  // Monotonic play-op id: play()/playPlaylist()/stop() bump it so a newer
+  // op (or stop) invalidates in-flight retry loops, which then bail instead
+  // of writing stale state.
+  const playOpRef = useRef(0);
+
   // ── Helper: Get Store ───────────────────────────────────────────
   const getStore = () => usePlaybackStore.getState();
 
@@ -43,16 +48,34 @@ export function usePlayer() {
     }
   }, []);
 
+  // ── Helper: Swallowed loader ───────────────────────────────────
+  // A loader throw counts as a dead queue, not a crash: warn and fall
+  // through so the queue check / recreate flow decides. Never throws.
+  const tryRebuild = useCallback(
+    async (rebuild: () => Promise<void>): Promise<void> => {
+      try {
+        await rebuild();
+      } catch (error) {
+        console.warn("[usePlayer] native load failed:", error);
+      }
+    },
+    [],
+  );
+
   // ── Helper: Dead-player retry ──────────────────────────────────
   // When Android has killed the native service, queue-building calls are
   // silent no-ops and getQueue() stays empty. After a recreate the native
   // MediaController reconnects asynchronously and commands sent before it
   // connects are silently dropped, so poll + rebuild until the queue lands.
   // rebuild() only runs while the queue is still empty — nothing is added
-  // twice. True = the native queue is non-empty. Callers show the error +
+  // twice. isCurrent bails the loop as soon as a newer op (or stop) takes
+  // over. True = the native queue is non-empty. Callers show the error +
   // bail on false.
   const ensureNativeQueue = useCallback(
-    async (rebuild: () => Promise<void>): Promise<boolean> => {
+    async (
+      rebuild: () => Promise<void>,
+      isCurrent: () => boolean,
+    ): Promise<boolean> => {
       const sleep = (ms: number) =>
         new Promise<void>((resolve) => setTimeout(resolve, ms));
       const queueAlive = async (): Promise<boolean> => {
@@ -65,8 +88,10 @@ export function usePlayer() {
       const pollAndRebuild = async (): Promise<boolean> => {
         for (let attempt = 0; attempt < 8; attempt++) {
           await sleep(400);
+          if (!isCurrent()) return false;
           if (await queueAlive()) return true;
-          await rebuild();
+          if (!isCurrent()) return false;
+          await tryRebuild(rebuild);
           if (await queueAlive()) return true;
         }
         return false;
@@ -79,12 +104,14 @@ export function usePlayer() {
       }
       await recreatePlayer();
       if (await pollAndRebuild()) return true;
+      // A stale op skips the second recreate: a newer op runs its own.
+      if (!isCurrent()) return false;
       // One last chance: recreate again (fresh controller build) + one
       // more round of the same loop before giving up.
       await recreatePlayer();
       return pollAndRebuild();
     },
-    [],
+    [tryRebuild],
   );
 
   // ── Core: Enqueue ──────────────────────────────────────────────
@@ -184,6 +211,10 @@ export function usePlayer() {
   const playNext = useCallback(
     async (payload: PlaySongDto, source: TrackSource = "playNext") => {
       const store = getStore();
+      // No bump — only play()/playPlaylist()/stop() own the op id. A newer
+      // op aborts our retry loop instead of running it stale.
+      const opId = playOpRef.current;
+      const isCurrent = () => playOpRef.current === opId;
       try {
         const ok = await ensureSetup();
         if (!ok) {
@@ -205,8 +236,8 @@ export function usePlayer() {
           }
         };
 
-        await loadNext();
-        if (!(await ensureNativeQueue(loadNext))) {
+        await tryRebuild(loadNext);
+        if (!(await ensureNativeQueue(loadNext, isCurrent))) {
           console.warn(
             "[usePlayer] playNext: native queue still empty after recreate retries",
           );
@@ -224,13 +255,17 @@ export function usePlayer() {
         store.setError(error?.message ?? "Failed to play next");
       }
     },
-    [ensureSetup, ensureNativeQueue, resolveAndCreateTrack],
+    [ensureSetup, ensureNativeQueue, resolveAndCreateTrack, tryRebuild],
   );
 
   // Add to Queue — FIFO append to the end
   const addToQueue = useCallback(
     async (payload: PlaySongDto, source: TrackSource = "addToQueue") => {
       const store = getStore();
+      // No bump — only play()/playPlaylist()/stop() own the op id. A newer
+      // op aborts our retry loop instead of running it stale.
+      const opId = playOpRef.current;
+      const isCurrent = () => playOpRef.current === opId;
       try {
         const ok = await ensureSetup();
         if (!ok) {
@@ -251,8 +286,8 @@ export function usePlayer() {
           }
         };
 
-        await loadAppend();
-        if (!(await ensureNativeQueue(loadAppend))) {
+        await tryRebuild(loadAppend);
+        if (!(await ensureNativeQueue(loadAppend, isCurrent))) {
           console.warn(
             "[usePlayer] addToQueue: native queue still empty after recreate retries",
           );
@@ -270,7 +305,7 @@ export function usePlayer() {
         store.setError(error?.message ?? "Failed to add to queue");
       }
     },
-    [ensureSetup, ensureNativeQueue, resolveAndCreateTrack],
+    [ensureSetup, ensureNativeQueue, resolveAndCreateTrack, tryRebuild],
   );
 
   // ── Queue: Remove from Queue ──────────────────────────────────
@@ -326,6 +361,8 @@ export function usePlayer() {
       options?: { preserveQueue?: boolean },
     ): Promise<PlaybackTrack | undefined> => {
       const store = getStore();
+      const opId = ++playOpRef.current;
+      const isCurrent = () => playOpRef.current === opId;
       try {
         const optimisticSong: any = {
           id: "songId" in payload ? payload.songId : `temp_${Date.now()}`,
@@ -410,8 +447,10 @@ export function usePlayer() {
           await TrackPlayer.play();
         };
 
-        await loadTrack();
-        if (!(await ensureNativeQueue(loadTrack))) {
+        await tryRebuild(loadTrack);
+        if (!(await ensureNativeQueue(loadTrack, isCurrent))) {
+          // Stale: a newer op (or stop) owns the store — stay silent.
+          if (!isCurrent()) return undefined;
           console.warn(
             "[usePlayer] play: native queue still empty after recreate retries",
           );
@@ -419,8 +458,10 @@ export function usePlayer() {
           return undefined;
         }
 
-        store.setCurrentSong(song, track);
-        store.setDuration(song.duration);
+        if (isCurrent()) {
+          store.setCurrentSong(song, track);
+          store.setDuration(song.duration);
+        }
         store.notifyQueueUpdate();
         void ensureSmartQueueActive();
 
@@ -438,7 +479,7 @@ export function usePlayer() {
         return undefined;
       }
     },
-    [ensureSetup, ensureNativeQueue],
+    [ensureSetup, ensureNativeQueue, tryRebuild],
   );
 
   // ── Playlist: Play ───────────────────────────────────────────
@@ -452,6 +493,8 @@ export function usePlayer() {
       if (!songs.length) return;
 
       const store = getStore();
+      const opId = ++playOpRef.current;
+      const isCurrent = () => playOpRef.current === opId;
       const clampedIndex = Math.max(0, Math.min(startIndex, songs.length - 1));
       const firstSong = songs[clampedIndex];
 
@@ -505,8 +548,10 @@ export function usePlayer() {
           await TrackPlayer.play();
         };
 
-        await loadPlaylist();
-        if (!(await ensureNativeQueue(loadPlaylist))) {
+        await tryRebuild(loadPlaylist);
+        if (!(await ensureNativeQueue(loadPlaylist, isCurrent))) {
+          // Stale: a newer op (or stop) owns the store — stay silent.
+          if (!isCurrent()) return;
           console.warn(
             "[usePlayer] playPlaylist: native queue still empty after recreate retries",
           );
@@ -514,9 +559,11 @@ export function usePlayer() {
           return;
         }
 
-        store.setCurrentSong(firstSong, tracks[clampedIndex] as any);
-        store.setDuration(firstSong.duration);
-        store.setStream(getPlaybackUrl(firstSong));
+        if (isCurrent()) {
+          store.setCurrentSong(firstSong, tracks[clampedIndex] as any);
+          store.setDuration(firstSong.duration);
+          store.setStream(getPlaybackUrl(firstSong));
+        }
         store.notifyQueueUpdate();
       } catch (error) {
         if (isJobPollingCancelled(error)) return;
@@ -524,7 +571,7 @@ export function usePlayer() {
         store.setError("Failed to play playlist");
       }
     },
-    [ensureSetup, ensureNativeQueue],
+    [ensureSetup, ensureNativeQueue, tryRebuild],
   );
 
   const pause = useCallback(() => {
@@ -566,6 +613,9 @@ export function usePlayer() {
   }, []);
 
   const stop = useCallback(() => {
+    // Invalidate in-flight play retry loops so they bail silently instead
+    // of writing stale state after the reset.
+    playOpRef.current++;
     try {
       TrackPlayer.stop();
       TrackPlayer.clear();

@@ -128,6 +128,8 @@ export async function syncPlayerFromNative(): Promise<void> {
     // guard. No stop/clear first: native is already gone. Lazy import —
     // this module runs in the headless service (hard rule 1).
     if (await isNativePlayerDead()) {
+      const { currentTrack } = usePlaybackStore.getState();
+      const deadMediaId = currentTrack?.mediaId;
       const { recreatePlayer } = await import("./playerSetup");
       const recreated = await recreatePlayer();
       if (!recreated) {
@@ -135,9 +137,16 @@ export async function syncPlayerFromNative(): Promise<void> {
         await recreatePlayer();
       }
       const deadStore = usePlaybackStore.getState();
-      deadStore.clearCurrentSong();
-      deadStore.clearStream();
-      deadStore.setStatus("idle");
+      // A newer play request may have claimed the store while the recreates
+      // were in flight — only reset the UI we actually diagnosed.
+      if (
+        !deadStore.pendingJobId &&
+        deadStore.currentTrack?.mediaId === deadMediaId
+      ) {
+        deadStore.clearCurrentSong();
+        deadStore.clearStream();
+        deadStore.setStatus("idle");
+      }
       return;
     }
 
