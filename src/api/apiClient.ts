@@ -237,22 +237,36 @@ apiClient.interceptors.response.use(
     originalRequest._retry = true;
     isRefreshing = true;
     refreshingGeneration = getSessionGeneration();
-    // A server switch mid-refresh must not let Server A's result touch Server
-    // B's session. Every await below yields to the event loop, so the check is
-    // repeated before each write, not just once here.
+    // Capture the session identity (generation + URL) in one synchronous
+    // block. A switch always bumps the generation before applying a new URL,
+    // so a matching generation below also proves the captured URL is current.
+    // Every await below yields to the event loop, so staleness is re-checked
+    // before each write and each request — never assumed from an old check.
     const refreshGeneration = getSessionGeneration();
+    const refreshUrl = BASE_URL;
     const isStale = () => refreshGeneration !== getSessionGeneration();
 
     try {
       const refreshToken = await tokenStorage.getRefreshToken();
       if (!refreshToken) throw new Error("No refresh token");
 
-      // Call refresh without the interceptor to avoid infinite loops
+      if (isStale()) {
+        // The token above was read for the captured session: a switch landing
+        // inside the read must abort here, before Server A's refresh token is
+        // ever sent anywhere. Fail our own queued requests only.
+        const staleError = new Error("Session changed during token refresh");
+        processQueue(staleError, null, refreshGeneration);
+        return Promise.reject(staleError);
+      }
+
+      // Call refresh without the interceptor to avoid infinite loops. Uses the
+      // captured URL (== current URL while fresh) so the token can only ever
+      // be sent to the server that issued it — never to a newer server.
       const { data } = await axios.post<{
         accessToken: string;
         refreshToken: string;
       }>(
-        `${BASE_URL}/auth/refresh`,
+        `${refreshUrl}/auth/refresh`,
         { refreshToken },
         { headers: { "Content-Type": "application/json" } },
       );
@@ -268,13 +282,21 @@ apiClient.interceptors.response.use(
 
       const newAccessToken = data.accessToken;
       const newRefreshToken = data.refreshToken;
-      await tokenStorage.saveTokens(newAccessToken, newRefreshToken);
+      // Generation-validated, serialized write: skipped (false) if a switch
+      // landed first, so Server A's tokens can never overwrite the new
+      // session's credentials.
+      const saved = await tokenStorage.saveTokensIfCurrent(
+        newAccessToken,
+        newRefreshToken,
+        refreshGeneration,
+      );
 
-      if (isStale()) {
-        // The switch landed inside the save above: undo our own write (a
-        // switched-to session holds no tokens yet, so these can only be ours)
-        // and fail everything instead of retrying against the new server.
-        await tokenStorage.clearTokens().catch(() => {});
+      if (!saved || isStale()) {
+        // Skipped as stale, or a switch landed inside the save: fail our own
+        // queued requests and exit WITHOUT destructive cleanup. The switch's
+        // own serialized clear removes anything this refresh wrote (it is
+        // ordered after it), while a blind clear here could wipe the newer
+        // session's credentials.
         const staleError = new Error("Session changed during token refresh");
         processQueue(staleError, null, refreshGeneration);
         return Promise.reject(staleError);

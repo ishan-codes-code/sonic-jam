@@ -56,6 +56,12 @@
   `tokenManager` 144→161 (takeover + guarded finally), `sessionGeneration`
   23→53 (invalidation listeners), `index` 39→40. Working tree:
   **201 files, 17,829 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, PR #10 audit fixes: storage race close):
+  serialized + generation-stamped token storage (`tokenStorage` 32→95);
+  captured-URL + `saveTokensIfCurrent` refreshes (`apiClient` 327→349,
+  `tokenManager` 161→186); radio guards (`smartQueueService` 444→491);
+  `playPlaylist` cancellation return (`usePlayer` 562→566). Working tree:
+  **201 files, 17,990 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -306,21 +312,21 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 
 | Area | Files | Lines |
 |------|------:|------:|
-| `src/api` | 1 | 327 |
+| `src/api` | 1 | 349 |
 | `src/app` | 23 | 656 |
 | `src/components` | 19 | 2,285 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
 | `src/features/app-validations` | 6 | 809 |
 | `src/features/artwork-colors` | 3 | 243 |
-| `src/features/auth` | 15 | 976 |
+| `src/features/auth` | 15 | 1064 |
 | `src/features/collections` | 8 | 1,364 |
 | `src/features/drawer` | 5 | 231 |
 | `src/features/history` | 5 | 495 |
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 39 | 4,097 |
+| `src/features/playback` | 39 | 4,148 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
@@ -329,10 +335,10 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **201** | **17,829** |
+| **Total** | **201** | **17,990** |
 
-Largest files (watch for growth): `playback/hooks/usePlayer.ts` (562), `collections/screens/CollectionScreen.tsx`
-(483), `playback/services/smartQueueService.ts` (445), `components/RemoteSongListCard.tsx` (375),
+Largest files (watch for growth): `playback/hooks/usePlayer.ts` (566), `collections/screens/CollectionScreen.tsx`
+(483), `playback/services/smartQueueService.ts` (491), `components/RemoteSongListCard.tsx` (375),
 `components/AnimatedPressable.tsx` (337), `components/ui/dropdown-menu.tsx` (300).
 
 ## 8. Reference maintenance

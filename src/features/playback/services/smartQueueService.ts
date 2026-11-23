@@ -33,10 +33,13 @@ function resetRuntime() {
 }
 
 // ─── Session generation ─────────────────────────────────────────────────────
-// Bumped by cancelSmartQueueWork() during the server-switch session reset.
-// In-flight recommendation fetches check it before writing so old-server
-// results cannot repopulate the freshly reset smart-queue store. (The
-// enrich/resolve/fill paths need no check: they no-op against a reset store.)
+// Bumped by cancelSmartQueueWork() during the server-switch session reset
+// (always together with the polling/session bumps, in one synchronous block).
+// Every async path below captures it at entry and re-checks after awaits:
+// a stale path must not update the new session's store, touch the native
+// queue, or release module-level flags/sets that the new session may own
+// (the switch's resetRuntime already cleared them). Stale paths exit silently
+// without chaining further work; the new session drives its own chains.
 
 let radioGeneration = 0;
 
@@ -150,6 +153,7 @@ function buildResolvePayload(track: SmartQueueTrack): PlaySongMetadata {
 async function tryFillRNTPQueue() {
   const storeState = useSmartQueueStore.getState();
   if (!storeState.isActive) return;
+  const generation = radioGeneration;
 
   try {
     const queue = await TrackPlayer.getQueue();
@@ -157,6 +161,8 @@ async function tryFillRNTPQueue() {
     const queuedMediaIds = new Set(
       queue.map((item) => item.mediaId).filter(Boolean),
     );
+
+    if (generation !== radioGeneration) return;
 
     const readyTracks = storeState.tracks.filter(
       (track) =>
@@ -170,9 +176,14 @@ async function tryFillRNTPQueue() {
     const addedTrackIds: string[] = [];
 
     for (const track of readyTracks) {
+      if (generation !== radioGeneration) return;
       if (!track.song) continue;
 
       const playbackTrack = await createPlaybackTrack(track.song, track.playbackToken || "");
+
+      // A stale fill must not add old-server tracks to RNTP, change the
+      // current song, or pollute the new session's trackMap.
+      if (generation !== radioGeneration) return;
 
       if (!hasStartedPlayback.current && currentQueueLength === 0) {
         hasStartedPlayback.current = true;
@@ -187,6 +198,10 @@ async function tryFillRNTPQueue() {
       addedTrackIds.push(track.id);
     }
 
+    // Never remove tracks from the new store by stale ids, nor notify a
+    // queue update the new session did not cause.
+    if (generation !== radioGeneration) return;
+
     if (addedTrackIds.length > 0) {
       storeState.removeTracks(addedTrackIds);
       playbackStore.notifyQueueUpdate();
@@ -199,6 +214,7 @@ async function tryFillRNTPQueue() {
 async function processBatch() {
   const storeState = useSmartQueueStore.getState();
   if (!storeState.isActive || isResolving.current) return;
+  const generation = radioGeneration;
 
   const pendingTracks = storeState.tracks.filter(
     (track) =>
@@ -224,6 +240,8 @@ async function processBatch() {
     }
 
     const payload = buildResolvePayload(track);
+    // NOTE: onJob fires synchronously right after resolveStream's own
+    // generation check, so it can only ever run while fresh — no check needed.
     const { song, playbackToken } = await resolveStream(payload, {
       onJob: (jobId) => {
         useSmartQueueStore
@@ -231,6 +249,10 @@ async function processBatch() {
           .updateTrackStatus(track.id, { status: "resolving", jobId });
       },
     });
+
+    // A stale resolve must not write its song into the new session's store
+    // (track ids can collide across sessions via shared recommendations).
+    if (generation !== radioGeneration) return;
 
     if (useSmartQueueStore.getState().cancelledIds.has(track.id)) {
       useSmartQueueStore
@@ -244,20 +266,28 @@ async function processBatch() {
       .updateTrackStatus(track.id, { status: "ready", song, playbackToken });
     void tryFillRNTPQueue();
   } catch (error) {
+    // Stale (e.g. resolveStream cancelled by the switch): exit silently
+    // without marking the new session's track failed or chaining more work.
+    if (generation !== radioGeneration) return;
     console.error("[smartQueueService] processBatch error:", error);
     useSmartQueueStore
       .getState()
       .updateTrackStatus(track.id, { status: "failed" });
   } finally {
-    resolvingBatch.current.delete(track.id);
-    isResolving.current = false;
-    void processBatch();
+    // Release only our own claim: after a switch the reset already cleared
+    // these, and they may now belong to the new session's in-flight batch.
+    if (generation === radioGeneration) {
+      resolvingBatch.current.delete(track.id);
+      isResolving.current = false;
+      void processBatch();
+    }
   }
 }
 
 async function enrichTrack(track: SmartQueueTrack) {
   if (enrichingBatch.current.has(track.id)) return;
   enrichingBatch.current.add(track.id);
+  const generation = radioGeneration;
 
   try {
     if (useSmartQueueStore.getState().cancelledIds.has(track.id)) {
@@ -275,6 +305,11 @@ async function enrichTrack(track: SmartQueueTrack) {
       `https://itunes.apple.com/search?term=${query}&media=music&entity=song&country=in&limit=1`,
     );
     const data = await res.json();
+
+    // Stale enrichment must not write into the new session's store, and must
+    // not touch enrichingBatch (the switch cleared it; the id may already
+    // belong to the new session's in-flight work).
+    if (generation !== radioGeneration) return;
 
     if (useSmartQueueStore.getState().cancelledIds.has(track.id)) {
       useSmartQueueStore
@@ -320,6 +355,9 @@ async function enrichTrack(track: SmartQueueTrack) {
     });
     void processBatch();
   } catch (error) {
+    // Stale (fetch failed only because the session moved on): exit silently
+    // without updating the new store or chaining more work.
+    if (generation !== radioGeneration) return;
     console.error("[smartQueueService] enrichTrack error:", error);
     if (!useSmartQueueStore.getState().cancelledIds.has(track.id)) {
       useSmartQueueStore.getState().updateTrackStatus(track.id, {
@@ -355,7 +393,11 @@ async function appendRecommendations(limit = DEFAULT_RECOMMENDATION_LIMIT) {
   } catch (error) {
     console.error("[smartQueueService] appendRecommendations error:", error);
   } finally {
-    isFetchingRecommendations.current = false;
+    // Only release our own claim: after a switch the reset already cleared
+    // this flag, and it may belong to the new session's in-flight fetch.
+    if (generation === radioGeneration) {
+      isFetchingRecommendations.current = false;
+    }
   }
 }
 
@@ -396,12 +438,17 @@ export async function handleSmartQueueMediaTransition() {
   if (isHandlingTransition.current) return;
 
   isHandlingTransition.current = true;
+  const generation = radioGeneration;
 
   try {
     await tryFillRNTPQueue();
     await ensureSmartQueueWindow();
   } finally {
-    isHandlingTransition.current = false;
+    // Only release our own claim (see processBatch): a stale transition must
+    // not unlock the new session's in-flight transition handling.
+    if (generation === radioGeneration) {
+      isHandlingTransition.current = false;
+    }
   }
 }
 

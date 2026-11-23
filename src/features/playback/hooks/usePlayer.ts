@@ -401,6 +401,10 @@ export function usePlayer() {
             const resolved = await resolveStream({ songId: firstSong.id });
             token = resolved.playbackToken;
           } catch (e) {
+            // Cancellation (e.g. a server switch tore down the queue) must
+            // stop the playlist immediately: continuing would rebuild and play
+            // stale tracks with an empty token after the reset.
+            if (isJobPollingCancelled(e)) return;
             console.warn(
               "[playPlaylist] Could not pre-resolve first track token:",
               e,

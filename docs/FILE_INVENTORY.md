@@ -37,16 +37,22 @@
 > generation-tagged refresh queue + ownership (`apiClient` 260→327),
 > `tokenManager` 144→161 (takeover + guarded finally), `sessionGeneration`
 > 23→53 (invalidation listeners), `index` 39→40.
-> Working tree: **201 files, 17,829 lines**. Re-baseline on commit.
+> Working tree: **201 files, 17,829 lines**.
+> Structural delta (uncommitted, PR #10 audit fixes: storage race close):
+> serialized + stamped token storage (`tokenStorage` 32→95); captured-URL +
+> `saveTokensIfCurrent` refreshes (`apiClient` 327→349, `tokenManager`
+> 161→186); radio guards (`smartQueueService` 444→491); `playPlaylist`
+> cancellation return (`usePlayer` 562→566).
+> Working tree: **201 files, 17,990 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
 
-## `src/api` — 1 file, 327 lines
+## `src/api` — 1 file, 349 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/api/apiClient.ts` | 327 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (generation-tagged, takeover, ownership-guarded), global toasts |
+| `src/api/apiClient.ts` | 349 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (generation-tagged, takeover, ownership-guarded, captured-URL + stamped save) |
 
 ## `src/app` — 23 files, 656 lines
 
@@ -142,7 +148,7 @@
 | `src/features/artwork-colors/hooks/useArtworkColors.ts` | 75 | Cache-seeded hook with stale-URL guard |
 | `src/features/artwork-colors/services/artworkColorService.ts` | 160 | Palette extraction + 150-entry LRU cache + fallback |
 
-## `src/features/auth` — 15 files, 976 lines
+## `src/features/auth` — 15 files, 1064 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -158,8 +164,8 @@
 | `src/features/auth/screens/LoginScreen.tsx` | 155 | Login form UI + back button to Server Setup review + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/screens/SignupScreen.tsx` | 164 | Signup form UI + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/store/authStore.ts` | 134 | Session state: login/signup/logout/`checkAuth`/`resetAuth` |
-| `src/features/auth/utils/tokenManager.ts` | 161 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh (generation-guarded, takeover, ownership-guarded finally) |
-| `src/features/auth/utils/tokenStorage.ts` | 32 | SecureStore token get/save/clear |
+| `src/features/auth/utils/tokenManager.ts` | 186 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh (generation-guarded, takeover, ownership-guarded finally, captured-URL + stamped save) |
+| `src/features/auth/utils/tokenStorage.ts` | 95 | Serialized SecureStore token get/save/clear + generation-stamped `saveTokensIfCurrent` |
 | `src/features/auth/utils/validation.ts` | 16 | `validateLogin`/`validateSignup` field rules |
 ## `src/features/collections` — 8 files, 1,364 lines
 
@@ -235,7 +241,7 @@
 |------|------:|----------------|
 | `src/features/miniplayer/screens/MiniplayerScreen.tsx` | 194 | Persistent mini player (artwork, toggle, progress, playlist shortcut) |
 
-## `src/features/playback` — 39 files, 4,057 lines
+## `src/features/playback` — 39 files, 4,148 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -247,7 +253,7 @@
 | `src/features/playback/api/playbackApi.ts` | 56 | `resolveStream()`: ready-vs-job dispatch + payload validation + pre-request polling-generation capture |
 | `src/features/playback/api/recommendationApi.ts` | 51 | `getRecommendations()` mapping + silent `[]` on error |
 | `src/features/playback/hooks/index.ts` | 2 | Re-exports `usePlayer`, `useSmartQueue` |
-| `src/features/playback/hooks/usePlayer.ts` | 562 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation |
+| `src/features/playback/hooks/usePlayer.ts` | 566 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation |
 | `src/features/playback/hooks/useProgressSyncAuth.ts` | 50 | Native progress-sync header auth (`setProgressSyncToken` + hook) |
 | `src/features/playback/hooks/useSmartQueue.ts` | 26 | Transition listener + `loadRecommendations()` trigger |
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
@@ -256,7 +262,7 @@
 | `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
 | `src/features/playback/services/pollingResolver.ts` | 231 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
-| `src/features/playback/services/smartQueueService.ts` | 444 | Radio pipeline: recommend → enrich → resolve → fill native queue + generation-guarded `cancelSmartQueueWork()` |
+| `src/features/playback/services/smartQueueService.ts` | 491 | Radio pipeline: recommend → enrich → resolve → fill native queue; consistent radio-generation checks on every async path |
 | `src/features/playback/services/trackPlayerService.ts` | 84 | Headless `PlaybackService`: remote controls + background transition |
 | `src/features/playback/store/index.ts` | 3 | Re-exports the three playback stores |
 | `src/features/playback/store/useJobStore.ts` | 77 | Job registry (`waiting/active/completed/failed`) + `clearJobs()` for session reset |

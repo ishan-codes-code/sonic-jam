@@ -51,17 +51,30 @@ let refreshPromise: Promise<string | null> | null = null;
 let refreshPromiseGeneration = 0;
 
 async function doRefresh(): Promise<string | null> {
-  // A server switch mid-refresh must not let Server A's result touch Server
-  // B's session. Every await below yields to the event loop, so the check is
-  // repeated before each write, not just once here.
+  // Capture the session identity (generation + URL) in one synchronous
+  // block. A switch always bumps the generation before applying a new URL, so
+  // a matching generation below also proves the captured URL is current.
+  // Every await below yields to the event loop, so staleness is re-checked
+  // before each write and each request — never assumed from an old check.
   const refreshGeneration = getSessionGeneration();
+  const refreshUrl = BASE_URL;
   const isStale = () => refreshGeneration !== getSessionGeneration();
 
   try {
     const refreshToken = await tokenStorage.getRefreshToken();
     if (!refreshToken) return null;
 
-    const response = await fetch(`${BASE_URL}/auth/refresh`, {
+    if (isStale()) {
+      // The token above was read for the captured session: a switch landing
+      // inside the read must abort here, before Server A's refresh token is
+      // ever sent anywhere.
+      return null;
+    }
+
+    // Uses the captured URL (== current URL while fresh) so the token can
+    // only ever be sent to the server that issued it — never to a newer
+    // server.
+    const response = await fetch(`${refreshUrl}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
@@ -93,12 +106,20 @@ async function doRefresh(): Promise<string | null> {
       // Server A's tokens must never land in Server B's session.
       return null;
     }
-    await tokenStorage.saveTokens(data.accessToken, data.refreshToken);
+    // Generation-validated, serialized write: skipped (false) if a switch
+    // landed first, so Server A's tokens can never overwrite the new
+    // session's credentials.
+    const saved = await tokenStorage.saveTokensIfCurrent(
+      data.accessToken,
+      data.refreshToken,
+      refreshGeneration,
+    );
 
-    if (isStale()) {
-      // The switch landed inside the save above: undo our own write (a
-      // switched-to session holds no tokens yet, so these can only be ours).
-      await tokenStorage.clearTokens().catch(() => null);
+    if (!saved || isStale()) {
+      // Skipped as stale, or a switch landed inside the save: exit WITHOUT
+      // destructive cleanup. The switch's own serialized clear removes
+      // anything this refresh wrote (it is ordered after it), while a blind
+      // clear here could wipe the newer session's credentials.
       return null;
     }
 
@@ -109,6 +130,10 @@ async function doRefresh(): Promise<string | null> {
     if (isStale()) return null;
     await setProgressSyncToken(data.accessToken);
 
+    // The sole caller feeds this return value straight into setProgressSyncToken,
+    // so a switch inside the await above must downgrade it to null rather than
+    // hand out the old session's access token.
+    if (isStale()) return null;
     return data.accessToken;
   } catch {
     return null;
