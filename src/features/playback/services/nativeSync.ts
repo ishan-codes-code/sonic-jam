@@ -91,8 +91,10 @@ export async function syncTrackMetadata(fullTrack: PlaybackTrack): Promise<void>
 
 /**
  * Re-reads the live native player (active item, play state, progress) into
- * the store. Skips the track update when the active mediaId is unchanged and
- * leaves status alone while the store is in error or a job is resolving.
+ * the store. Skips the track update when the active mediaId is unchanged or
+ * a stream request is pending (optimistic song), and leaves status alone
+ * while the store is in error — or while a job is resolving, unless the
+ * native side reports an error (highest priority, as in PlaybackSync).
  * Idempotent. Never throws.
  */
 export async function syncPlayerFromNative(): Promise<void> {
@@ -104,25 +106,33 @@ export async function syncPlayerFromNative(): Promise<void> {
     if (activeItem?.mediaId) {
       const state = usePlaybackStore.getState();
       const fullTrack = state.trackMap[activeItem.mediaId];
-      if (fullTrack?.song && activeItem.mediaId !== state.currentTrack?.mediaId) {
+      // While a stream request is pending the store holds an optimistic song
+      // (currentTrack is null): stale native metadata must not overwrite it.
+      if (
+        !state.pendingJobId &&
+        fullTrack?.song &&
+        activeItem.mediaId !== state.currentTrack?.mediaId
+      ) {
         await syncTrackMetadata(fullTrack);
       }
     }
 
     // ── Status ─────────────────────────────────────────────
+    // Native errors take priority over the pending-job guard — the same
+    // contract as the PlaybackSync status effect. A store already in error
+    // keeps its (possibly more specific) message and is left alone.
     const { status, pendingJobId } = usePlaybackStore.getState();
-    if (status !== "error" && !pendingJobId) {
-      const store = usePlaybackStore.getState();
-      const next = resolveStoreStatus(
-        TrackPlayer.getPlaybackState(),
-        TrackPlayer.isPlaying(),
-        status,
-      );
-      if (next === "error") {
-        store.setError("Playback error occurred");
-      } else if (next) {
-        store.setStatus(next);
+    const nextStatus = resolveStoreStatus(
+      TrackPlayer.getPlaybackState(),
+      TrackPlayer.isPlaying(),
+      status,
+    );
+    if (nextStatus === "error") {
+      if (status !== "error") {
+        usePlaybackStore.getState().setError("Playback error occurred");
       }
+    } else if (nextStatus && status !== "error" && !pendingJobId) {
+      usePlaybackStore.getState().setStatus(nextStatus);
     }
 
     // ── Position & Duration ────────────────────────────────
