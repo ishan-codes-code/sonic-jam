@@ -90,8 +90,30 @@ export async function syncTrackMetadata(fullTrack: PlaybackTrack): Promise<void>
 }
 
 /**
+ * True when the store claims something is loaded but the live native queue
+ * is empty — i.e. Android killed the player service (onTaskRemoved →
+ * stopSelf when paused/idle) and every native command is now a silent
+ * no-op. Excludes the resolving window (no currentTrack yet) and pending
+ * jobs (native was deliberately cleared). A throw also means dead. Never
+ * throws itself.
+ */
+export async function isNativePlayerDead(): Promise<boolean> {
+  const { usePlaybackStore } = await import("../store/usePlaybackStore");
+  const { currentTrack, pendingJobId } = usePlaybackStore.getState();
+  if (!currentTrack || pendingJobId) return false;
+  try {
+    const queue = await TrackPlayer.getQueue();
+    return queue.length === 0;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Re-reads the live native player (active item, play state, progress) into
- * the store. Skips the track update when the active mediaId is unchanged or
+ * the store. When the native service is dead (see isNativePlayerDead),
+ * recreates it and resets the now-false UI to idle instead of syncing.
+ * Otherwise skips the track update when the active mediaId is unchanged or
  * a stream request is pending (optimistic song), and leaves status alone
  * while the store is in error — or while a job is resolving, unless the
  * native side reports an error (highest priority, as in PlaybackSync).
@@ -100,6 +122,20 @@ export async function syncTrackMetadata(fullTrack: PlaybackTrack): Promise<void>
 export async function syncPlayerFromNative(): Promise<void> {
   try {
     const { usePlaybackStore } = await import("../store/usePlaybackStore");
+
+    // ── Dead native player ─────────────────────────────────
+    // recreatePlayer() destroys + re-runs setup and resets the isSetup
+    // guard. No stop/clear first: native is already gone. Lazy import —
+    // this module runs in the headless service (hard rule 1).
+    if (await isNativePlayerDead()) {
+      const { recreatePlayer } = await import("./playerSetup");
+      await recreatePlayer();
+      const deadStore = usePlaybackStore.getState();
+      deadStore.clearCurrentSong();
+      deadStore.clearStream();
+      deadStore.setStatus("idle");
+      return;
+    }
 
     // ── Track ──────────────────────────────────────────────
     const activeItem = TrackPlayer.getActiveMediaItem();

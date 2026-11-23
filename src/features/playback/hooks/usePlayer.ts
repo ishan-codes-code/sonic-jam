@@ -1,6 +1,7 @@
 import TrackPlayer from "@rntp/player";
 import { useCallback, useRef } from "react";
-import { setupPlayer } from "../services/playerSetup";
+import { recreatePlayer, setupPlayer } from "../services/playerSetup";
+import { isNativePlayerDead } from "../services/nativeSync";
 import { resolveStream } from "../api/playbackApi";
 import { RepeatManager } from "../services/repeatManager";
 import {
@@ -41,6 +42,29 @@ export function usePlayer() {
       isSettingUp.current = false;
     }
   }, []);
+
+  // ── Helper: Dead-player retry ──────────────────────────────────
+  // When Android has killed the native service, queue-building calls are
+  // silent no-ops and getQueue() stays empty. Recreate once and let the
+  // caller redo its native calls via rebuild; true = the native queue is
+  // non-empty afterwards. Callers show the error + bail on false.
+  const ensureNativeQueue = useCallback(
+    async (rebuild: () => Promise<void>): Promise<boolean> => {
+      try {
+        if ((await TrackPlayer.getQueue()).length > 0) return true;
+      } catch {
+        // Fall through to recreate — a throw also means dead.
+      }
+      await recreatePlayer();
+      await rebuild();
+      try {
+        return (await TrackPlayer.getQueue()).length > 0;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
 
   // ── Core: Enqueue ──────────────────────────────────────────────
   const enqueue = useCallback(
@@ -147,13 +171,23 @@ export function usePlayer() {
         }
 
         const { track } = await resolveAndCreateTrack(payload, source);
-        const currentIndex = await TrackPlayer.getActiveMediaItemIndex();
 
-        if (currentIndex === null || currentIndex === undefined) {
-          await TrackPlayer.addMediaItem(track as any);
-          await TrackPlayer.play();
-        } else {
-          await TrackPlayer.insertMediaItem(currentIndex + 1, track as any);
+        // Re-reads the live index so the retry (after a recreate the queue
+        // is empty) degrades to add + play by itself.
+        const loadNext = async () => {
+          const currentIndex = await TrackPlayer.getActiveMediaItemIndex();
+          if (currentIndex === null || currentIndex === undefined) {
+            await TrackPlayer.addMediaItem(track as any);
+            await TrackPlayer.play();
+          } else {
+            await TrackPlayer.insertMediaItem(currentIndex + 1, track as any);
+          }
+        };
+
+        await loadNext();
+        if (!(await ensureNativeQueue(loadNext))) {
+          store.setError("Player unavailable, please restart the app");
+          return;
         }
         toastImperative.show({
           type: "info",
@@ -166,7 +200,7 @@ export function usePlayer() {
         store.setError(error?.message ?? "Failed to play next");
       }
     },
-    [ensureSetup, resolveAndCreateTrack],
+    [ensureSetup, ensureNativeQueue, resolveAndCreateTrack],
   );
 
   // Add to Queue — FIFO append to the end
@@ -183,12 +217,20 @@ export function usePlayer() {
         const { track } = await resolveAndCreateTrack(payload, source);
 
         // Just append — no index math needed
-        await TrackPlayer.addMediaItem(track as any);
+        const loadAppend = async () => {
+          await TrackPlayer.addMediaItem(track as any);
 
-        const queue = await TrackPlayer.getQueue();
-        if (queue.length === 1) {
-          // Was empty, start playing
-          await TrackPlayer.play();
+          const queue = await TrackPlayer.getQueue();
+          if (queue.length === 1) {
+            // Was empty, start playing
+            await TrackPlayer.play();
+          }
+        };
+
+        await loadAppend();
+        if (!(await ensureNativeQueue(loadAppend))) {
+          store.setError("Player unavailable, please restart the app");
+          return;
         }
         toastImperative.show({
           type: "info",
@@ -201,7 +243,7 @@ export function usePlayer() {
         store.setError(error?.message ?? "Failed to add to queue");
       }
     },
-    [ensureSetup, resolveAndCreateTrack],
+    [ensureSetup, ensureNativeQueue, resolveAndCreateTrack],
   );
 
   // ── Queue: Remove from Queue ──────────────────────────────────
@@ -317,25 +359,35 @@ export function usePlayer() {
 
         store.addTrackToMap(track);
 
-        if (forceQueueReplacement) {
-          await TrackPlayer.setMediaItems([track]);
-        } else {
-          const queue = await TrackPlayer.getQueue();
-          const activeIndex = await TrackPlayer.getActiveMediaItemIndex();
-          const insertIndex =
-            activeIndex === null || activeIndex === undefined
-              ? queue.length
-              : Math.max(activeIndex, 0);
-
-          if (queue.length === 0) {
+        // Re-runnable: on retry after a recreate the queue is empty, so
+        // the insert path degrades to setMediaItems by itself.
+        const loadTrack = async () => {
+          if (forceQueueReplacement) {
             await TrackPlayer.setMediaItems([track]);
           } else {
-            await TrackPlayer.insertMediaItem(insertIndex, track as any);
-            await TrackPlayer.skipToIndex(insertIndex);
-          }
-        }
+            const queue = await TrackPlayer.getQueue();
+            const activeIndex = await TrackPlayer.getActiveMediaItemIndex();
+            const insertIndex =
+              activeIndex === null || activeIndex === undefined
+                ? queue.length
+                : Math.max(activeIndex, 0);
 
-        await TrackPlayer.play();
+            if (queue.length === 0) {
+              await TrackPlayer.setMediaItems([track]);
+            } else {
+              await TrackPlayer.insertMediaItem(insertIndex, track as any);
+              await TrackPlayer.skipToIndex(insertIndex);
+            }
+          }
+
+          await TrackPlayer.play();
+        };
+
+        await loadTrack();
+        if (!(await ensureNativeQueue(loadTrack))) {
+          store.setError("Player unavailable, please restart the app");
+          return undefined;
+        }
 
         store.setCurrentSong(song, track);
         store.setDuration(song.duration);
@@ -356,7 +408,7 @@ export function usePlayer() {
         return undefined;
       }
     },
-    [ensureSetup],
+    [ensureSetup, ensureNativeQueue],
   );
 
   // ── Playlist: Play ───────────────────────────────────────────
@@ -418,8 +470,16 @@ export function usePlayer() {
 
         tracks.forEach((t) => store.addTrackToMap(t as any));
 
-        await TrackPlayer.setMediaItems(tracks, clampedIndex);
-        await TrackPlayer.play();
+        const loadPlaylist = async () => {
+          await TrackPlayer.setMediaItems(tracks, clampedIndex);
+          await TrackPlayer.play();
+        };
+
+        await loadPlaylist();
+        if (!(await ensureNativeQueue(loadPlaylist))) {
+          store.setError("Player unavailable, please restart the app");
+          return;
+        }
 
         store.setCurrentSong(firstSong, tracks[clampedIndex] as any);
         store.setDuration(firstSong.duration);
@@ -431,19 +491,32 @@ export function usePlayer() {
         store.setError("Failed to play playlist");
       }
     },
-    [ensureSetup],
+    [ensureSetup, ensureNativeQueue],
   );
 
   const pause = useCallback(() => {
     try {
       TrackPlayer.pause();
-    } catch { }
+    } catch (error) {
+      console.warn("[usePlayer] pause error:", error);
+    }
   }, []);
 
   const resume = useCallback(async () => {
     try {
       await TrackPlayer.play();
-    } catch { }
+    } catch (error) {
+      console.warn("[usePlayer] resume error:", error);
+    }
+    // Dead service: play() above was a silent no-op. Recreate and reset
+    // the now-false UI to idle instead of leaving the button stuck.
+    if (await isNativePlayerDead()) {
+      await recreatePlayer();
+      const store = getStore();
+      store.clearCurrentSong();
+      store.clearStream();
+      store.setStatus("idle");
+    }
   }, []);
 
   const seek = useCallback(async (seconds: number) => {

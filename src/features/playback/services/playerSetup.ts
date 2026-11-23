@@ -41,10 +41,12 @@ function buildPlayerConfig(): PlayerConfig {
 
 /**
  * Tears down the native player and sets it up again with the CURRENT runtime
- * server URL. Used only by the server-switch session reset: @rntp/player
- * exposes no progress-sync URL update API, so recreate is the only way to
- * re-point progress sync (headers alone are updatable via
- * setProgressSyncToken). Callers must stop playback and clear the queue first.
+ * server URL. Used by the server-switch session reset (@rntp/player exposes
+ * no progress-sync URL update API, so recreate is the only way to re-point
+ * progress sync; headers alone are updatable via setProgressSyncToken) and
+ * by the dead-player self-heal (Android killed the native service).
+ * Server-switch callers must stop playback and clear the queue first; the
+ * self-heal skips that because the native player is already gone.
  * A failed re-setup clears the guard so the next ensureSetup() retries.
  *
  * Sequencing note: every @rntp/player v5 control API is synchronous `void`
