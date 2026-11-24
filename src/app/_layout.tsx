@@ -127,15 +127,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const { stop } = usePlayer();
 
-  // Run once the server is known: the refresh below must target the active
-  // backend, and this guard now mounts at boot (it no longer waits behind
-  // the server gate), so an unconditional boot check could refresh against
-  // the wrong URL. Re-runs only if the server status itself changes.
+  // Run once the server is known AND no backend setup is pending: the
+  // refresh below must target the active backend, and this guard now mounts
+  // at boot (it no longer waits behind the server gate), so an unconditional
+  // boot check could refresh against the wrong URL. Re-runs when the server
+  // status or the pending flag changes — in particular, completing the Setup
+  // Wizard (pending → false) starts auth initialization, which then routes
+  // to Login.
   useEffect(() => {
-    if (serverStatus === 'configured') {
+    if (serverStatus === 'configured' && !setupPending) {
       void checkAuth();
     }
-  }, [serverStatus, checkAuth]);
+  }, [serverStatus, setupPending, checkAuth]);
 
   // React to auth state changes. Yields while the server is unknown or a
   // backend setup is pending — ServerGuard owns routing then, so Login can
@@ -156,10 +159,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }, [status, serverStatus, setupPending, segments, router, stop]);
 
+  // The loader covers only genuine auth initialization on a ready
+  // backend. ServerGuard owns the server-loading and setup screens
+  // (unconfigured setup, pending wizard), so this overlay must never cover
+  // them — auth legitimately stays 'idle' until setup completes.
+  const showAuthLoader =
+    serverStatus === 'configured' &&
+    !setupPending &&
+    (status === 'idle' || status === 'loading');
+
   return (
     <>
       {children}
-      {(status === 'idle' || status === 'loading') && (
+      {showAuthLoader && (
         <View style={styles.guardOverlay}>
           <ActivityIndicator size="large" color={"#FFD54F"} />
         </View>
