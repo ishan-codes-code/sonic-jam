@@ -86,16 +86,19 @@ export function useServerSetup() {
           queryClient,
           stopPlayback: stop,
         });
-        toastImperative.show({
-          type: 'success',
-          text1: 'Server updated. Please sign in.',
-          visibilityTime: 4000,
-        });
+        if (!result.setupRequired) {
+          toastImperative.show({
+            type: 'success',
+            text1: 'Server updated. Please sign in.',
+            visibilityTime: 4000,
+          });
+        }
       } else {
         await setServer(result.serverUrl);
-        if (!currentUrl && isCurrent()) {
+        if (!currentUrl && isCurrent() && !result.setupRequired) {
           // First launch: the guard advances to Login on its own, so confirm
-          // the connection explicitly (review mode toasts above instead).
+          // the connection explicitly (review mode toasts above instead;
+          // wizard-bound servers skip this — the wizard explains itself).
           toastImperative.show({
             type: 'success',
             text1: 'Connected. Please sign in.',
@@ -103,7 +106,14 @@ export function useServerSetup() {
           });
         }
       }
-      if (currentUrl && isCurrent()) {
+      if (!isCurrent()) return;
+      if (result.setupRequired) {
+        // The URL is persisted; push the setup wizard (an (auth) route, so
+        // it is reachable while unauthenticated). Runs in the same
+        // microtask as the persist above, so first launch renders the
+        // wizard directly without a login flash.
+        router.push('/setup-wizard');
+      } else if (currentUrl) {
         // Review mode: back to Login. First launch stays put — the
         // ServerGuard advances automatically on 'configured'.
         router.back();

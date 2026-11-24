@@ -12,9 +12,10 @@ import {
 // setup screen). Contract: docs/contracts/server-health.md.
 //
 // Proof of a Sonic backend is the response SHAPE, not the HTTP status: the
-// body must be a JSON object whose `db` field is one of the documented
-// readiness states. The status itself is ignored so a backend reporting
-// trouble (e.g. 503 with `db: 'down'`) still yields its specific message.
+// body must identify as the Sonic backend (`app`), carry the setup flag, and
+// report a documented database state. The status itself is ignored so a
+// backend reporting trouble (e.g. 503 with `db: 'down'`) still yields its
+// specific message.
 // --------------------------------------------------------------------------
 
 export type ServerCheckFailureCode =
@@ -27,33 +28,70 @@ export type ServerCheckFailureCode =
 
 export type HealthStorage = 'r2' | 'none';
 
+export type HealthDbState = 'ok' | 'down' | 'unconfigured';
+
+export interface HealthPayload {
+  setupRequired: boolean;
+  db: HealthDbState;
+  storage: HealthStorage | null;
+}
+
 export type ServerCheckResult =
-  | { ok: true; serverUrl: string; storage: HealthStorage | null }
+  | {
+      ok: true;
+      serverUrl: string;
+      storage: HealthStorage | null;
+      setupRequired: boolean;
+    }
   | { ok: false; code: ServerCheckFailureCode; message: string };
 
 // Render free-tier cold starts were observed above 10s; 15s keeps additions
 // usable without hanging the UI indefinitely.
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+const SONIC_BACKEND_APP = 'sonic-backend';
+
 interface CheckOptions {
   timeoutMs?: number;
 }
 
-type DbState = 'ok' | 'down' | 'unconfigured';
-
-function parseDbState(body: unknown): DbState | null {
+/**
+ * Validate an unauthenticated /health body against the backend contract.
+ * Shared with the setup readiness poll so validation and polling can never
+ * disagree on what a Sonic backend looks like.
+ */
+export function parseHealthPayload(body: unknown): HealthPayload | null {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) {
     return null;
   }
-  const db = (body as { db?: unknown }).db;
-  if (db === 'ok' || db === 'down' || db === 'unconfigured') {
-    return db;
+  const record = body as {
+    app?: unknown;
+    setupRequired?: unknown;
+    db?: unknown;
+    features?: unknown;
+  };
+  if (record.app !== SONIC_BACKEND_APP) {
+    return null;
   }
-  return null;
+  if (typeof record.setupRequired !== 'boolean') {
+    return null;
+  }
+  const db = record.db;
+  if (db !== 'ok' && db !== 'down' && db !== 'unconfigured') {
+    return null;
+  }
+  return {
+    setupRequired: record.setupRequired,
+    db,
+    storage: parseStorage(record.features),
+  };
 }
 
-function parseStorage(body: object): HealthStorage | null {
-  const storage = (body as { storage?: unknown }).storage;
+function parseStorage(features: unknown): HealthStorage | null {
+  if (features === null || typeof features !== 'object') {
+    return null;
+  }
+  const storage = (features as { storage?: unknown }).storage;
   if (storage === 'r2' || storage === 'none') {
     return storage;
   }
@@ -84,10 +122,11 @@ export async function checkServerConnection(
       signal: controller.signal,
     });
 
-    const data: unknown = await response.json().catch(() => null);
-    const db = parseDbState(data);
+    const health = parseHealthPayload(
+      await response.json().catch(() => null),
+    );
 
-    if (db === null) {
+    if (health === null) {
       return {
         ok: false,
         code: 'not-sonic',
@@ -96,16 +135,9 @@ export async function checkServerConnection(
       };
     }
 
-    if (db === 'unconfigured') {
-      return {
-        ok: false,
-        code: 'db-unconfigured',
-        message:
-          "This server's database isn't configured yet. The server administrator needs to complete the backend setup before you can sign in.",
-      };
-    }
-
-    if (db === 'down') {
+    // A down database is retryable and never opens the setup wizard, even if
+    // the backend still reports that setup is required.
+    if (health.db === 'down') {
       return {
         ok: false,
         code: 'db-down',
@@ -114,12 +146,33 @@ export async function checkServerConnection(
       };
     }
 
+    // Valid Sonic backend requiring initial setup: route into the setup
+    // wizard instead of reporting an invalid server.
+    if (health.setupRequired) {
+      return {
+        ok: true,
+        serverUrl: normalized,
+        storage: health.storage,
+        setupRequired: true,
+      };
+    }
+
+    if (health.db === 'unconfigured') {
+      return {
+        ok: false,
+        code: 'db-unconfigured',
+        message:
+          "This server's database isn't configured yet. The server administrator needs to complete the backend setup before you can sign in.",
+      };
+    }
+
     // Storage readiness is informational only: R2 is not required to accept
     // a server URL, and its absence limits only storage-backed features.
     return {
       ok: true,
       serverUrl: normalized,
-      storage: parseStorage(data as object),
+      storage: health.storage,
+      setupRequired: false,
     };
   } catch (error) {
     if (

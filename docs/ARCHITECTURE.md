@@ -84,6 +84,16 @@
   +focused `node:test` suites (`serverConfig` 177, `serverValidation` 251,
   `versionService` 224). Working tree: **205 files, 19,098 lines**.
   Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, backend setup wizard):
+  authoritative `/health` identity + `setupRequired` routing
+  (`serverValidation` 147→200, `parseHealthPayload` shared with the poll),
+  +setup API (`setupApi` 514: `/setup/status`, `/setup/config`, readiness
+  poll) +wizard state (`useSetupWizard` 371) +4 step components
+  +`SecretInput` (543) +`SetupWizardScreen` (142) +`(auth)/setup-wizard`
+  route; wizard routing in `useServerSetup` (133→143), setup-target block
+  in `useServerSwitch` (138→148), barrel 40→71; +`setupApi.test` (484),
+  `serverValidation.test` 251→327. Working tree: **215 files, 21,438
+  lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -145,16 +155,17 @@ Line counts per file are in `docs/FILE_INVENTORY.md`. Structure:
 src/
 ├── api/                          # shared network layer (1 file)
 │   └── apiClient.ts              # axios instance, BASE_URL/MEDIA_URL (runtime-settable), token + device interceptors, 401 queue, toasts
-├── app/                          # expo-router routes: thin wrappers + layouts (20 files)
+├── app/                          # expo-router routes: thin wrappers + layouts (24 files)
 │   ├── _layout.tsx               # RootLayout: providers, guards (Version/Server/Auth), Stack, player setup
 │   ├── index.tsx                 # default → /login redirect
 │   ├── player.tsx                # → PlayerScreen (full-screen modal)
 │   ├── notification.click.tsx    # notification tap → /player redirect
 │   ├── (auth)/
-│   │   ├── _layout.tsx           # auth stack (login, signup)
+│   │   ├── _layout.tsx           # auth stack (login, signup, server-setup, setup-wizard)
 │   │   ├── login.tsx             # → LoginScreen
 │   │   ├── signup.tsx            # → SignupScreen
-│   │   └── server-setup.tsx      # → ServerSetupScreen (review mode)
+│   │   ├── server-setup.tsx      # → ServerSetupScreen (review mode)
+│   │   └── setup-wizard.tsx      # → SetupWizardScreen (first-launch backend setup)
 │   └── (tabs)/
 │       ├── _layout.tsx           # custom tab bar + hidden-route registration
 │       ├── library.tsx           # → LibraryScreen
@@ -191,7 +202,7 @@ src/
 │   ├── theme.ts                  # THEME + NAV_THEME (dark forced in practice)
 │   └── utils.ts                  # cn() (clsx + tailwind-merge)
 ├── global.css                    # NativeWind entry (59 lines)
-└── features/                     # vertical feature slices (18 features, 153 files)
+└── features/                     # vertical feature slices (18 features, 168 files)
 ```
 ```text
 src/features/
@@ -277,12 +288,17 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
-├── server/                       # runtime server config + setup/switch UI (13 files)
+├── server/                       # runtime server config + setup/switch UI (22 files)
 │   ├── index.ts  api/serverValidation.ts  api/serverValidation.test.ts
-│   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts
+│   ├── api/setupApi.ts  api/setupApi.test.ts  # setup token/config/poll
+│   ├── components/SecretInput.tsx  components/SetupTokenStep.tsx
+│   ├── components/SetupDatabaseStep.tsx  components/SetupStorageStep.tsx
+│   ├── components/SetupInitializeStep.tsx
+│   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts  hooks/useSetupWizard.ts
 │   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
-│   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverConfig.test.ts
-│   ├── utils/serverStorage.ts  utils/serverSwitch.ts  # shared performServerSwitch()
+│   ├── screens/SetupWizardScreen.tsx  store/serverStore.ts
+│   ├── utils/serverConfig.ts  utils/serverConfig.test.ts  utils/serverStorage.ts
+│   ├── utils/serverSwitch.ts  # shared performServerSwitch()
 │   └── utils/sessionGeneration.ts  # refresh invalidation counter
 ├── settings/                     # Settings hub (3 files)
 │   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx
@@ -336,11 +352,11 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | Area | Files | Lines |
 |------|------:|------:|
 | `src/api` | 1 | 349 |
-| `src/app` | 23 | 656 |
+| `src/app` | 24 | 662 |
 | `src/components` | 19 | 2,285 |
 | `src/features/Toast` | 3 | 314 |
 | `src/features/about` | 2 | 143 |
-| `src/features/app-validations` | 6 | 809 |
+| `src/features/app-validations` | 7 | 1,056 |
 | `src/features/artwork-colors` | 3 | 243 |
 | `src/features/auth` | 15 | 1064 |
 | `src/features/collections` | 8 | 1,364 |
@@ -349,20 +365,21 @@ Known boundary crossings (do not widen without an ADR): `library` invalidates `c
 | `src/features/home` | 11 | 929 |
 | `src/features/library` | 15 | 1,216 |
 | `src/features/miniplayer` | 1 | 194 |
-| `src/features/playback` | 40 | 4,305 |
+| `src/features/playback` | 40 | 4,537 |
 | `src/features/processing` | 10 | 630 |
 | `src/features/profile` | 3 | 197 |
 | `src/features/search` | 13 | 933 |
-| `src/features/server` | 11 | 1,237 |
+| `src/features/server` | 22 | 4,043 |
 | `src/features/settings` | 3 | 155 |
 | `src/features/song` | 2 | 254 |
 | `src/lib` | 2 | 85 |
 | `src/global.css` | 1 | 59 |
-| **Total** | **202** | **18,147** |
+| **Total** | **215** | **21,438** |
 
-Largest files (watch for growth): `playback/hooks/usePlayer.ts` (566), `collections/screens/CollectionScreen.tsx`
-(483), `playback/services/smartQueueService.ts` (491), `components/RemoteSongListCard.tsx` (375),
-`components/AnimatedPressable.tsx` (337), `components/ui/dropdown-menu.tsx` (300).
+Largest files (watch for growth): `playback/hooks/usePlayer.ts` (722), `server/api/setupApi.ts`
+(514), `playback/services/smartQueueService.ts` (491), `collections/screens/CollectionScreen.tsx`
+(483), `components/RemoteSongListCard.tsx` (375), `components/AnimatedPressable.tsx` (337),
+`components/ui/dropdown-menu.tsx` (300).
 
 ## 8. Reference maintenance
 

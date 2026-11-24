@@ -65,6 +65,14 @@
 > +`serverConfig.test` (177) +`serverValidation.test` (251)
 > +`versionService.test` (224, `node:test` via tsc + node runner, no runner dep).
 > Working tree: **205 files, 19,098 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, backend setup wizard):
+> authoritative `/health` identity + `setupRequired` routing
+> (`serverValidation` 147→200), +`setupApi` (514) +`setupApi.test` (484) +
+> `useSetupWizard` (371) +`components/` (5 files, 643) +`SetupWizardScreen`
+> (142) +`(auth)/setup-wizard` route (5); `useServerSetup` 133→143 (wizard
+> routing), `useServerSwitch` 138→148 (setup-target block), `index` 40→71,
+> `serverValidation.test` 251→327.
+> Working tree: **215 files, 21,438 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -75,7 +83,7 @@
 |------|------:|----------------|
 | `src/api/apiClient.ts` | 349 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (generation-tagged, takeover, ownership-guarded, captured-URL + stamped save) |
 
-## `src/app` — 23 files, 656 lines
+## `src/app` — 24 files, 662 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -83,10 +91,11 @@
 | `src/app/index.tsx` | 9 | Default route redirect to `/login` |
 | `src/app/player.tsx` | 4 | Route wrapper rendering `PlayerScreen` as full-screen modal |
 | `src/app/notification.click.tsx` | 7 | Notification-tap bounce route redirecting to `/player` |
-| `src/app/(auth)/_layout.tsx` | 11 | Auth stack layout (`login`, `signup`, `server-setup`) |
+| `src/app/(auth)/_layout.tsx` | 12 | Auth stack layout (`login`, `signup`, `server-setup`, `setup-wizard`) |
 | `src/app/(auth)/login.tsx` | 5 | Route wrapper rendering `LoginScreen` |
 | `src/app/(auth)/signup.tsx` | 5 | Route wrapper rendering `SignupScreen` |
 | `src/app/(auth)/server-setup.tsx` | 5 | Route wrapper rendering `ServerSetupScreen` (Login review mode) |
+| `src/app/(auth)/setup-wizard.tsx` | 5 | Route wrapper rendering `SetupWizardScreen` (first-launch backend setup) |
 | `src/app/(tabs)/_layout.tsx` | 156 | Custom tab bar (Home/Search/Library/Processing) + hidden-route registration |
 | `src/app/(tabs)/library.tsx` | 4 | Route wrapper rendering `LibraryScreen` |
 | `src/app/(tabs)/processing.tsx` | 5 | Route wrapper rendering `ProcessingScreen` |
@@ -348,17 +357,26 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 13 files, 1,709 lines
+## `src/features/server` — 22 files, 4,043 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 40 | Barrel (screens, hooks, store, validation, config/storage/switch/session-generation utils) |
-| `src/features/server/api/serverValidation.ts` | 147 | `checkServerConnection()`: unauthenticated `GET /health` probe (`db` ok/down/unconfigured, informational `storage`), 15s timeout, inline failure codes |
-| `src/features/server/api/serverValidation.test.ts` | 251 | `node:test`: /health states, malformed/non-Sonic, network/timeout, no-auth probe |
-| `src/features/server/hooks/useServerSetup.ts` | 133 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed; attempt/mounted guards; first-connect success toast) |
-| `src/features/server/hooks/useServerSwitch.ts` | 138 | Switch form state + validate → confirm → shared `performServerSwitch()` |
+| `src/features/server/index.ts` | 71 | Barrel (screens, hooks, store, validation, setup API, config/storage/switch/session-generation utils) |
+| `src/features/server/api/serverValidation.ts` | 200 | `checkServerConnection()`: unauthenticated `GET /health` probe (Sonic identity + `setupRequired` routing, `db` ok/down/unconfigured, informational `features.storage`), 15s timeout, inline failure codes |
+| `src/features/server/api/serverValidation.test.ts` | 327 | `node:test`: /health routing (ready/setup/down/invalid), malformed/non-Sonic, network/timeout, no-auth probe |
+| `src/features/server/api/setupApi.ts` | 514 | First-launch setup API: `GET /setup/status`, `POST /setup/config` (`X-Setup-Token`, plain fetch), patch builders, secret redaction, readiness poll |
+| `src/features/server/api/setupApi.test.ts` | 484 | `node:test`: token validation, headers/payload, locked fields, R2 skip/completeness, restart polling, redaction |
+| `src/features/server/components/SecretInput.tsx` | 90 | Labeled credential field, masked by default with visibility toggle |
+| `src/features/server/components/SetupTokenStep.tsx` | 97 | Wizard step 1: setup-token explainer + secure input + validate CTA |
+| `src/features/server/components/SetupDatabaseStep.tsx` | 124 | Wizard step 2: `DATABASE_URL` collection (locked/configured variants) + migration-error display |
+| `src/features/server/components/SetupStorageStep.tsx` | 220 | Wizard step 3: optional R2 fields (locked/configured variants) + continue/skip CTAs |
+| `src/features/server/components/SetupInitializeStep.tsx` | 112 | Wizard step 4: save/poll progress, retry + back-to-storage on failure |
+| `src/features/server/hooks/useServerSetup.ts` | 143 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed; wizard routing on `setupRequired`; attempt/mounted guards; first-connect success toast) |
+| `src/features/server/hooks/useServerSwitch.ts` | 148 | Switch form state + validate → confirm → shared `performServerSwitch()` (unconfigured targets blocked with inline guidance) |
+| `src/features/server/hooks/useSetupWizard.ts` | 371 | Wizard state machine: token → database → storage → initialize; memory-only secrets, stale-async guards, poll cancellation, retry |
 | `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server ("Configured" label), prefilled edit, validate → confirm, inline states |
 | `src/features/server/screens/ServerSetupScreen.tsx` | 176 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring |
+| `src/features/server/screens/SetupWizardScreen.tsx` | 142 | Wizard shell: back button, step progress, per-step content wiring |
 | `src/features/server/store/serverStore.ts` | 122 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration (storage-failure safe), first-time stale-token clear, `setApiServerUrl` apply |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverConfig.test.ts` | 177 | `node:test`: URL normalization/validation edge cases + localhost detection |

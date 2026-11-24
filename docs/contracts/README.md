@@ -13,7 +13,8 @@ Files:
 - `authentication.md` — signup/login/refresh/logout/me, token + device-ID headers, 401 behavior.
 - `playback.md` — song play, job polling, listening events, progress sync, recommendations.
 - `library-search.md` — playlists, history, discovery/genre, plus third-party (iTunes/RSS) notes.
-- `server-health.md` — **[Proposed]** `/health` validation for self-hosted servers.
+- `server-health.md` — **[Implemented]** `/health` validation + first-launch routing for self-hosted servers.
+- `backend-setup.md` — **[Implemented]** first-launch setup wizard endpoints (`/setup/status`, `/setup/config`) + readiness poll.
 
 Global rules (all backend calls, confirmed in `src/api/apiClient.ts`):
 

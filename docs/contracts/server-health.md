@@ -3,36 +3,44 @@
 ## Implemented: `GET /health` — **[Implemented]**
 
 - Purpose: validate a user-supplied server URL (manual input) before saving it
-  as the active backend. Must work WITHOUT authentication.
+  as the active backend, and route first launch (ready → login, unconfigured
+  → setup wizard). Must work WITHOUT authentication.
 - Method/path: unauthenticated `GET {serverUrl}/health`, via plain global
   `fetch` (no auth headers, no Axios interceptors, no token refresh, no global
   toasts — validation errors stay inline on the setup screen), with a 15s
   timeout. Implementation: `src/features/server/api/serverValidation.ts`
-  (`checkServerConnection()`).
+  (`checkServerConnection()`); the setup readiness poll reuses the same
+  `parseHealthPayload()` (`src/features/server/api/setupApi.ts`).
 - Response contract (backend: `feat/setup-mode-health` branch):
-  - `db`: `"ok"` (ready for authentication) | `"down"` (database unavailable)
-    | `"unconfigured"` (backend needs initial setup by its administrator).
-  - `storage`: `"r2"` | `"none"` — storage capability indicator,
-    informational only. R2 is NOT required to accept a server URL.
-  - The endpoint also carries overall health information; the client keys only
-    on `db` (+ `storage` passthrough) and ignores any other fields.
-- Acceptance: the body must be a JSON object whose `db` is one of the three
-  states above. The HTTP status is NOT part of the proof — the body is parsed
-  regardless of status, so a backend reporting trouble (e.g. 503 with
-  `db: "down"`) still yields its specific message. Anything else —
-  unreachable/timeout, unparsable body, or JSON without a valid `db` — is
-  rejected as `unreachable`, `timeout`, or `not-sonic` with inline copy.
+  - `app`: `"sonic-backend"` — backend identity marker, required.
+  - `setupRequired`: boolean — `true` routes into the setup wizard (see
+    `docs/contracts/backend-setup.md`); `false` with `db: "ok"` proceeds
+    to login.
+  - `db`: `"ok"` (ready for authentication) | `"down"` (configured but
+    unavailable — retryable error, never the wizard) | `"unconfigured"`.
+  - `features.storage`: `"r2"` | `"none"` — storage capability indicator,
+    informational only. R2 is NOT required to accept a server URL or to
+    complete setup.
+  - Other fields (`version`, `apiVersion`, `minAppVersion`) are currently
+    informational; the client does not enforce version compatibility.
+- Acceptance: the body must be a JSON object with the Sonic identity, a
+  boolean `setupRequired`, and a documented `db` state. The HTTP status is
+  NOT part of the proof — the body is parsed regardless of status, so a
+  backend reporting trouble (e.g. 503 with `db: "down"`) still yields its
+  specific message. Anything else — unreachable/timeout, unparsable body,
+  or JSON without the identity/shape — is rejected as `unreachable`,
+  `timeout`, or `not-sonic` with inline copy.
 - Failure codes: `invalid-url` (local format check, no request sent),
-  `unreachable`, `timeout`, `not-sonic` (reachable but no Sonic health shape),
-  `db-unconfigured` (admin must complete backend setup before users can sign
-  in), `db-down`.
-- Backends predating `/health` answer `404` with the stock NestJS error shape,
-  which has no `db` field and therefore reads as `not-sonic`. There is
-  intentionally no fallback probe: the wizard requires a backend that serves
-  the health contract.
-- Out of scope for the wizard: backend installation/configuration (setup mode,
-  Neon/R2 provisioning), worker health, and playback readiness. A successful
-  `/health` check proves API reachability + database readiness only.
+  `unreachable`, `timeout`, `not-sonic` (reachable but no Sonic health
+  shape), `db-unconfigured` (setup not required yet DB unconfigured —
+  admin must finish backend setup before users can sign in), `db-down`.
+- Backends predating `/health` answer `404` with the stock NestJS error
+  shape, which has no `db` field and therefore reads as `not-sonic`.
+  There is intentionally no fallback probe.
+- Out of scope for validation: backend installation/configuration (setup
+  mode, Neon/R2 provisioning — see `backend-setup.md`), worker health, and
+  playback readiness. A successful `/health` check proves API reachability
+  + database readiness only.
 
 ## History
 
@@ -40,7 +48,7 @@
   `{"statusCode":404,…,"message":"Cannot GET /health"}`; `GET /` → `200 "Hello
   World!"` (default NestJS root, not Sonic-specific); unauthenticated
   `GET /auth/me` → `401 {"statusCode":401,…,"message":"Authentication
-  invalid"}`. The setup validator previously relied on that `/auth/me`
+  invalid"}`. The setup validator briefly relied on that `/auth/me`
   401-shape heuristic; it was replaced by `/health` once the backend shipped
   the endpoint, and the heuristic must not be reintroduced as a fallback.
 

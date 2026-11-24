@@ -79,9 +79,40 @@ afterEach(() => {
   fetchCalls = 0;
 });
 
+// Authoritative backend health shapes (backend-sonic feat/setup-mode-health).
+const READY_BODY = {
+  app: 'sonic-backend',
+  version: '0.0.1',
+  apiVersion: 1,
+  minAppVersion: '4.0.0',
+  setupRequired: false,
+  db: 'ok',
+  features: { storage: 'r2' },
+};
+
+const SETUP_BODY = {
+  app: 'sonic-backend',
+  version: '0.0.1',
+  apiVersion: 1,
+  minAppVersion: '4.0.0',
+  setupRequired: true,
+  db: 'unconfigured',
+  features: { storage: 'none' },
+};
+
+const DOWN_BODY = {
+  app: 'sonic-backend',
+  version: '0.0.1',
+  apiVersion: 1,
+  minAppVersion: '4.0.0',
+  setupRequired: false,
+  db: 'down',
+  features: { storage: 'r2' },
+};
+
 describe('checkServerConnection via GET /health', () => {
   test('probes GET /health on the normalized origin', async () => {
-    respond(200, { db: 'ok', storage: 'r2' });
+    respond(200, READY_BODY);
 
     const result = await checkServerConnection('https://sonic.example.com/');
 
@@ -95,7 +126,7 @@ describe('checkServerConnection via GET /health', () => {
   });
 
   test('sends no auth token and asks for JSON', async () => {
-    respond(200, { db: 'ok', storage: 'r2' });
+    respond(200, READY_BODY);
 
     await checkServerConnection('https://sonic.example.com');
 
@@ -104,8 +135,8 @@ describe('checkServerConnection via GET /health', () => {
     assert.equal(headers.Accept, 'application/json');
   });
 
-  test('accepts a ready Sonic backend (db ok, storage r2)', async () => {
-    respond(200, { db: 'ok', storage: 'r2', extra: 'ignored' });
+  test('accepts a ready Sonic backend (setupRequired false, db ok)', async () => {
+    respond(200, { ...READY_BODY, extra: 'ignored' });
 
     const result = await checkServerConnection('https://sonic.example.com');
 
@@ -113,11 +144,25 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'https://sonic.example.com',
       storage: 'r2',
+      setupRequired: false,
+    });
+  });
+
+  test('setupRequired true routes to the wizard (not an error)', async () => {
+    respond(200, SETUP_BODY);
+
+    const result = await checkServerConnection('https://sonic.example.com');
+
+    assert.deepEqual(result, {
+      ok: true,
+      serverUrl: 'https://sonic.example.com',
+      storage: 'none',
+      setupRequired: true,
     });
   });
 
   test('does not require R2: db ok with storage none still connects', async () => {
-    respond(200, { db: 'ok', storage: 'none' });
+    respond(200, { ...READY_BODY, features: { storage: 'none' } });
 
     const result = await checkServerConnection('http://192.168.1.10:3000');
 
@@ -125,11 +170,13 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'http://192.168.1.10:3000',
       storage: 'none',
+      setupRequired: false,
     });
   });
 
   test('accepts db ok when storage is absent (informational only)', async () => {
-    respond(200, { db: 'ok' });
+    const { features: _dropped, ...withoutFeatures } = READY_BODY;
+    respond(200, withoutFeatures);
 
     const result = await checkServerConnection('https://sonic.example.com');
 
@@ -137,11 +184,31 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'https://sonic.example.com',
       storage: null,
+      setupRequired: false,
     });
   });
 
-  test('db unconfigured explains that the admin must finish backend setup', async () => {
-    respond(200, { db: 'unconfigured', storage: 'none' });
+  test('db down reports a database-unavailable message', async () => {
+    respond(200, DOWN_BODY);
+
+    const result = await checkServerConnection('https://sonic.example.com');
+
+    assert.equal(result.ok, false);
+    assert.equal(result.ok ? null : result.code, 'db-down');
+    assert.match(result.ok ? '' : result.message, /database/i);
+  });
+
+  test('db down wins over setupRequired (no wizard on a down database)', async () => {
+    respond(200, { ...DOWN_BODY, setupRequired: true });
+
+    const result = await checkServerConnection('https://sonic.example.com');
+
+    assert.equal(result.ok, false);
+    assert.equal(result.ok ? null : result.code, 'db-down');
+  });
+
+  test('unconfigured db without setupRequired keeps the admin message', async () => {
+    respond(200, { ...SETUP_BODY, setupRequired: false });
 
     const result = await checkServerConnection('https://sonic.example.com');
 
@@ -151,18 +218,8 @@ describe('checkServerConnection via GET /health', () => {
     assert.match(result.ok ? '' : result.message, /sign in/);
   });
 
-  test('db down reports a database-unavailable message', async () => {
-    respond(200, { db: 'down', storage: 'r2' });
-
-    const result = await checkServerConnection('https://sonic.example.com');
-
-    assert.equal(result.ok, false);
-    assert.equal(result.ok ? null : result.code, 'db-down');
-    assert.match(result.ok ? '' : result.message, /database/i);
-  });
-
   test('reads the db state even on non-2xx statuses (e.g. 503)', async () => {
-    respond(503, { db: 'down', storage: 'none' });
+    respond(503, DOWN_BODY);
 
     const result = await checkServerConnection('https://sonic.example.com');
 
@@ -179,12 +236,31 @@ describe('checkServerConnection via GET /health', () => {
     assert.equal(result.ok ? null : result.code, 'not-sonic');
   });
 
+  test('rejects responses with a wrong or missing identity', async () => {
+    for (const body of [
+      { ...READY_BODY, app: 'other-backend' },
+      { ...READY_BODY, app: undefined },
+      { ...READY_BODY, setupRequired: undefined },
+      { ...READY_BODY, setupRequired: 'false' },
+      { ...READY_BODY, db: undefined },
+    ]) {
+      respond(200, body);
+      const result = await checkServerConnection('https://sonic.example.com');
+      assert.equal(
+        result.ok,
+        false,
+        `body ${JSON.stringify(body)} accepted`,
+      );
+      assert.equal(result.ok ? null : result.code, 'not-sonic');
+    }
+  });
+
   test('rejects unexpected shapes and unknown db values', async () => {
     for (const body of [
       'Hello World!',
       { status: 'ok' },
-      { db: 'ready' },
-      { db: null },
+      { ...READY_BODY, db: 'ready' },
+      { ...READY_BODY, db: null },
       ['db', 'ok'],
       42,
       null,
