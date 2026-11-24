@@ -283,6 +283,10 @@ export function useSetupWizard() {
         text1: 'Setup complete. Please sign in.',
         visibilityTime: 4000,
       });
+      // Clear first: a stale flag would make AuthGuard yield forever and trap
+      // every later unauthenticated redirect. Clearing bumps no request id,
+      // so ServerGuard stays silent and this replace is the single owner.
+      useServerStore.getState().clearSetupPending();
       router.replace('/login');
     } catch (error) {
       if (!isCurrent()) return;

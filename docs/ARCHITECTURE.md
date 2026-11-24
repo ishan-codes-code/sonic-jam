@@ -94,6 +94,14 @@
   in `useServerSwitch` (138→148), barrel 40→71; +`setupApi.test` (484),
   `serverValidation.test` 251→327. Working tree: **215 files, 21,438
   lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, setup navigation race fix):
+  always-mounted root Stack (guards overlay + redirect via new pure
+  `setupNavigation`, 296) + commit-driven wizard routing (`setupPending` +
+  `setupRequestId` in `serverStore` 122→159) + 33 node:test regressions
+  (`setupNavigation.test`, 933); `_layout` 320→382, `index.tsx` renders null,
+  `useServerSetup` 143→161, `useSetupWizard` 371→375, `serverSwitch` 71→75,
+  barrel 71→94. Working tree: **217 files, 22,816 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -126,8 +134,8 @@ Directories that intentionally DO NOT exist: `android/`, `ios/` (managed prebuil
 |-------|------|------|
 | JS entry | `package.json` main `expo-router/entry` | Expo Router bootstrap |
 | Root layout | `src/app/_layout.tsx` | Providers, `VersionGuard`, `ServerGuard`, `AuthGuard`, `Stack`, `setupPlayer()` (via `ServerGuard`), background handler registration |
-| Default route | `src/app/index.tsx` | Redirects to `/login`; guard decides final destination |
-| Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` + `server-setup.tsx` | Unauthenticated stack |
+| Default route | `src/app/index.tsx` | Renders null; `ServerGuard`/`AuthGuard` own boot routing (single owner per redirect) |
+| Auth group | `src/app/(auth)/_layout.tsx` + `login.tsx` + `signup.tsx` + `server-setup.tsx` + `setup-wizard.tsx` | Unauthenticated stack (setup screens live here so setup stays routable) |
 | Tabs group | `src/app/(tabs)/_layout.tsx` | Custom tab bar (Home, Search, Library, Processing) + hidden routes |
 | Home nested | `src/app/(tabs)/home/_layout.tsx` | Feed/Recents header + nested stack (`index`, `recents`) |
 | Search nested | `src/app/(tabs)/search/_layout.tsx` | Nested stack (`index`, `[genre]`) |
@@ -164,7 +172,7 @@ src/
 │   │   ├── _layout.tsx           # auth stack (login, signup, server-setup, setup-wizard)
 │   │   ├── login.tsx             # → LoginScreen
 │   │   ├── signup.tsx            # → SignupScreen
-│   │   ├── server-setup.tsx      # → ServerSetupScreen (review mode)
+│   │   ├── server-setup.tsx      # → ServerSetupScreen (first-launch entry + Login review)
 │   │   └── setup-wizard.tsx      # → SetupWizardScreen (first-launch backend setup)
 │   └── (tabs)/
 │       ├── _layout.tsx           # custom tab bar + hidden-route registration

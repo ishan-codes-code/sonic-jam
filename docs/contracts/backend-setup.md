@@ -58,9 +58,11 @@ Implementation: `src/features/server/api/setupApi.ts`
 ## Wizard flow (client-side)
 
 1. Server setup validates the URL via `/health`. `setupRequired: true`
-   persists the URL through the existing server store/switch paths and
-   pushes `/setup-wizard`; ready backends keep the existing login flow;
-   `db: down` shows a retryable error and never opens the wizard.
+   persists the URL through the existing server store/switch paths (URL +
+   setup flag + request id in one atomic `setServer()` commit); ServerGuard
+   then pushes `/setup-wizard`, so the wizard opens even if the setup screen
+   unmounts. Ready backends keep the existing login flow; `db: down` shows a
+   retryable error and never opens the wizard.
 2. Step 1 collects the setup token and validates it via `/setup/status`.
 3. Step 2 collects `DATABASE_URL` (basic `postgres://` format check
    client-side; real validation is the backend's `SELECT 1` + migrations).

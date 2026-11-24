@@ -51,6 +51,29 @@ export type {
 
 // Utils
 export {
+  authGuardAction,
+  createAttemptGuard,
+  isAuthRoute,
+  isReviewUnchanged,
+  isServerSetupRoute,
+  isSetupWizardRoute,
+  planConnectResult,
+  planReviewUnchanged,
+  serverGuardAction,
+} from './utils/setupNavigation';
+export type {
+  AttemptGuard,
+  AuthGuardSnapshot,
+  ConnectPlan,
+  GuardAuthStatus,
+  GuardServerStatus,
+  ServerGuardMemory,
+  ServerGuardSnapshot,
+  SetupNavAction,
+  SetupNavHref,
+  SetupNavMethod,
+} from './utils/setupNavigation';
+export {
   BAKED_SERVER_URL,
   isLocalHostUrl,
   normalizeServerUrl,
