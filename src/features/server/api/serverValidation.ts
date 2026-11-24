@@ -6,27 +6,29 @@ import {
 // --------------------------------------------------------------------------
 // Server connection validation (unauthenticated bootstrap request).
 //
-// Strategy (grounded in the live backend, 2026-11-21):
-// - GET /health does NOT exist (404), so it cannot validate today's servers.
-// - GET /auth/me without a token answers 401 + the NestJS auth-layer body
-//   `{ statusCode: 401, message: 'Authentication invalid', … }` on the Sonic
-//   backend. That endpoint is confirmed in docs/contracts/authentication.md,
-//   safe to call without credentials, and — when the full shape matches — a
-//   reasonable Sonic heuristic (see docs/contracts/server-health.md: a bare
-//   401 alone proves nothing, since any guarded endpoint answers 401).
-// Plain global fetch is used deliberately: no auth headers, no interceptors,
-// no global toasts — validation errors stay inline on the setup screen.
-// When the backend ships GET /health, add it here as the first probe.
+// Strategy: GET /health, the public Sonic backend endpoint (no auth token is
+// sent, and the shared apiClient is bypassed so no interceptors, token
+// refresh, or global toasts can fire — validation errors stay inline on the
+// setup screen). Contract: docs/contracts/server-health.md.
+//
+// Proof of a Sonic backend is the response SHAPE, not the HTTP status: the
+// body must be a JSON object whose `db` field is one of the documented
+// readiness states. The status itself is ignored so a backend reporting
+// trouble (e.g. 503 with `db: 'down'`) still yields its specific message.
 // --------------------------------------------------------------------------
 
 export type ServerCheckFailureCode =
   | 'invalid-url'
   | 'unreachable'
   | 'timeout'
-  | 'not-sonic';
+  | 'not-sonic'
+  | 'db-unconfigured'
+  | 'db-down';
+
+export type HealthStorage = 'r2' | 'none';
 
 export type ServerCheckResult =
-  | { ok: true; serverUrl: string }
+  | { ok: true; serverUrl: string; storage: HealthStorage | null }
   | { ok: false; code: ServerCheckFailureCode; message: string };
 
 // Render free-tier cold starts were observed above 10s; 15s keeps additions
@@ -35,6 +37,27 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 
 interface CheckOptions {
   timeoutMs?: number;
+}
+
+type DbState = 'ok' | 'down' | 'unconfigured';
+
+function parseDbState(body: unknown): DbState | null {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const db = (body as { db?: unknown }).db;
+  if (db === 'ok' || db === 'down' || db === 'unconfigured') {
+    return db;
+  }
+  return null;
+}
+
+function parseStorage(body: object): HealthStorage | null {
+  const storage = (body as { storage?: unknown }).storage;
+  if (storage === 'r2' || storage === 'none') {
+    return storage;
+  }
+  return null;
 }
 
 export async function checkServerConnection(
@@ -55,36 +78,48 @@ export async function checkServerConnection(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${normalized}/auth/me`, {
+    const response = await fetch(`${normalized}/health`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
 
     const data: unknown = await response.json().catch(() => null);
+    const db = parseDbState(data);
 
-    // A Sonic backend guards this endpoint with its NestJS auth layer: no
-    // token → 401 + `{ statusCode: 401, message: string, … }` (verified live;
-    // see docs/contracts/authentication.md). Require that shape — a generic
-    // 401 or unrelated JSON from a non-Sonic host must not pass.
-    const body =
-      data !== null && typeof data === 'object'
-        ? (data as { statusCode?: unknown; message?: unknown })
-        : null;
-    if (
-      response.status === 401 &&
-      body !== null &&
-      body.statusCode === 401 &&
-      typeof body.message === 'string'
-    ) {
-      return { ok: true, serverUrl: normalized };
+    if (db === null) {
+      return {
+        ok: false,
+        code: 'not-sonic',
+        message:
+          "That address responded, but it doesn't look like a Sonic server.",
+      };
     }
 
+    if (db === 'unconfigured') {
+      return {
+        ok: false,
+        code: 'db-unconfigured',
+        message:
+          "This server's database isn't configured yet. The server administrator needs to complete the backend setup before you can sign in.",
+      };
+    }
+
+    if (db === 'down') {
+      return {
+        ok: false,
+        code: 'db-down',
+        message:
+          "This server's database is unavailable right now. Try again in a little while, or check with the server administrator.",
+      };
+    }
+
+    // Storage readiness is informational only: R2 is not required to accept
+    // a server URL, and its absence limits only storage-backed features.
     return {
-      ok: false,
-      code: 'not-sonic',
-      message:
-        "That address responded, but it doesn't look like a Sonic server.",
+      ok: true,
+      serverUrl: normalized,
+      storage: parseStorage(data as object),
     };
   } catch (error) {
     if (

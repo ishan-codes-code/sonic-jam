@@ -76,6 +76,14 @@
 - Structural delta (uncommitted, headless full-metadata fix):
   `trackPlayerService` 90→91 (transition applies `syncTrackMetadata` directly).
   Working tree: **202 files, 18,147 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, server wizard finalize):
+  `/health` validation (`serverValidation` 112→147, `db`/`storage` states +
+  `db-unconfigured`/`db-down` codes), bounded remote-config fetch
+  (`versionService` 164→187, 10s timeout), first-connect success toast
+  (`useServerSetup` 124→133), "Configured" management label (copy-only),
+  +focused `node:test` suites (`serverConfig` 177, `serverValidation` 251,
+  `versionService` 224). Working tree: **205 files, 19,098 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -194,10 +202,11 @@ src/features/
 ├── about/                        # developer info (2 files)
 │   ├── screens/DeveloperScreens.tsx
 │   └── utils/developersSocials.tsx    # SOCIALS link list
-├── app-validations/              # version/maintenance/OTA gates (6 files)
+├── app-validations/              # version/maintenance/OTA gates (7 files)
 │   ├── hooks/useVersionCheck.ts
 │   ├── screens/MaintenanceScreen.tsx  screens/OTAUpdateScreen.tsx  screens/UpdateScreen.tsx
 │   ├── services/versionService.ts     # GitHub Raw config, checkAppVersion()
+│   ├── services/versionService.test.ts  # node:test: timeout + cache fallback
 │   └── store/versionStore.ts
 ├── artwork-colors/               # artwork palette extraction (3 files)
 │   ├── index.ts  hooks/useArtworkColors.ts  services/artworkColorService.ts
@@ -268,12 +277,12 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
-├── server/                       # runtime server config + setup/switch UI (11 files)
-│   ├── index.ts  api/serverValidation.ts
+├── server/                       # runtime server config + setup/switch UI (13 files)
+│   ├── index.ts  api/serverValidation.ts  api/serverValidation.test.ts
 │   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts
 │   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
-│   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverStorage.ts
-│   ├── utils/serverSwitch.ts  # shared performServerSwitch()
+│   ├── store/serverStore.ts  utils/serverConfig.ts  utils/serverConfig.test.ts
+│   ├── utils/serverStorage.ts  utils/serverSwitch.ts  # shared performServerSwitch()
 │   └── utils/sessionGeneration.ts  # refresh invalidation counter
 ├── settings/                     # Settings hub (3 files)
 │   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx

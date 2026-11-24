@@ -86,10 +86,10 @@ export const ServerManagementScreen = () => {
                 {currentUrl ?? 'Not configured'}
               </Text>
               <Text className="mt-0.5 text-[12px] text-muted-foreground">
-                Connected
+                Configured
               </Text>
             </View>
-            <View className="h-2 w-2 rounded-full bg-emerald-400" />
+            <View className="h-2 w-2 rounded-full bg-amber-300" />
           </View>
 
           {/* Switch warning */}

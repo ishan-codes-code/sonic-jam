@@ -93,6 +93,15 @@ export function useServerSetup() {
         });
       } else {
         await setServer(result.serverUrl);
+        if (!currentUrl && isCurrent()) {
+          // First launch: the guard advances to Login on its own, so confirm
+          // the connection explicitly (review mode toasts above instead).
+          toastImperative.show({
+            type: 'success',
+            text1: 'Connected. Please sign in.',
+            visibilityTime: 4000,
+          });
+        }
       }
       if (currentUrl && isCurrent()) {
         // Review mode: back to Login. First launch stays put — the

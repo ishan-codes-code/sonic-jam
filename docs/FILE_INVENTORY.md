@@ -58,6 +58,13 @@
 > Structural delta (uncommitted, headless full-metadata fix):
 > `trackPlayerService` 90→91 (transition applies `syncTrackMetadata` directly).
 > Working tree: **202 files, 18,147 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, server wizard finalize):
+> `/health` validation (`serverValidation` 112→147), bounded remote-config
+> fetch (`versionService` 164→187, 10s timeout), first-connect success toast
+> (`useServerSetup` 124→133), "Configured" management label (copy-only),
+> +`serverConfig.test` (177) +`serverValidation.test` (251)
+> +`versionService.test` (224, `node:test` via tsc + node runner, no runner dep).
+> Working tree: **205 files, 19,098 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -143,7 +150,7 @@
 | `src/features/about/screens/DeveloperScreens.tsx` | 107 | Developer/about screen with contact + social links † |
 | `src/features/about/utils/developersSocials.tsx` | 36 | `SOCIALS` link list (LinkedIn/X/Instagram/GitHub) † |
 
-## `src/features/app-validations` — 6 files, 809 lines
+## `src/features/app-validations` — 7 files, 1,056 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -151,7 +158,8 @@
 | `src/features/app-validations/screens/MaintenanceScreen.tsx` | 104 | Maintenance gate screen † |
 | `src/features/app-validations/screens/OTAUpdateScreen.tsx` | 297 | Foreground OTA download/install/restart flow (`expo-updates`) |
 | `src/features/app-validations/screens/UpdateScreen.tsx` | 157 | Native/OTA update prompt (force + optional variants) † |
-| `src/features/app-validations/services/versionService.ts` | 164 | Remote config fetch/cache + `checkAppVersion()` comparison |
+| `src/features/app-validations/services/versionService.ts` | 187 | Remote config fetch (10s timeout)/cache + `checkAppVersion()` comparison |
+| `src/features/app-validations/services/versionService.test.ts` | 224 | `node:test`: fetch timeout + cached fallback + fail-open |
 | `src/features/app-validations/store/versionStore.ts` | 54 | Version/OTA status + update-progress state |
 
 ## `src/features/artwork-colors` — 3 files, 243 lines
@@ -340,18 +348,20 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 11 files, 1,237 lines
+## `src/features/server` — 13 files, 1,709 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
 | `src/features/server/index.ts` | 40 | Barrel (screens, hooks, store, validation, config/storage/switch/session-generation utils) |
-| `src/features/server/api/serverValidation.ts` | 112 | `checkServerConnection()`: unauthenticated `/auth/me` 401 + NestJS-shape probe with timeout, inline failure codes |
-| `src/features/server/hooks/useServerSetup.ts` | 124 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed; attempt/mounted guards) |
+| `src/features/server/api/serverValidation.ts` | 147 | `checkServerConnection()`: unauthenticated `GET /health` probe (`db` ok/down/unconfigured, informational `storage`), 15s timeout, inline failure codes |
+| `src/features/server/api/serverValidation.test.ts` | 251 | `node:test`: /health states, malformed/non-Sonic, network/timeout, no-auth probe |
+| `src/features/server/hooks/useServerSetup.ts` | 133 | Setup form state + validate → check → save connect flow (+ Login review mode: prefill current, Continue/Connect CTA, shared switch if changed; attempt/mounted guards; first-connect success toast) |
 | `src/features/server/hooks/useServerSwitch.ts` | 138 | Switch form state + validate → confirm → shared `performServerSwitch()` |
-| `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server, prefilled edit, validate → confirm, inline states |
+| `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server ("Configured" label), prefilled edit, validate → confirm, inline states |
 | `src/features/server/screens/ServerSetupScreen.tsx` | 176 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring |
 | `src/features/server/store/serverStore.ts` | 122 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration (storage-failure safe), first-time stale-token clear, `setApiServerUrl` apply |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
+| `src/features/server/utils/serverConfig.test.ts` | 177 | `node:test`: URL normalization/validation edge cases + localhost detection |
 | `src/features/server/utils/serverStorage.ts` | 45 | AsyncStorage `@sonic_server_url` get/set/clear; reads throw on storage failure (missing ≠ unreadable) |
 | `src/features/server/utils/serverSwitch.ts` | 71 | Shared `performServerSwitch()`: session invalidate + atomic session reset → `setServer` → player recreate |
 | `src/features/server/utils/sessionGeneration.ts` | 53 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards + `onSessionInvalidated()` settle hook |
