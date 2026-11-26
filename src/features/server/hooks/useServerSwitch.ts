@@ -74,6 +74,16 @@ export function useServerSwitch() {
         setPhase('editing');
         return;
       }
+      if (result.setupRequired) {
+        // Backend setup is a first-launch flow reached from the Login
+        // screen's server setup — switching to an unconfigured server here
+        // would strand the session on a backend that cannot sign in.
+        setFieldError(
+          'This server needs its first-time setup. Change servers from the login screen to set it up.',
+        );
+        setPhase('editing');
+        return;
+      }
       setValidatedUrl(result.serverUrl);
       setPhase('confirm');
     } catch {

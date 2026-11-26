@@ -28,10 +28,14 @@ export interface ServerSwitchDeps {
  * the React-bound deps (`useQueryClient()`, `usePlayer().stop`).
  *
  * @param serverUrl validated + normalized new server URL.
+ * @param opts.setupPending forwarded to `setServer()` so the commit carries
+ *   the fresh `/health` setup flag (Login review path switching to an
+ *   unconfigured server). Defaults to false (ready backends).
  */
 export async function performServerSwitch(
   serverUrl: string,
   deps: ServerSwitchDeps,
+  opts?: { setupPending?: boolean },
 ): Promise<void> {
   // 1. Invalidate old-server work synchronously, before the first await,
   //    so nothing in flight can land once the switch begins (poll loops
@@ -62,7 +66,7 @@ export async function performServerSwitch(
   useAuthStore.getState().resetAuth();
 
   // 6. Persist + apply the new server only now that nothing old remains.
-  await useServerStore.getState().setServer(serverUrl);
+  await useServerStore.getState().setServer(serverUrl, opts);
 
   // 7. Re-point the native player (incl. the baked progress-sync URL) at
   //    the new server. Best-effort: a failure leaves the setup guard open

@@ -25,12 +25,40 @@ interface ServerState {
   status: ServerStatus;
   serverUrl: string | null;
 
+  /**
+   * Memory-only: the configured server still needs first-launch backend
+   * setup. Committed atomically with the URL by `setServer()` from the
+   * fresh `/health` result, cleared when the wizard completes. While true,
+   * AuthGuard yields (no Login redirect) and ServerGuard routes to the
+   * wizard. Never persisted: a restart re-verifies via the setup screen.
+   */
+  setupPending: boolean;
+  /**
+   * Memory-only: increments on every `setServer()` commit. Lets ServerGuard
+   * route each connect commit exactly once (one-shot per id) without
+   * re-arming, and tells a fresh commit apart from a boot with a stored URL.
+   */
+  setupRequestId: number;
+
   /** Boot-time load: stored URL → migration → unconfigured. Idempotent. */
   loadServer: () => Promise<void>;
   /** Persist + apply a validated server URL (post-validation only). */
-  setServer: (serverUrl: string) => Promise<void>;
+  setServer: (
+    serverUrl: string,
+    opts?: { setupPending?: boolean },
+  ) => Promise<void>;
   /** Drop the stored server (reserved for future server switching). */
   clearServer: () => Promise<void>;
+  /** Mark backend setup done (wizard completion). Commits no navigation. */
+  clearSetupPending: () => void;
+  /**
+   * Arm a setup flow for the CURRENT server (background boot check found
+   * `setupRequired`). Bumps the request id so ServerGuard routes this exact
+   * commit to the wizard once. Touches nothing else: the URL stays, and the
+   * session is kept — the wizard validates it on completion and lands on home
+   * when it is still valid. Idempotent while a flow is already pending.
+   */
+  markSetupPending: () => void;
 }
 
 let loadPromise: Promise<void> | null = null;
@@ -77,6 +105,8 @@ async function doLoad(): Promise<void> {
 export const useServerStore = create<ServerState>((set) => ({
   status: 'loading',
   serverUrl: null,
+  setupPending: false,
+  setupRequestId: 0,
 
   loadServer: () => {
     if (!loadPromise) {
@@ -87,7 +117,7 @@ export const useServerStore = create<ServerState>((set) => ({
     return loadPromise;
   },
 
-  setServer: async (serverUrl: string) => {
+  setServer: async (serverUrl: string, opts?: { setupPending?: boolean }) => {
     const normalized = normalizeServerUrl(serverUrl);
     if (!normalized) {
       throw new Error('Invalid server URL.');
@@ -112,11 +142,34 @@ export const useServerStore = create<ServerState>((set) => ({
     // server it will forget on restart.
     await setStoredServerUrl(normalized);
     setApiServerUrl(normalized);
-    set({ serverUrl: normalized, status: 'configured' });
+    // One atomic commit: the URL, the setup flag from the fresh /health
+    // result, and a bumped request id so ServerGuard routes this exact
+    // commit once. Splitting these across commits would let a guard effect
+    // observe a half-committed state and misroute (e.g. Login before wizard).
+    set((s) => ({
+      serverUrl: normalized,
+      status: 'configured',
+      setupPending: opts?.setupPending ?? false,
+      setupRequestId: s.setupRequestId + 1,
+    }));
   },
 
   clearServer: async () => {
     await clearStoredServerUrl();
-    set({ serverUrl: null, status: 'unconfigured' });
+    set({ serverUrl: null, status: 'unconfigured', setupPending: false });
+  },
+
+  clearSetupPending: () => {
+    // No request-id bump: completion commits no navigation by itself — the
+    // wizard replaces to home/Login directly after calling this.
+    set({ setupPending: false });
+  },
+
+  markSetupPending: () => {
+    const live = useServerStore.getState();
+    if (live.setupPending || live.serverUrl === null) {
+      return;
+    }
+    set({ setupPending: true, setupRequestId: live.setupRequestId + 1 });
   },
 }));

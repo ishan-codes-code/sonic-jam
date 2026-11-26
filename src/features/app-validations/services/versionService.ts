@@ -35,6 +35,16 @@ ForceUpdateScreen shown with APK download link
 const CONFIG_URL = `https://raw.githubusercontent.com/ishan-codes-code/app-config-sonic/main/app-config.json`;
 const CONFIG_KEY = "REMOTE_CONFIG";
 
+// The version gate blocks first launch (including server setup) until the
+// first check resolves, so the remote fetch must be bounded: a slow or dead
+// GitHub Raw must fall through to the cached config / fail-open path below
+// instead of stalling boot indefinitely.
+export const REMOTE_CONFIG_TIMEOUT_MS = 10_000;
+
+interface RemoteConfigOptions {
+  timeoutMs?: number;
+}
+
 export interface VersionConfig {
   maintenance: {
     enabled: boolean;
@@ -70,9 +80,16 @@ export interface VersionStatus {
   otaMessage: string | null;
 }
 
-export const fetchRemoteConfig = async (): Promise<VersionConfig | null> => {
+export const fetchRemoteConfig = async (
+  options?: RemoteConfigOptions,
+): Promise<VersionConfig | null> => {
+  const timeoutMs = options?.timeoutMs ?? REMOTE_CONFIG_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${CONFIG_URL}?t=${Date.now()}`);
+    const res = await fetch(`${CONFIG_URL}?t=${Date.now()}`, {
+      signal: controller.signal,
+    });
 
     if (!res.ok) {
       throw new Error("Failed to fetch config");
@@ -83,11 +100,15 @@ export const fetchRemoteConfig = async (): Promise<VersionConfig | null> => {
   } catch (err) {
     console.log("Config fetch error:", err);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 };
 
-export const getConfig = async (): Promise<VersionConfig | null> => {
-  const remote = await fetchRemoteConfig();
+export const getConfig = async (
+  options?: RemoteConfigOptions,
+): Promise<VersionConfig | null> => {
+  const remote = await fetchRemoteConfig(options);
 
   if (remote) {
     await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(remote));
@@ -98,12 +119,14 @@ export const getConfig = async (): Promise<VersionConfig | null> => {
   return local ? JSON.parse(local) : null;
 };
 
-export const checkAppVersion = async (): Promise<VersionStatus> => {
+export const checkAppVersion = async (
+  options?: RemoteConfigOptions,
+): Promise<VersionStatus> => {
   try {
     const currentVersion = Constants.expoConfig?.version ?? "0.0.0";
     const currentOtaVersion = versionInfo.otaVersion ?? '0.0.0';
 
-    const config = await getConfig();
+    const config = await getConfig(options);
 
     if (!config) {
       throw new Error("Failed to load config");

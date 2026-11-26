@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { THEME } from '@/lib/theme';
 import { useRouter } from 'expo-router';
 import { useServerSwitch } from '../hooks/useServerSwitch';
 
@@ -86,10 +87,10 @@ export const ServerManagementScreen = () => {
                 {currentUrl ?? 'Not configured'}
               </Text>
               <Text className="mt-0.5 text-[12px] text-muted-foreground">
-                Connected
+                Configured
               </Text>
             </View>
-            <View className="h-2 w-2 rounded-full bg-emerald-400" />
+            <View className="h-2 w-2 rounded-full bg-amber-300" />
           </View>
 
           {/* Switch warning */}
@@ -146,7 +147,7 @@ export const ServerManagementScreen = () => {
               <Input
                 className="h-full flex-1 border-0 bg-transparent text-[14px] font-display text-foreground shadow-none"
                 placeholder="https://sonic.example.com"
-                placeholderTextColor="#252525"
+                placeholderTextColor={THEME.dark.mutedForeground}
                 value={url}
                 onChangeText={setUrl}
                 keyboardType="url"

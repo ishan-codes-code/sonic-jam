@@ -39,8 +39,8 @@ client expectations; backend field names beyond these are unverified).
 - `User`: `{ id: string, name?: string, email: string, createdAt: string, favoritesPlaylistId: string }`.
 - Called after login, after boot refresh, and never cached in React Query (lives in `useAuthStore`).
 - Without a token the backend answers `401` + JSON (`{ statusCode: 401, … }`, verified live
-  2026-11-21). The server-setup validator depends on this identity probe — do not change the
-  unauthenticated 401 behavior without updating `src/features/server/api/serverValidation.ts`.
+  2026-11-21). The server-setup validator previously depended on this identity probe; it now
+  validates via `GET /health` (see `docs/contracts/server-health.md`).
 
 ## Session notes
 

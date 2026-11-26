@@ -6,35 +6,96 @@ import {
 // --------------------------------------------------------------------------
 // Server connection validation (unauthenticated bootstrap request).
 //
-// Strategy (grounded in the live backend, 2026-11-21):
-// - GET /health does NOT exist (404), so it cannot validate today's servers.
-// - GET /auth/me without a token answers 401 + the NestJS auth-layer body
-//   `{ statusCode: 401, message: 'Authentication invalid', … }` on the Sonic
-//   backend. That endpoint is confirmed in docs/contracts/authentication.md,
-//   safe to call without credentials, and — when the full shape matches — a
-//   reasonable Sonic heuristic (see docs/contracts/server-health.md: a bare
-//   401 alone proves nothing, since any guarded endpoint answers 401).
-// Plain global fetch is used deliberately: no auth headers, no interceptors,
-// no global toasts — validation errors stay inline on the setup screen.
-// When the backend ships GET /health, add it here as the first probe.
+// Strategy: GET /health, the public Sonic backend endpoint (no auth token is
+// sent, and the shared apiClient is bypassed so no interceptors, token
+// refresh, or global toasts can fire — validation errors stay inline on the
+// setup screen). Contract: docs/contracts/server-health.md.
+//
+// Proof of a Sonic backend is the response SHAPE, not the HTTP status: the
+// body must identify as the Sonic backend (`app`), carry the setup flag, and
+// report a documented database state. The status itself is ignored so a
+// backend reporting trouble (e.g. 503 with `db: 'down'`) still yields its
+// specific message.
 // --------------------------------------------------------------------------
 
 export type ServerCheckFailureCode =
   | 'invalid-url'
   | 'unreachable'
   | 'timeout'
-  | 'not-sonic';
+  | 'not-sonic'
+  | 'db-unconfigured'
+  | 'db-down';
+
+export type HealthStorage = 'r2' | 'none';
+
+export type HealthDbState = 'ok' | 'down' | 'unconfigured';
+
+export interface HealthPayload {
+  setupRequired: boolean;
+  db: HealthDbState;
+  storage: HealthStorage | null;
+}
 
 export type ServerCheckResult =
-  | { ok: true; serverUrl: string }
+  | {
+      ok: true;
+      serverUrl: string;
+      storage: HealthStorage | null;
+      setupRequired: boolean;
+    }
   | { ok: false; code: ServerCheckFailureCode; message: string };
 
 // Render free-tier cold starts were observed above 10s; 15s keeps additions
 // usable without hanging the UI indefinitely.
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+const SONIC_BACKEND_APP = 'sonic-backend';
+
 interface CheckOptions {
   timeoutMs?: number;
+}
+
+/**
+ * Validate an unauthenticated /health body against the backend contract.
+ * Shared with the setup readiness poll so validation and polling can never
+ * disagree on what a Sonic backend looks like.
+ */
+export function parseHealthPayload(body: unknown): HealthPayload | null {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const record = body as {
+    app?: unknown;
+    setupRequired?: unknown;
+    db?: unknown;
+    features?: unknown;
+  };
+  if (record.app !== SONIC_BACKEND_APP) {
+    return null;
+  }
+  if (typeof record.setupRequired !== 'boolean') {
+    return null;
+  }
+  const db = record.db;
+  if (db !== 'ok' && db !== 'down' && db !== 'unconfigured') {
+    return null;
+  }
+  return {
+    setupRequired: record.setupRequired,
+    db,
+    storage: parseStorage(record.features),
+  };
+}
+
+function parseStorage(features: unknown): HealthStorage | null {
+  if (features === null || typeof features !== 'object') {
+    return null;
+  }
+  const storage = (features as { storage?: unknown }).storage;
+  if (storage === 'r2' || storage === 'none') {
+    return storage;
+  }
+  return null;
 }
 
 export async function checkServerConnection(
@@ -55,36 +116,73 @@ export async function checkServerConnection(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${normalized}/auth/me`, {
+    const response = await fetch(`${normalized}/health`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
 
-    const data: unknown = await response.json().catch(() => null);
+    const health = parseHealthPayload(
+      await response.json().catch(() => null),
+    );
 
-    // A Sonic backend guards this endpoint with its NestJS auth layer: no
-    // token → 401 + `{ statusCode: 401, message: string, … }` (verified live;
-    // see docs/contracts/authentication.md). Require that shape — a generic
-    // 401 or unrelated JSON from a non-Sonic host must not pass.
-    const body =
-      data !== null && typeof data === 'object'
-        ? (data as { statusCode?: unknown; message?: unknown })
-        : null;
-    if (
-      response.status === 401 &&
-      body !== null &&
-      body.statusCode === 401 &&
-      typeof body.message === 'string'
-    ) {
-      return { ok: true, serverUrl: normalized };
+    if (health === null) {
+      return {
+        ok: false,
+        code: 'not-sonic',
+        message:
+          "That address responded, but it doesn't look like a Sonic server.",
+      };
     }
 
+    // A down database is retryable and never opens the setup wizard, even if
+    // the backend still reports that setup is required.
+    if (health.db === 'down') {
+      return {
+        ok: false,
+        code: 'db-down',
+        message:
+          "This server's database is unavailable right now. Try again in a little while, or check with the server administrator.",
+      };
+    }
+
+    // Setup still required: the wizard opens only when the database is up.
+    // An unconfigured database means the Termux installer step was skipped —
+    // the database URL is entered there, never in the app — so this stays a
+    // retryable message instead of opening the wizard.
+    if (health.setupRequired) {
+      if (health.db === 'unconfigured') {
+        return {
+          ok: false,
+          code: 'db-unconfigured',
+          message:
+            "This server's database isn't configured yet. Run the Termux installer on your server and enter the database URL, then try again.",
+        };
+      }
+      return {
+        ok: true,
+        serverUrl: normalized,
+        storage: health.storage,
+        setupRequired: true,
+      };
+    }
+
+    if (health.db === 'unconfigured') {
+      return {
+        ok: false,
+        code: 'db-unconfigured',
+        message:
+          "This server's database isn't configured yet. The server administrator needs to complete the backend setup before you can sign in.",
+      };
+    }
+
+    // Storage readiness is informational only: R2 is not required to accept
+    // a server URL, and its absence limits only storage-backed features.
     return {
-      ok: false,
-      code: 'not-sonic',
-      message:
-        "That address responded, but it doesn't look like a Sonic server.",
+      ok: true,
+      serverUrl: normalized,
+      storage: health.storage,
+      setupRequired: false,
     };
   } catch (error) {
     if (
