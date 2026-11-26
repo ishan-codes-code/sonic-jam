@@ -51,6 +51,14 @@ interface ServerState {
   clearServer: () => Promise<void>;
   /** Mark backend setup done (wizard completion). Commits no navigation. */
   clearSetupPending: () => void;
+  /**
+   * Arm a setup flow for the CURRENT server (background boot check found
+   * `setupRequired`). Bumps the request id so ServerGuard routes this exact
+   * commit to the wizard once. Touches nothing else: the URL stays, and the
+   * session is kept — the wizard validates it on completion and lands on home
+   * when it is still valid. Idempotent while a flow is already pending.
+   */
+  markSetupPending: () => void;
 }
 
 let loadPromise: Promise<void> | null = null;
@@ -153,7 +161,15 @@ export const useServerStore = create<ServerState>((set) => ({
 
   clearSetupPending: () => {
     // No request-id bump: completion commits no navigation by itself — the
-    // wizard replaces to Login directly after calling this.
+    // wizard replaces to home/Login directly after calling this.
     set({ setupPending: false });
+  },
+
+  markSetupPending: () => {
+    const live = useServerStore.getState();
+    if (live.setupPending || live.serverUrl === null) {
+      return;
+    }
+    set({ setupPending: true, setupRequestId: live.setupRequestId + 1 });
   },
 }));

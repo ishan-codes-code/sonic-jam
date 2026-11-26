@@ -15,12 +15,17 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  API_KEY_FIELD_KEYS,
   buildConfigPatch,
   getSetupStatus,
-  missingR2Fields,
+  missingSetupFields,
+  PLAYBACK_FIELD_KEYS,
   pollHealthUntilReady,
+  R2_FIELD_KEYS,
   redactSecrets,
   saveSetupConfig,
+  SETUP_CONFIG_KEYS,
+  validateWorkerStreamUrl,
 } from './setupApi';
 
 const realFetch = globalThis.fetch;
@@ -105,8 +110,8 @@ describe('getSetupStatus', () => {
   test('sends the setup token header and parses the status', async () => {
     respond(200, {
       setupRequired: true,
-      configured: { DATABASE_URL: false },
-      envLocked: [],
+      configured: { R2_BUCKET: false, JWT_PLAYBACK_SECRET: true },
+      envLocked: ['YOUTUBE_API_KEY'],
     });
 
     const result = await getSetupStatus(SERVER_URL, TOKEN);
@@ -119,8 +124,8 @@ describe('getSetupStatus', () => {
       ok: true,
       status: {
         setupRequired: true,
-        configured: { DATABASE_URL: false },
-        envLocked: [],
+        configured: { R2_BUCKET: false, JWT_PLAYBACK_SECRET: true },
+        envLocked: ['YOUTUBE_API_KEY'],
       },
     });
   });
@@ -142,7 +147,7 @@ describe('getSetupStatus', () => {
       { configured: {}, envLocked: [] },
       { setupRequired: true, envLocked: [] },
       { setupRequired: true, configured: {}, envLocked: 'nope' },
-      { setupRequired: true, configured: { DATABASE_URL: 'yes' }, envLocked: [] },
+      { setupRequired: true, configured: { R2_BUCKET: 'yes' }, envLocked: [] },
       'ok',
       null,
     ]) {
@@ -185,7 +190,11 @@ describe('saveSetupConfig', () => {
     const result = await saveSetupConfig(
       SERVER_URL,
       TOKEN,
-      { DATABASE_URL: 'postgres://db:5432/sonic' },
+      {
+        R2_BUCKET: 'music',
+        WORKER_STREAM_URL: 'https://stream.example.dev',
+        JWT_PLAYBACK_SECRET: 'playback-secret',
+      },
       { timeoutMs: 1000 },
     );
 
@@ -199,7 +208,9 @@ describe('saveSetupConfig', () => {
       'POST',
     );
     assert.deepEqual(JSON.parse(lastBody ?? ''), {
-      DATABASE_URL: 'postgres://db:5432/sonic',
+      R2_BUCKET: 'music',
+      WORKER_STREAM_URL: 'https://stream.example.dev',
+      JWT_PLAYBACK_SECRET: 'playback-secret',
     });
     assert.deepEqual(result, { ok: true, result: SAVED_BODY });
   });
@@ -210,7 +221,7 @@ describe('saveSetupConfig', () => {
     assert.equal(empty.ok ? null : empty.code, 'rejected');
 
     const nonString = await saveSetupConfig(SERVER_URL, TOKEN, {
-      DATABASE_URL: 42,
+      R2_BUCKET: 42,
     } as unknown as Record<string, string>);
     assert.equal(nonString.ok, false);
     assert.equal(nonString.ok ? null : nonString.code, 'rejected');
@@ -222,7 +233,7 @@ describe('saveSetupConfig', () => {
     respond(401, { statusCode: 401, message: 'Invalid setup token' });
 
     const result = await saveSetupConfig(SERVER_URL, 'wrong-token', {
-      DATABASE_URL: 'postgres://db:5432/sonic',
+      R2_BUCKET: 'music',
     });
 
     assert.equal(result.ok, false);
@@ -238,7 +249,7 @@ describe('saveSetupConfig', () => {
     });
 
     const result = await saveSetupConfig(SERVER_URL, TOKEN, {
-      DATABASE_URL: 'postgres://db:5432/sonic',
+      R2_BUCKET: 'music',
     });
 
     assert.equal(result.ok, false);
@@ -249,14 +260,14 @@ describe('saveSetupConfig', () => {
   });
 
   test('redacts submitted secrets from backend error messages', async () => {
-    const secret = 'postgres://user:s3cret@db:5432/sonic';
+    const secret = 'worker-playback-s3cret';
     respond(400, {
       statusCode: 400,
-      message: `Connection failed for ${secret}, check it`,
+      message: `Rejected configuration value ${secret}, check it`,
     });
 
     const result = await saveSetupConfig(SERVER_URL, TOKEN, {
-      DATABASE_URL: secret,
+      JWT_PLAYBACK_SECRET: secret,
     });
 
     assert.equal(result.ok, false);
@@ -269,7 +280,7 @@ describe('saveSetupConfig', () => {
   test('network failure and timeout stay retryable', async () => {
     failWithNetworkError();
     const unreachable = await saveSetupConfig(SERVER_URL, TOKEN, {
-      DATABASE_URL: 'postgres://db:5432/sonic',
+      R2_BUCKET: 'music',
     });
     assert.equal(unreachable.ok, false);
     assert.equal(unreachable.ok ? null : unreachable.code, 'unreachable');
@@ -278,7 +289,7 @@ describe('saveSetupConfig', () => {
     const timedOut = await saveSetupConfig(
       SERVER_URL,
       TOKEN,
-      { DATABASE_URL: 'postgres://db:5432/sonic' },
+      { R2_BUCKET: 'music' },
       { timeoutMs: 50 },
     );
     assert.equal(timedOut.ok, false);
@@ -286,14 +297,26 @@ describe('saveSetupConfig', () => {
   });
 });
 
+describe('setup config keys', () => {
+  test('covers storage, playback, and API keys — never the database URL', () => {
+    assert.deepEqual([...SETUP_CONFIG_KEYS], [
+      ...R2_FIELD_KEYS,
+      ...PLAYBACK_FIELD_KEYS,
+      ...API_KEY_FIELD_KEYS,
+    ]);
+    assert.equal(SETUP_CONFIG_KEYS.length, 8);
+    assert.ok(!SETUP_CONFIG_KEYS.includes('DATABASE_URL' as never));
+  });
+});
+
 describe('buildConfigPatch', () => {
   test('trims values and drops empties', () => {
     assert.deepEqual(
       buildConfigPatch(
-        { DATABASE_URL: '  postgres://db:5432/sonic  ', R2_BUCKET: '   ' },
+        { JWT_PLAYBACK_SECRET: '  s3cret  ', R2_BUCKET: '   ' },
         [],
       ),
-      { DATABASE_URL: 'postgres://db:5432/sonic' },
+      { JWT_PLAYBACK_SECRET: 's3cret' },
     );
   });
 
@@ -301,62 +324,101 @@ describe('buildConfigPatch', () => {
     assert.deepEqual(
       buildConfigPatch(
         {
-          DATABASE_URL: 'postgres://db:5432/sonic',
           R2_BUCKET: 'music',
+          YOUTUBE_API_KEY: 'yt-key',
         },
-        ['DATABASE_URL'],
+        ['R2_BUCKET'],
       ),
-      { R2_BUCKET: 'music' },
+      { YOUTUBE_API_KEY: 'yt-key' },
     );
   });
 });
 
-describe('missingR2Fields', () => {
-  const ALL = [
-    'R2_ACCOUNT_ID',
-    'R2_ACCESS_KEY',
-    'R2_SECRET_KEY',
-    'R2_BUCKET',
-  ];
-
-  test('reports every field when storage is untouched (skip path)', () => {
-    assert.deepEqual(missingR2Fields({}, []), ALL);
+describe('missingSetupFields', () => {
+  test('reports every key when the step is untouched', () => {
+    assert.deepEqual(missingSetupFields({}, [...R2_FIELD_KEYS]), [
+      ...R2_FIELD_KEYS,
+    ]);
   });
 
-  test('reports only the unfilled, unlocked remainder', () => {
+  test('reports only the unfilled, unlocked, unconfigured remainder', () => {
     assert.deepEqual(
-      missingR2Fields(
+      missingSetupFields(
         { R2_ACCOUNT_ID: 'abc', R2_BUCKET: '  ' },
-        ['R2_ACCESS_KEY'],
+        [...R2_FIELD_KEYS],
+        {
+          envLocked: ['R2_ACCESS_KEY'],
+          configured: { R2_SECRET_KEY: true },
+        },
       ),
-      ['R2_SECRET_KEY', 'R2_BUCKET'],
+      ['R2_BUCKET'],
     );
   });
 
-  test('is empty when every unlocked field is filled', () => {
+  test('is empty when every required key is filled', () => {
     assert.deepEqual(
-      missingR2Fields(
+      missingSetupFields(
         {
           R2_ACCOUNT_ID: 'abc',
           R2_ACCESS_KEY: 'key',
           R2_SECRET_KEY: 'secret',
           R2_BUCKET: 'music',
         },
-        [],
+        [...R2_FIELD_KEYS],
       ),
       [],
     );
     assert.deepEqual(
-      missingR2Fields(
+      missingSetupFields(
         {
           R2_ACCESS_KEY: 'key',
           R2_SECRET_KEY: 'secret',
           R2_BUCKET: 'music',
         },
-        ['R2_ACCOUNT_ID'],
+        [...R2_FIELD_KEYS],
+        { envLocked: ['R2_ACCOUNT_ID'] },
       ),
       [],
     );
+  });
+
+  test('blank keeps the saved value for configured keys', () => {
+    assert.deepEqual(
+      missingSetupFields(
+        { WORKER_STREAM_URL: '', JWT_PLAYBACK_SECRET: '' },
+        [...PLAYBACK_FIELD_KEYS],
+        {
+          configured: { WORKER_STREAM_URL: true, JWT_PLAYBACK_SECRET: true },
+        },
+      ),
+      [],
+    );
+  });
+});
+
+describe('validateWorkerStreamUrl', () => {
+  test('accepts http(s) URLs including sub-paths', () => {
+    assert.equal(
+      validateWorkerStreamUrl('https://stream.example.dev'),
+      null,
+    );
+    assert.equal(
+      validateWorkerStreamUrl('https://stream.example.dev/stream/'),
+      null,
+    );
+    assert.equal(validateWorkerStreamUrl('http://192.168.1.10:8787'), null);
+    assert.equal(
+      validateWorkerStreamUrl('  https://stream.example.dev  '),
+      null,
+    );
+  });
+
+  test('rejects blank, schemeless, and non-http(s) inputs', () => {
+    assert.ok(validateWorkerStreamUrl(''));
+    assert.ok(validateWorkerStreamUrl('   '));
+    assert.ok(validateWorkerStreamUrl('stream.example.dev'));
+    assert.ok(validateWorkerStreamUrl('ftp://stream.example.dev'));
+    assert.ok(validateWorkerStreamUrl('not a url'));
   });
 });
 

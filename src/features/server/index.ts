@@ -9,7 +9,7 @@ export { useServerSwitch } from './hooks/useServerSwitch';
 export type { ServerSwitchPhase } from './hooks/useServerSwitch';
 export { useSetupWizard } from './hooks/useSetupWizard';
 export type {
-  InitializePhase,
+  FinishPhase,
   SetupWizardStep,
 } from './hooks/useSetupWizard';
 
@@ -30,21 +30,28 @@ export type {
   ServerCheckResult,
 } from './api/serverValidation';
 export {
+  API_KEY_FIELD_KEYS,
   buildConfigPatch,
-  DATABASE_URL_KEY,
   getSetupStatus,
-  missingR2Fields,
+  missingSetupFields,
+  PLAYBACK_FIELD_KEYS,
   pollHealthUntilReady,
   R2_FIELD_KEYS,
   redactSecrets,
   saveSetupConfig,
+  SETUP_CONFIG_KEYS,
+  validateWorkerStreamUrl,
 } from './api/setupApi';
 export type {
+  ApiKeyFieldKey,
   HealthPollOptions,
   HealthPollResult,
+  PlaybackFieldKey,
   R2FieldKey,
+  RequiredFieldOptions,
   SavedSetupConfig,
   SaveSetupConfigResult,
+  SetupConfigKey,
   SetupStatusInfo,
   SetupStatusResult,
 } from './api/setupApi';
@@ -58,13 +65,13 @@ export {
   isServerSetupRoute,
   isSetupWizardRoute,
   planConnectResult,
-  planReviewUnchanged,
   serverGuardAction,
 } from './utils/setupNavigation';
 export type {
   AttemptGuard,
   AuthGuardSnapshot,
   ConnectPlan,
+  ConnectPlanOptions,
   GuardAuthStatus,
   GuardServerStatus,
   ServerGuardMemory,

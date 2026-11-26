@@ -17,8 +17,6 @@ import {
 // server echo can never unmask a secret the UI keeps hidden.
 // --------------------------------------------------------------------------
 
-export const DATABASE_URL_KEY = 'DATABASE_URL';
-
 export const R2_FIELD_KEYS = [
   'R2_ACCOUNT_ID',
   'R2_ACCESS_KEY',
@@ -27,6 +25,32 @@ export const R2_FIELD_KEYS = [
 ] as const;
 
 export type R2FieldKey = (typeof R2_FIELD_KEYS)[number];
+
+export const PLAYBACK_FIELD_KEYS = [
+  'WORKER_STREAM_URL',
+  'JWT_PLAYBACK_SECRET',
+] as const;
+
+export type PlaybackFieldKey = (typeof PLAYBACK_FIELD_KEYS)[number];
+
+export const API_KEY_FIELD_KEYS = [
+  'YOUTUBE_API_KEY',
+  'LASTFM_API_KEY',
+] as const;
+
+export type ApiKeyFieldKey = (typeof API_KEY_FIELD_KEYS)[number];
+
+/**
+ * Every key the wizard may submit. The database URL is deliberately absent:
+ * it is entered only in the Termux installer, never in the app.
+ */
+export const SETUP_CONFIG_KEYS = [
+  ...R2_FIELD_KEYS,
+  ...PLAYBACK_FIELD_KEYS,
+  ...API_KEY_FIELD_KEYS,
+] as const;
+
+export type SetupConfigKey = (typeof SETUP_CONFIG_KEYS)[number];
 
 const DEFAULT_STATUS_TIMEOUT_MS = 15_000;
 // Saving runs DB validation + Drizzle migrations before responding.
@@ -241,6 +265,8 @@ interface SaveOptions {
 /**
  * Build a submittable patch from wizard values: trims entries, drops blanks,
  * and never includes environment-locked keys (the backend rejects those).
+ * Values are otherwise sent verbatim — no normalization beyond the trim —
+ * so the playback secret reaches the backend exactly as entered.
  */
 export function buildConfigPatch(
   values: Record<string, string>,
@@ -261,19 +287,58 @@ export function buildConfigPatch(
   return patch;
 }
 
+export interface RequiredFieldOptions {
+  /** Keys managed by the backend environment: never required, never sent. */
+  envLocked?: string[];
+  /**
+   * Keys the backend reports as already configured: a blank field keeps the
+   * saved value, so blanks are allowed (the patch builder drops them).
+   */
+  configured?: Record<string, boolean>;
+}
+
 /**
- * R2 keys that are neither environment-locked nor filled in. Empty means the
- * storage step may submit; partially filled means the user must complete or
- * clear the step — incomplete R2 configuration is never submitted.
+ * Keys of `keys` that are required but blank: neither environment-locked nor
+ * already configured, and without an entered value. Empty means the step may
+ * continue. Every wizard field is required under these rules — there is no
+ * skip, and partial steps are never submitted.
  */
-export function missingR2Fields(
+export function missingSetupFields(
   values: Record<string, string>,
-  envLocked: string[],
+  keys: readonly string[],
+  opts?: RequiredFieldOptions,
 ): string[] {
-  const locked = new Set(envLocked);
-  return R2_FIELD_KEYS.filter(
-    (key) => !locked.has(key) && !values[key]?.trim(),
+  const locked = new Set(opts?.envLocked ?? []);
+  const configured = opts?.configured ?? {};
+  return keys.filter(
+    (key) =>
+      !locked.has(key) && !configured[key] && !values[key]?.trim(),
   );
+}
+
+/**
+ * Human-readable validation for the worker stream URL: a valid http(s) URL.
+ * Unlike server URLs, sub-paths are allowed — only the scheme and host are
+ * checked. Returns null when the input is acceptable.
+ */
+export function validateWorkerStreamUrl(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return 'Enter your worker stream URL.';
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return "That doesn't look like a valid URL (use http:// or https://).";
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return 'Only http:// and https:// URLs are supported.';
+  }
+  if (!parsed.hostname) {
+    return "That doesn't look like a valid URL.";
+  }
+  return null;
 }
 
 export async function saveSetupConfig(

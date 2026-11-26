@@ -15,7 +15,6 @@ import {
   createAttemptGuard,
   isReviewUnchanged,
   planConnectResult,
-  planReviewUnchanged,
 } from '../utils/setupNavigation';
 
 export function useServerSetup() {
@@ -23,11 +22,10 @@ export function useServerSetup() {
   // the user can inspect or change it. First launch falls back to the baked
   // URL as before; the user must still press Connect either way.
   const currentUrl = useServerStore((s) => s.serverUrl);
-  const setupPending = useServerStore((s) => s.setupPending);
   // Captured once: review mode is a property of how this screen was reached,
   // not of the current store state (first launch also has a URL persisted by
-  // the time a wizard back-out returns here — that must re-validate, not
-  // take the review Continue shortcut).
+  // the time a wizard back-out returns here — that is still first launch,
+  // and plans its follow-up accordingly).
   const [isReviewMode] = useState(() => currentUrl !== null);
   const [url, setUrlState] = useState(currentUrl ?? BAKED_SERVER_URL ?? '');
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -55,23 +53,13 @@ export function useServerSetup() {
   const showLocalhostHint = useMemo(() => isLocalHostUrl(url), [url]);
 
   // True only when the input holds the already-verified, configured URL
-  // (Login review mode, untouched): the CTA continues with it instead of
-  // re-validating.
+  // (Login review mode, untouched): the CTA reads Continue with a verified
+  // check. There is deliberately no unchanged shortcut — every Continue
+  // re-validates via /health so a stale backend state (newly required setup,
+  // recovered database) is always observed.
   const isUrlUnchanged = isReviewUnchanged(isReviewMode, currentUrl, url);
 
   async function handleConnect() {
-    if (isUrlUnchanged) {
-      // Nothing changed and nothing to commit: ServerGuard stays silent, so
-      // this path owns its single navigation — back to Login, or back into
-      // the wizard when a setup flow is still pending for this server.
-      if (planReviewUnchanged(setupPending) === 'wizard') {
-        router.push('/setup-wizard');
-      } else {
-        router.back();
-      }
-      return;
-    }
-
     setFieldError(null);
 
     const validationError = validateServerUrl(url);
@@ -93,7 +81,7 @@ export function useServerSetup() {
         setFieldError(result.message);
         return;
       }
-      const plan = planConnectResult(currentUrl, result);
+      const plan = planConnectResult(currentUrl, result, { isReviewMode });
       if (plan.commit === 'switch') {
         // A different server was confirmed from the Login review path: run
         // the shared atomic switch (session reset + apply + player re-point)
@@ -112,11 +100,13 @@ export function useServerSetup() {
         });
       }
       // The commit above is atomic (URL + setup flag + request id): ServerGuard
-      // routes wizard-bound commits to the Setup Wizard and first-launch ready
-      // commits to Login. This screen stays mounted across the commit (it is a
-      // routed screen and the navigator is never removed), so the committed
-      // navigation cannot be cancelled from here — and this hook navigates to
-      // neither destination itself, keeping exactly one owner per redirect.
+      // routes wizard-bound commits to the Setup Wizard and fresh-URL
+      // first-launch ready commits to Login. This screen stays mounted across
+      // the commit (it is a routed screen and the navigator is never
+      // removed), so the committed navigation cannot be cancelled from here.
+      // Same-URL ready re-commits are ServerGuard-silent, so the hook owns
+      // those follow-ups itself (review 'back', back-out 'login') — exactly
+      // one owner per redirect either way.
       if (!isCurrent()) return;
       if (plan.toast === 'connected') {
         toastImperative.show({
@@ -135,6 +125,11 @@ export function useServerSetup() {
         // Review mode, ready server: back to Login. (A superseded attempt
         // must not pop a screen a newer attempt pushed — hence isCurrent.)
         router.back();
+      } else if (plan.followUp === 'login') {
+        // First-launch wizard back-out whose backend now reports ready:
+        // ServerGuard stays silent (previous status already 'configured'),
+        // so this replace is the single owner.
+        router.replace('/login');
       }
     } catch {
       if (!isCurrent()) return;

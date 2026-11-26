@@ -146,9 +146,19 @@ export async function checkServerConnection(
       };
     }
 
-    // Valid Sonic backend requiring initial setup: route into the setup
-    // wizard instead of reporting an invalid server.
+    // Setup still required: the wizard opens only when the database is up.
+    // An unconfigured database means the Termux installer step was skipped —
+    // the database URL is entered there, never in the app — so this stays a
+    // retryable message instead of opening the wizard.
     if (health.setupRequired) {
+      if (health.db === 'unconfigured') {
+        return {
+          ok: false,
+          code: 'db-unconfigured',
+          message:
+            "This server's database isn't configured yet. Run the Termux installer on your server and enter the database URL, then try again.",
+        };
+      }
       return {
         ok: true,
         serverUrl: normalized,

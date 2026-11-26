@@ -38,7 +38,6 @@ import {
   isServerSetupRoute,
   isSetupWizardRoute,
   planConnectResult,
-  planReviewUnchanged,
   serverGuardAction,
 } from './setupNavigation';
 import type {
@@ -84,7 +83,13 @@ const okSetupRequired = (serverUrl: string): ServerCheckResult => ({
 });
 
 const failed = (
-  code: 'invalid-url' | 'unreachable' | 'timeout' | 'not-sonic' | 'db-down',
+  code:
+    | 'invalid-url'
+    | 'unreachable'
+    | 'timeout'
+    | 'not-sonic'
+    | 'db-down'
+    | 'db-unconfigured',
 ): ServerCheckResult => ({ ok: false, code, message: `${code} fixture` });
 
 function fmt(action: SetupNavAction | null): string {
@@ -537,6 +542,7 @@ describe('unhealthy backends', () => {
       'timeout',
       'not-sonic',
       'db-down',
+      'db-unconfigured',
     ] as const;
     const currentUrls: (string | null)[] = [null, URL_A];
     for (const code of codes) {
@@ -637,14 +643,39 @@ describe('stale attempt protection', () => {
 // --------------------------------------------------------------------------
 
 describe('review mode', () => {
-  test('untouched review Continue goes back to Login', () => {
-    assert.equal(planReviewUnchanged(false), 'back');
+  test('review same-URL ready re-commit pops back to Login', () => {
+    // Unchanged Continue re-validates, commits the fresh result, and the hook
+    // pops back — ServerGuard stays silent (previous status configured).
+    const plan = planConnectResult(URL_A, okReady(URL_A), {
+      isReviewMode: true,
+    });
+    assert.equal(plan.commit, 'set');
+    assert.equal(plan.setupPending, false);
+    assert.equal(plan.toast, null);
+    assert.equal(plan.followUp, 'back');
   });
 
-  test('untouched review Continue re-enters a pending wizard (no loop)', () => {
-    // Backed out of the wizard with the same URL: pushing the wizard beats
-    // popping to Login, from which the unchanged URL could never return.
-    assert.equal(planReviewUnchanged(true), 'wizard');
+  test('review same-URL setup re-commit re-enters the wizard (no loop)', () => {
+    // Backed out of the wizard with the same URL: re-validating commits a
+    // fresh setup id and ServerGuard pushes the wizard again.
+    const plan = planConnectResult(URL_A, okSetupRequired(URL_A), {
+      isReviewMode: true,
+    });
+    assert.equal(plan.commit, 'set');
+    assert.equal(plan.setupPending, true);
+    assert.equal(plan.toast, null);
+    assert.equal(plan.followUp, 'none');
+  });
+
+  test('first-launch back-out re-commit to a ready backend replaces to Login', () => {
+    // Same shape as review, but ServerGuard owns nothing here (previous
+    // status already configured) and there is no Login to pop to — the hook
+    // replaces to Login itself.
+    const plan = planConnectResult(URL_A, okReady(URL_A));
+    assert.equal(plan.commit, 'set');
+    assert.equal(plan.setupPending, false);
+    assert.equal(plan.toast, 'connected');
+    assert.equal(plan.followUp, 'login');
   });
 
   test('isReviewUnchanged is review-only and normalization-aware', () => {
@@ -654,7 +685,7 @@ describe('review mode', () => {
     assert.ok(!isReviewUnchanged(true, null, URL_A));
     assert.ok(
       !isReviewUnchanged(false, URL_A, URL_A),
-      'first-launch back-out must re-validate, not take the Continue shortcut',
+      'first-launch back-out is not review mode even when the input matches',
     );
   });
 
@@ -803,6 +834,59 @@ describe('startup navigation sequences', () => {
     assert.equal(fmt(onLogin.server), '(silent)');
     assert.equal(fmt(onLogin.auth), '(silent)');
     assert.deepEqual(h.actions, []);
+  });
+
+  test('wizard completion with a valid session settles on home', () => {
+    const h = createHarness({
+      serverStatus: 'configured',
+      setupPending: true,
+      setupRequestId: 1,
+      authStatus: 'authenticated',
+      segments: WIZARD,
+    });
+    h.tick();
+    // Completion clears pending WITHOUT bumping the id, then the wizard
+    // replaces to home itself (it validated the kept session). If a guard
+    // tick observes the cleared flag first, AuthGuard agrees on the same
+    // destination — it can never override completion with another route.
+    const cleared = h.tick({ setupPending: false });
+    assert.equal(fmt(cleared.server), '(silent)');
+    assert.equal(fmt(cleared.auth), 'replace /home');
+    const onHome = h.tick({ segments: HOME });
+    assert.equal(fmt(onHome.server), '(silent)');
+    assert.equal(fmt(onHome.auth), '(silent)');
+    assert.deepEqual(
+      h.actions.map((a) => `${a.method} ${a.href}`),
+      ['replace /home'],
+    );
+  });
+
+  test('boot setup discovery pushes the wizard over a session exactly once', () => {
+    for (const authStatus of ['authenticated', 'unauthenticated'] as const) {
+      const h = createHarness({
+        serverStatus: 'configured',
+        setupPending: false,
+        setupRequestId: 0,
+        authStatus,
+        segments: authStatus === 'authenticated' ? HOME : LOGIN,
+      });
+      h.tick();
+      // Background /health found setupRequired: the atomic pending commit
+      // (URL untouched, session kept) routes to the wizard once, and
+      // AuthGuard yields instead of pulling back.
+      const commit = h.tick({ setupPending: true, setupRequestId: 1 });
+      assert.equal(fmt(commit.server), 'push /setup-wizard');
+      assert.equal(fmt(commit.auth), '(silent)');
+      // Backing out changes no commit: no trap, no re-push, no loop.
+      const start = authStatus === 'authenticated' ? HOME : LOGIN;
+      const backedOut = h.tick({ segments: start });
+      assert.equal(fmt(backedOut.server), '(silent)');
+      assert.equal(fmt(backedOut.auth), '(silent)');
+      assert.deepEqual(
+        h.actions.map((a) => `${a.method} ${a.href}`),
+        ['push /setup-wizard'],
+      );
+    }
   });
 
   test('settings server switch is yanked to Login exactly once by AuthGuard', () => {

@@ -190,23 +190,38 @@ export interface ConnectPlan {
   /** Success toast, if any (wizard-bound servers skip it). */
   toast: 'connected' | 'updated' | null;
   /**
-   * Screen-owned follow-up: only review-mode ready switches pop back to
-   * Login. Wizard entry and first-launch login are ServerGuard's (single
-   * owner), so the hook navigates to neither — not even imperatively.
+   * Screen-owned follow-up. Wizard entry and first-launch login from a fresh
+   * URL are ServerGuard's (single owner), so the hook navigates to neither.
+   * The hook owns only the same-URL ready re-commits ServerGuard stays silent
+   * on: 'back' pops review mode to Login, 'login' replaces a first-launch
+   * wizard back-out to Login once the backend reports ready.
    */
-  followUp: 'back' | 'none';
+  followUp: 'back' | 'login' | 'none';
+}
+
+export interface ConnectPlanOptions {
+  /**
+   * True when the setup screen was reached from Login (review mode) rather
+   * than first launch. Only affects the same-URL ready re-commit follow-up.
+   */
+  isReviewMode?: boolean;
 }
 
 /**
  * Pure post-validation plan. Failures (unreachable, not-Sonic, db down,
- * timeout) commit nothing and navigate nowhere: the error stays inline and
- * retryable on the setup screen. A down database never opens the wizard,
- * even if the backend also reports `setupRequired` (the validator rejects
- * `db: 'down'` before the setup branch — see `serverValidation.ts`).
+ * db unconfigured, timeout) commit nothing and navigate nowhere: the error
+ * stays inline and retryable on the setup screen. A down or unconfigured
+ * database never opens the wizard, even if the backend also reports
+ * `setupRequired` (the validator rejects those states before the setup
+ * branch — see `serverValidation.ts`).
+ *
+ * Every Continue re-validates via /health — including an unchanged URL — so
+ * a same-URL commit always carries a fresh setup flag and request id.
  */
 export function planConnectResult(
   currentUrl: string | null,
   result: ServerCheckResult,
+  opts?: ConnectPlanOptions,
 ): ConnectPlan {
   if (!result.ok) {
     return {
@@ -225,32 +240,51 @@ export function planConnectResult(
       followUp: setupPending ? 'none' : 'back',
     };
   }
+  if (setupPending) {
+    // Same-URL setup commit (first connect or wizard back-out reconnect):
+    // ServerGuard pushes the wizard on the fresh request id.
+    return {
+      commit: 'set',
+      setupPending: true,
+      toast: null,
+      followUp: 'none',
+    };
+  }
+  if (currentUrl === null) {
+    // First-launch ready commit: ServerGuard advances to Login.
+    return {
+      commit: 'set',
+      setupPending: false,
+      toast: 'connected',
+      followUp: 'none',
+    };
+  }
+  // Same-URL ready re-commit. ServerGuard stays silent here (no pending flag
+  // and the previous status is already 'configured'), so the hook owns the
+  // single follow-up: review mode pops to Login, while a first-launch wizard
+  // back-out whose backend turned ready replaces to Login.
+  if (opts?.isReviewMode) {
+    return {
+      commit: 'set',
+      setupPending: false,
+      toast: null,
+      followUp: 'back',
+    };
+  }
   return {
     commit: 'set',
-    setupPending,
-    toast: currentUrl === null && !setupPending ? 'connected' : null,
-    followUp: 'none',
+    setupPending: false,
+    toast: 'connected',
+    followUp: 'login',
   };
 }
 
 /**
- * Review-mode Continue with the configured URL untouched: back to Login —
- * unless a wizard flow is still pending for this server (the user backed out
- * of the wizard), in which case Continue re-enters it. No store commit
- * happens on this path, so ServerGuard stays silent and exactly one
- * navigation runs either way.
- */
-export function planReviewUnchanged(
-  setupPending: boolean,
-): 'wizard' | 'back' {
-  return setupPending ? 'wizard' : 'back';
-}
-
-/**
- * True only for Login review mode with the verified URL untouched. Deliberately
- * false after a first-launch back-out of the wizard (not review mode, even if
- * the input now equals the persisted URL): that path must re-validate and
- * re-commit so ServerGuard routes to the wizard again.
+ * True only for Login review mode with the verified URL untouched. Drives the
+ * Continue label + verified check only — every Continue still re-validates
+ * via /health (there is no unchanged shortcut). Deliberately false after a
+ * first-launch back-out of the wizard (not review mode, even if the input now
+ * equals the persisted URL).
  */
 export function isReviewUnchanged(
   isReviewMode: boolean,

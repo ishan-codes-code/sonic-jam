@@ -96,7 +96,7 @@ const SETUP_BODY = {
   apiVersion: 1,
   minAppVersion: '4.0.0',
   setupRequired: true,
-  db: 'unconfigured',
+  db: 'ok',
   features: { storage: 'none' },
 };
 
@@ -148,7 +148,7 @@ describe('checkServerConnection via GET /health', () => {
     });
   });
 
-  test('setupRequired true routes to the wizard (not an error)', async () => {
+  test('setupRequired true with a healthy db routes to the wizard (not an error)', async () => {
     respond(200, SETUP_BODY);
 
     const result = await checkServerConnection('https://sonic.example.com');
@@ -159,6 +159,17 @@ describe('checkServerConnection via GET /health', () => {
       storage: 'none',
       setupRequired: true,
     });
+  });
+
+  test('setupRequired with an unconfigured db asks for the Termux installer (no wizard)', async () => {
+    respond(200, { ...SETUP_BODY, db: 'unconfigured' });
+
+    const result = await checkServerConnection('https://sonic.example.com');
+
+    assert.equal(result.ok, false);
+    assert.equal(result.ok ? null : result.code, 'db-unconfigured');
+    assert.match(result.ok ? '' : result.message, /Termux installer/);
+    assert.match(result.ok ? '' : result.message, /database URL/);
   });
 
   test('does not require R2: db ok with storage none still connects', async () => {
@@ -208,7 +219,7 @@ describe('checkServerConnection via GET /health', () => {
   });
 
   test('unconfigured db without setupRequired keeps the admin message', async () => {
-    respond(200, { ...SETUP_BODY, setupRequired: false });
+    respond(200, { ...SETUP_BODY, setupRequired: false, db: 'unconfigured' });
 
     const result = await checkServerConnection('https://sonic.example.com');
 

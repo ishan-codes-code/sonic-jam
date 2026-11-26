@@ -2,7 +2,9 @@
 
 Backend: `backend-sonic` branch `feat/setup-mode-health`. The mobile app only
 consumes these endpoints; it never installs, configures, or starts the
-backend beyond submitting the wizard's configuration patches.
+backend beyond submitting the wizard's configuration patch. The database URL
+is entered only in the Termux installer — the app never collects or sends
+it, and the wizard never opens while the database is unconfigured.
 
 Implementation: `src/features/server/api/setupApi.ts`
 (`getSetupStatus()`, `saveSetupConfig()`, `pollHealthUntilReady()`),
@@ -30,47 +32,57 @@ Implementation: `src/features/server/api/setupApi.ts`
 ## `POST /setup/config` — **[Implemented]**
 
 - Auth: `X-Setup-Token` header, same rules as above.
-- Body: a partial JSON object of string values. Only backend-allowlisted
-  `SETUP_CONFIG_KEYS` are accepted; unknown keys, locked keys, non-string
-  values, and empty patches are rejected. The wizard submits only
-  `DATABASE_URL` (step 2) and the R2 keys (step 4); JWT/worker secrets are
-  backend-generated and never exposed.
+- Body: a flat JSON object of string values using only these keys —
+  `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`,
+  `WORKER_STREAM_URL`, `JWT_PLAYBACK_SECRET`, `YOUTUBE_API_KEY`,
+  `LASTFM_API_KEY`. Unknown keys, locked keys, non-string values, and empty
+  patches are rejected. The wizard sends every entered value in ONE request
+  on Finish and never sends blanks or environment-locked keys. Values go out
+  verbatim apart from trimming surrounding whitespace, so the playback
+  secret matches the Cloudflare worker exactly.
 - Success: `{ saved: true, setupRequired: boolean, migration?: { status,
   steps: string[] }, restartRequired?: boolean }`. The API exits after
   responding so the supervisor can restart it — a save success is NOT proof
   the API is ready (see the poll below).
-- Failure: DB validation or migration errors return an error body that may
-  carry `migration.steps`; nothing is saved. Backend messages are redacted
-  against submitted secrets before display (`redactSecrets()`), since an
-  echo could otherwise unmask a value the UI keeps hidden.
+- Failure: 401 → bad setup token; 400 carries a `message` that is shown to
+  the user. Backend messages are redacted against submitted secrets before
+  display (`redactSecrets()`), since an echo could otherwise unmask a value
+  the UI keeps hidden.
 
 ## Readiness: poll public `GET /health` — **[Implemented]**
 
-- After the final save, the app polls `GET /health` (plain fetch, no auth
-  headers) every 2s for up to 120s. Every failed attempt — refused
-  connection during the API restart, timeout, unparsable body — is
-  tolerated; only the deadline ends the poll.
+- After the save (or immediately, when nothing needed sending), the app
+  polls `GET /health` (plain fetch, no auth headers) every 2s for up to
+  120s. Every failed attempt — refused connection during the API restart,
+  timeout, unparsable body — is tolerated; only the deadline ends the poll.
 - Ready means `setupRequired === false` AND `db === 'ok'` (same
   `parseHealthPayload()` the validator uses). `features.storage: 'none'`
-  never blocks completion. Only then does the wizard finish to `/login`.
+  never blocks completion. Only then does the wizard finish.
 - Worker health (port 3001) is separate and not required for completion.
 
 ## Wizard flow (client-side)
 
-1. Server setup validates the URL via `/health`. `setupRequired: true`
-   persists the URL through the existing server store/switch paths (URL +
-   setup flag + request id in one atomic `setServer()` commit); ServerGuard
-   then pushes `/setup-wizard`, so the wizard opens even if the setup screen
-   unmounts. Ready backends keep the existing login flow; `db: down` shows a
-   retryable error and never opens the wizard.
+1. The setup screen validates the URL via `/health` — every Continue
+   re-validates, including an unchanged URL. `setupRequired: true` with a
+   healthy database persists the URL through the existing server
+   store/switch paths (URL + setup flag + request id in one atomic
+   `setServer()` commit); ServerGuard then pushes `/setup-wizard`, so the
+   wizard opens even if the setup screen unmounts. A saved server is also
+   re-checked in the background on boot (non-blocking): setup discovery
+   commits the same pending flag via `markSetupPending()`, which keeps the
+   session and routes exactly once, even for a signed-in user. `db: down`
+   and `db: unconfigured` show retryable errors and never open the wizard.
 2. Step 1 collects the setup token and validates it via `/setup/status`.
-3. Step 2 collects `DATABASE_URL` (basic `postgres://` format check
-   client-side; real validation is the backend's `SELECT 1` + migrations).
-   Locked → no field; already-configured → empty keeps the existing value.
-   The value is preserved across recoverable errors.
-4. Step 3 collects the four R2 keys (secrets masked by default) or skips.
-   Partial R2 sets are never submitted — complete or skip. Locked keys show
-   as environment-managed notes.
-5. Step 4 submits the R2 patch only when complete (skipped otherwise, and
-   never re-submitted on retry), then polls to readiness. A missed deadline
-   offers retry without discarding the URL or any entered values.
+3. Step 2 collects the four R2 keys (access key and secret key masked).
+   Step 3 collects `WORKER_STREAM_URL` (must be a valid http(s) URL) and
+   `JWT_PLAYBACK_SECRET` (masked; must match the Cloudflare worker).
+   Step 4 collects `YOUTUBE_API_KEY` and `LASTFM_API_KEY` (both masked).
+   Every field is required unless already configured (blank keeps the saved
+   value) or environment-locked (shown as managed). Steps validate locally
+   and save nothing; entered values survive back-navigation and retries.
+4. Step 5 (Finish) sends all entered values in one `POST /setup/config`,
+   then polls to readiness. A save failure keeps the values for editing; a
+   poll timeout retries the poll only, unless values changed since the save
+   — edits made after a successful save are sent again.
+5. Completion validates the kept session against the restarted backend:
+   home when it is still valid, login otherwise.

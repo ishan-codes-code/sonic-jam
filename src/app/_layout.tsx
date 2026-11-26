@@ -1,8 +1,9 @@
 import { BottomSheetProvider } from '@/features/drawer';
 import { ToastProvider } from '@/features/Toast/components/ToastProvider';
+import { toastImperative } from '@/features/Toast/utils/toastSingleton';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { colorScheme as nativewindColorScheme } from 'nativewind';
 import { ThemeProvider } from '@react-navigation/native';
@@ -12,6 +13,7 @@ import TrackPlayer from '@rntp/player';
 import { PlaybackService, setupPlayer, PlaybackSync, usePlayer } from '@/features/playback';
 import {
   authGuardAction,
+  checkServerConnection,
   serverGuardAction,
   useServerStore,
 } from '@/features/server';
@@ -62,6 +64,7 @@ TrackPlayer.registerBackgroundEventHandler(() => PlaybackService);
 // --------------------------------------------------------------------------
 function ServerGuard({ children }: { children: React.ReactNode }) {
   const status = useServerStore((s) => s.status);
+  const serverUrl = useServerStore((s) => s.serverUrl);
   const setupPending = useServerStore((s) => s.setupPending);
   const setupRequestId = useServerStore((s) => s.setupRequestId);
   const loadServer = useServerStore((s) => s.loadServer);
@@ -80,6 +83,71 @@ function ServerGuard({ children }: { children: React.ReactNode }) {
       setupPlayer();
     }
   }, [status]);
+
+  // Background setup discovery for a saved server: one non-blocking /health
+  // check per URL (never re-arms, so backing out of the wizard can never
+  // loop). A valid setupRequired response arms the wizard commit below —
+  // even for a signed-in session, which the wizard keeps and re-validates.
+  // Offline servers and failed checks keep current behaviour (silence).
+  const bootCheckedRef = useRef<Set<string>>(new Set());
+  const [bootSetupUrl, setBootSetupUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (status !== 'configured' || !serverUrl || setupPending) {
+      return;
+    }
+    if (bootCheckedRef.current.has(serverUrl)) {
+      return;
+    }
+    bootCheckedRef.current.add(serverUrl);
+    void (async () => {
+      let result: Awaited<ReturnType<typeof checkServerConnection>>;
+      try {
+        result = await checkServerConnection(serverUrl);
+      } catch {
+        return;
+      }
+      // Stale result (server changed or a setup flow started meanwhile):
+      // ignore — it must never arm the wizard for the wrong server.
+      const live = useServerStore.getState();
+      if (live.serverUrl !== serverUrl || live.setupPending) {
+        return;
+      }
+      if (result.ok) {
+        if (result.setupRequired) {
+          setBootSetupUrl(serverUrl);
+        }
+      } else if (result.code === 'db-unconfigured') {
+        toastImperative.show({
+          type: 'info',
+          text1: result.message,
+          visibilityTime: 6000,
+        });
+      }
+    })();
+  }, [status, serverUrl, setupPending]);
+
+  // Commits the armed boot discovery once the navigator has settled past the
+  // boot index route, so the wizard always pushes over a real screen (login,
+  // home, or setup) and Back lands somewhere meaningful instead of a blank
+  // index. The atomic commit (pending + request id) routes exactly once via
+  // the guard below; AuthGuard yields while pending, so no auth redirect can
+  // override or duplicate it.
+  useEffect(() => {
+    if (!bootSetupUrl) {
+      return;
+    }
+    if (bootSetupUrl !== serverUrl || setupPending) {
+      setBootSetupUrl(null);
+      return;
+    }
+    // Cast: the router types segments as non-empty, but the boot index
+    // route genuinely reports [] (see the segment predicates).
+    if ((segments as readonly string[]).length === 0) {
+      return;
+    }
+    setBootSetupUrl(null);
+    useServerStore.getState().markSetupPending();
+  }, [bootSetupUrl, serverUrl, setupPending, segments]);
 
   // One-shot memory for commit-driven routing (see setupNavigation.ts).
   const [memory] = useState<ServerGuardMemory>(() => ({

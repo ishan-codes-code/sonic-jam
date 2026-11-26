@@ -3,27 +3,27 @@ import React from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { InitializePhase } from '../hooks/useSetupWizard';
+import { FinishPhase } from '../hooks/useSetupWizard';
 
-interface SetupInitializeStepProps {
-  phase: InitializePhase;
+interface SetupFinishStepProps {
+  phase: FinishPhase;
   error: string | null;
   onRetry: () => void;
-  onBackToStorage: () => void;
+  onBackToEdit: () => void;
 }
 
-export function SetupInitializeStep({
+export function SetupFinishStep({
   phase,
   error,
   onRetry,
-  onBackToStorage,
-}: SetupInitializeStepProps) {
+  onBackToEdit,
+}: SetupFinishStepProps) {
   const isWorking = phase === 'saving' || phase === 'polling';
 
   return (
     <View>
       <Text className="mb-1.5 text-3xl font-display text-foreground">
-        Initialize
+        Finish
       </Text>
       <Text className="mb-7 text-[13px] font-heading leading-relaxed text-muted-foreground">
         {phase === 'saving'
@@ -32,7 +32,7 @@ export function SetupInitializeStep({
             ? 'The server is restarting with its new settings. This usually takes a few seconds.'
             : phase === 'done'
               ? 'Your server is ready.'
-              : 'Applying your settings and waiting for the server…'}
+              : 'Saving your settings and waiting for the server…'}
       </Text>
 
       {error ? (
@@ -93,16 +93,16 @@ export function SetupInitializeStep({
             </View>
           </Pressable>
           <Pressable
-            onPress={onBackToStorage}
+            onPress={onBackToEdit}
             accessibilityRole="button"
-            accessibilityLabel="Back to storage"
+            accessibilityLabel="Back to edit"
             className="h-[52px] w-full items-center justify-center rounded-md border border-border bg-card"
             style={({ pressed }) => ({
               opacity: pressed ? 0.8 : 1,
             })}
           >
             <Text className="text-[15px] font-display text-foreground">
-              Back to storage
+              Back to edit
             </Text>
           </Pressable>
         </View>

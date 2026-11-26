@@ -3,19 +3,29 @@ import { useRouter } from 'expo-router';
 import { toastImperative } from '@/features/Toast/utils/toastSingleton';
 import { useServerStore } from '../store/serverStore';
 import {
+  API_KEY_FIELD_KEYS,
+  ApiKeyFieldKey,
   buildConfigPatch,
-  DATABASE_URL_KEY,
   getSetupStatus,
-  missingR2Fields,
+  missingSetupFields,
+  PLAYBACK_FIELD_KEYS,
+  PlaybackFieldKey,
   pollHealthUntilReady,
+  R2_FIELD_KEYS,
   R2FieldKey,
   saveSetupConfig,
   SetupStatusInfo,
+  validateWorkerStreamUrl,
 } from '../api/setupApi';
 
-export type SetupWizardStep = 'token' | 'database' | 'storage' | 'initialize';
+export type SetupWizardStep =
+  | 'token'
+  | 'storage'
+  | 'playback'
+  | 'apikeys'
+  | 'finish';
 
-export type InitializePhase =
+export type FinishPhase =
   | 'idle'
   | 'saving'
   | 'polling'
@@ -23,17 +33,26 @@ export type InitializePhase =
   | 'done';
 
 /**
- * First-launch backend setup wizard state machine.
+ * Backend setup wizard state machine.
  *
- * Steps: setup token → database → storage (optional) → initialize. All
- * secrets (setup token, DATABASE_URL, R2 keys) live in memory only — they
- * are never written to AsyncStorage/SecureStore, never logged, and never
- * cleared just because the API restarts mid-flow. Entered values survive
- * recoverable errors, step navigation, and initialize retries.
+ * Steps: setup token → storage (R2) → playback → API keys → finish. The
+ * database is configured via the Termux installer only — the wizard never
+ * collects or sends it. Every field is required unless the backend reports
+ * it already configured (blank keeps the saved value) or environment-locked
+ * (shown as managed, never sent).
+ *
+ * No step saves: intermediate steps only validate locally, and Finish sends
+ * all entered values in ONE request, then polls /health to readiness. When
+ * nothing needs sending, Finish only checks readiness. All secrets (setup
+ * token, R2 keys, playback secret, API keys) live in memory only — they are
+ * never written to AsyncStorage/SecureStore, never logged, and backend
+ * messages are redacted before display. Entered values survive recoverable
+ * errors, step navigation, and finish retries.
  *
  * Completion is reported only after public /health confirms
  * `setupRequired === false` and `db === 'ok'`; a successful save alone
- * (the API exits right after responding) never finishes the wizard.
+ * (the API exits right after responding) never finishes the wizard. The kept
+ * session is then validated: home when it is still valid, login otherwise.
  */
 export function useSetupWizard() {
   const router = useRouter();
@@ -47,13 +66,7 @@ export function useSetupWizard() {
   const [isValidatingToken, setIsValidatingToken] = useState(false);
   const [status, setStatus] = useState<SetupStatusInfo | null>(null);
 
-  // Step 2 — database (memory only).
-  const [databaseUrl, setDatabaseUrlState] = useState('');
-  const [databaseError, setDatabaseError] = useState<string | null>(null);
-  const [migrationSteps, setMigrationSteps] = useState<string[] | null>(null);
-  const [isSavingDatabase, setIsSavingDatabase] = useState(false);
-
-  // Step 3 — storage (memory only, optional).
+  // Step 2 — storage (memory only).
   const [r2, setR2State] = useState<Record<R2FieldKey, string>>({
     R2_ACCOUNT_ID: '',
     R2_ACCESS_KEY: '',
@@ -62,9 +75,25 @@ export function useSetupWizard() {
   });
   const [storageError, setStorageError] = useState<string | null>(null);
 
-  // Step 4 — initialize (submit storage patch if complete, then poll).
-  const [initPhase, setInitPhase] = useState<InitializePhase>('idle');
-  const [initError, setInitError] = useState<string | null>(null);
+  // Step 3 — playback (memory only).
+  const [playback, setPlaybackState] = useState<
+    Record<PlaybackFieldKey, string>
+  >({
+    WORKER_STREAM_URL: '',
+    JWT_PLAYBACK_SECRET: '',
+  });
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+
+  // Step 4 — API keys (memory only).
+  const [apiKeys, setApiKeysState] = useState<Record<ApiKeyFieldKey, string>>({
+    YOUTUBE_API_KEY: '',
+    LASTFM_API_KEY: '',
+  });
+  const [apiKeysError, setApiKeysError] = useState<string | null>(null);
+
+  // Step 5 — finish (single save of all entered values, then poll).
+  const [finishPhase, setFinishPhase] = useState<FinishPhase>('idle');
+  const [finishError, setFinishError] = useState<string | null>(null);
 
   // Same stale-async discipline as useServerSetup: results that land after
   // unmount or a newer attempt are ignored. The poll additionally gets an
@@ -72,12 +101,13 @@ export function useSetupWizard() {
   const attemptRef = useRef(0);
   const mountedRef = useRef(true);
   const pollControllerRef = useRef<AbortController | null>(null);
-  // Set once the storage patch saves, so an initialize retry re-polls
-  // instead of re-submitting (each save restarts the API again).
-  const storageSavedRef = useRef(false);
-  // Guards runInitialize itself: a double-invoked effect must not submit
-  // the storage patch twice. Cleared on retry and when leaving the step.
-  const initRunRef = useRef(false);
+  // Exact patch of the last successful save (null until the first one). A
+  // retry re-sends only when the current values differ from it: a poll-only
+  // retry after a successful save, and edits made after a save go out again.
+  const lastSavedPatchRef = useRef<Record<string, string> | null>(null);
+  // Guards runFinish itself: a double-invoked effect must not submit the
+  // patch twice. Cleared on retry and when leaving the step.
+  const finishRunRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -92,19 +122,28 @@ export function useSetupWizard() {
     setTokenError(null);
   }
 
-  function setDatabaseUrl(next: string) {
-    setDatabaseUrlState(next);
-    setDatabaseError(null);
-    setMigrationSteps(null);
-  }
-
   function setR2Field(key: R2FieldKey, next: string) {
     setR2State((prev) => ({ ...prev, [key]: next }));
     setStorageError(null);
   }
 
+  function setPlaybackField(key: PlaybackFieldKey, next: string) {
+    setPlaybackState((prev) => ({ ...prev, [key]: next }));
+    setPlaybackError(null);
+  }
+
+  function setApiKeyField(key: ApiKeyFieldKey, next: string) {
+    setApiKeysState((prev) => ({ ...prev, [key]: next }));
+    setApiKeysError(null);
+  }
+
   const isLocked = useCallback(
     (key: string): boolean => status?.envLocked.includes(key) ?? false,
+    [status],
+  );
+
+  const isConfigured = useCallback(
+    (key: string): boolean => status?.configured[key] ?? false,
     [status],
   );
 
@@ -134,7 +173,7 @@ export function useSetupWizard() {
       }
       setSetupTokenState(token);
       setStatus(result.status);
-      setStep('database');
+      setStep('storage');
     } catch {
       if (!isCurrent()) return;
       setTokenError('Something went wrong. Check your connection and try again.');
@@ -145,92 +184,74 @@ export function useSetupWizard() {
     }
   }
 
-  async function submitDatabase() {
-    // Environment-managed: nothing to enter or submit.
-    if (isLocked(DATABASE_URL_KEY)) {
-      setStep('storage');
-      return;
+  /**
+   * Step-level required check: local only, never saves (Finish owns the
+   * save). Returns the error message when required fields are blank.
+   */
+  function requiredError(
+    values: Record<string, string>,
+    keys: readonly string[],
+  ): string | null {
+    const missing = missingSetupFields(values, keys, {
+      envLocked: status?.envLocked ?? [],
+      configured: status?.configured ?? {},
+    });
+    if (missing.length === 0) {
+      return null;
     }
-    // Already configured: an empty field keeps the existing value.
-    const value = databaseUrl.trim();
-    if (!value) {
-      if (status?.configured[DATABASE_URL_KEY]) {
-        setStep('storage');
-        return;
-      }
-      setDatabaseError('Enter your PostgreSQL connection string.');
-      return;
-    }
-    if (!/^postgres(ql)?:\/\//i.test(value)) {
-      setDatabaseError(
-        "That doesn't look like a PostgreSQL connection string (it starts with postgres://).",
-      );
-      return;
-    }
-    if (!serverUrl) {
-      setDatabaseError('No server selected. Go back and enter a server URL.');
-      return;
-    }
-
-    const attempt = ++attemptRef.current;
-    const isCurrent = () =>
-      mountedRef.current && attempt === attemptRef.current;
-
-    setDatabaseError(null);
-    setMigrationSteps(null);
-    setIsSavingDatabase(true);
-    try {
-      const result = await saveSetupConfig(serverUrl, setupToken, {
-        [DATABASE_URL_KEY]: value,
-      });
-      if (!isCurrent()) return;
-      if (!result.ok) {
-        // The entered value is preserved: fix and resubmit.
-        setDatabaseError(result.message);
-        setMigrationSteps(result.migrationSteps ?? null);
-        return;
-      }
-      setStep('storage');
-    } catch {
-      if (!isCurrent()) return;
-      setDatabaseError('Something went wrong. Check your connection and try again.');
-    } finally {
-      if (isCurrent()) {
-        setIsSavingDatabase(false);
-      }
-    }
+    const anyKeepable = keys.some(
+      (key) => !isLocked(key) && isConfigured(key),
+    );
+    return anyKeepable
+      ? 'Fill in every remaining field to continue, or leave already-configured fields blank to keep them.'
+      : 'Fill in every field to continue.';
   }
 
   function submitStorage() {
-    const missing = missingR2Fields(r2, status?.envLocked ?? []);
-    const filled = (Object.keys(r2) as R2FieldKey[]).filter(
-      (key) => !isLocked(key) && r2[key].trim(),
-    );
-    if (filled.length > 0 && missing.length > 0) {
-      // Partial R2 configuration is never submitted: complete or skip.
-      setStorageError(
-        'Fill in every R2 field, or use "Skip for now" to set up storage later.',
-      );
+    const error = requiredError(r2, R2_FIELD_KEYS);
+    if (error) {
+      setStorageError(error);
       return;
     }
-    setStep('initialize');
+    setStep('playback');
   }
 
-  function skipStorage() {
-    // Values stay in state for back-navigation; initialize only submits a
-    // complete set, so a skipped partial entry can never leak into a patch.
-    setStorageError(null);
-    setStep('initialize');
-  }
-
-  const runInitialize = useCallback(async () => {
-    if (initRunRef.current) {
+  function submitPlayback() {
+    const error = requiredError(playback, PLAYBACK_FIELD_KEYS);
+    if (error) {
+      setPlaybackError(error);
       return;
     }
-    initRunRef.current = true;
+    // A blank URL here means configured-but-kept (required-but-missing was
+    // rejected above), so only an entered value needs a format check.
+    const workerUrl = playback.WORKER_STREAM_URL.trim();
+    if (workerUrl) {
+      const urlError = validateWorkerStreamUrl(workerUrl);
+      if (urlError) {
+        setPlaybackError(urlError);
+        return;
+      }
+    }
+    setStep('apikeys');
+  }
+
+  function submitApiKeys() {
+    const error = requiredError(apiKeys, API_KEY_FIELD_KEYS);
+    if (error) {
+      setApiKeysError(error);
+      return;
+    }
+    setStep('finish');
+  }
+
+  const runFinish = useCallback(async () => {
+    if (finishRunRef.current) {
+      return;
+    }
+    finishRunRef.current = true;
     if (!serverUrl) {
-      setInitPhase('failed');
-      setInitError('No server selected. Go back and enter a server URL.');
+      setFinishPhase('failed');
+      setFinishError('No server selected. Go back and enter a server URL.');
       return;
     }
 
@@ -238,29 +259,32 @@ export function useSetupWizard() {
     const isCurrent = () =>
       mountedRef.current && attempt === attemptRef.current;
 
-    setInitError(null);
+    setFinishError(null);
     try {
-      // Submit the storage patch first (only when complete — a skipped
-      // partial entry must never leak into a patch); the database patch
-      // already saved at step 2. Each successful save restarts the API, so
-      // a retry never re-submits an already-saved patch.
-      const patch = buildConfigPatch(r2, status?.envLocked ?? []);
-      const hasCompleteR2 =
-        Object.keys(patch).length > 0 &&
-        missingR2Fields(r2, status?.envLocked ?? []).length === 0;
-      if (hasCompleteR2 && !storageSavedRef.current) {
-        setInitPhase('saving');
+      // Single save of every entered value (locked keys and blanks excluded
+      // by the patch builder). An empty patch means everything is already
+      // configured or managed — just check readiness. A retry skips the save
+      // when the values are unchanged since the last successful one, so a
+      // poll-only retry never restarts the API again.
+      const patch = buildConfigPatch(
+        { ...r2, ...playback, ...apiKeys },
+        status?.envLocked ?? [],
+      );
+      const lastSaved = lastSavedPatchRef.current;
+      if (Object.keys(patch).length > 0 && !patchesEqual(patch, lastSaved)) {
+        setFinishPhase('saving');
         const saved = await saveSetupConfig(serverUrl, setupToken, patch);
         if (!isCurrent()) return;
         if (!saved.ok) {
-          setInitPhase('failed');
-          setInitError(saved.message);
+          // The entered values are preserved: go back and edit, or retry.
+          setFinishPhase('failed');
+          setFinishError(saved.message);
           return;
         }
-        storageSavedRef.current = true;
+        lastSavedPatchRef.current = patch;
       }
 
-      setInitPhase('polling');
+      setFinishPhase('polling');
       pollControllerRef.current?.abort();
       const controller = new AbortController();
       pollControllerRef.current = controller;
@@ -269,25 +293,36 @@ export function useSetupWizard() {
       });
       if (!isCurrent()) return;
       if (!poll.ready) {
-        setInitPhase('failed');
-        setInitError(
+        setFinishPhase('failed');
+        setFinishError(
           poll.lastDb === 'down'
             ? "The server came back, but its database is unavailable. Make sure the database is reachable, then retry — your settings are kept."
             : 'The server is still starting. Wait a moment, then retry — your settings are kept.',
         );
         return;
       }
-      setInitPhase('done');
+      setFinishPhase('done');
       toastImperative.show({
         type: 'success',
-        text1: 'Setup complete. Please sign in.',
+        text1: 'Server setup complete.',
         visibilityTime: 4000,
       });
+      // Validate the kept session against the restarted backend BEFORE
+      // clearing the flag: while pending, the root guard's own checkAuth
+      // effect stays dormant, so this is the single refresh. A valid session
+      // lands on home, anything else on login.
+      const { useAuthStore } = await import(
+        '@/features/auth/store/authStore'
+      );
+      await useAuthStore.getState().checkAuth();
+      if (!isCurrent()) return;
+      const sessionValid =
+        useAuthStore.getState().status === 'authenticated';
       // Clear first: a stale flag would make AuthGuard yield forever and trap
       // every later unauthenticated redirect. Clearing bumps no request id,
       // so ServerGuard stays silent and this replace is the single owner.
       useServerStore.getState().clearSetupPending();
-      router.replace('/login');
+      router.replace(sessionValid ? '/home' : '/login');
     } catch (error) {
       if (!isCurrent()) return;
       // AbortError means the user navigated away mid-poll: stay silent.
@@ -299,24 +334,24 @@ export function useSetupWizard() {
       ) {
         return;
       }
-      setInitPhase('failed');
-      setInitError('Something went wrong. Check your connection and try again.');
+      setFinishPhase('failed');
+      setFinishError('Something went wrong. Check your connection and try again.');
     }
-  }, [router, serverUrl, setupToken, r2, status]);
+  }, [router, serverUrl, setupToken, r2, playback, apiKeys, status]);
 
-  // Auto-run once on entering the initialize step.
+  // Auto-run once on entering the finish step.
   useEffect(() => {
-    if (step === 'initialize' && initPhase === 'idle') {
-      void runInitialize();
+    if (step === 'finish' && finishPhase === 'idle') {
+      void runFinish();
     }
-  }, [step, initPhase, runInitialize]);
+  }, [step, finishPhase, runFinish]);
 
-  function retryInitialize() {
-    if (initPhase === 'saving' || initPhase === 'polling') {
+  function retryFinish() {
+    if (finishPhase === 'saving' || finishPhase === 'polling') {
       return;
     }
-    initRunRef.current = false;
-    void runInitialize();
+    finishRunRef.current = false;
+    void runFinish();
   }
 
   function goBack() {
@@ -324,26 +359,26 @@ export function useSetupWizard() {
       router.back();
       return;
     }
-    if (step === 'initialize') {
-      // Stop the poll loop and reset for a clean re-entry; entered values
-      // and the setup token are preserved.
+    if (step === 'finish') {
+      // Stop the poll loop and reset for a clean re-entry; entered values,
+      // the setup token, and the last saved patch are preserved, so an
+      // unchanged re-entry only polls while edits go out again.
       pollControllerRef.current?.abort();
       pollControllerRef.current = null;
-      storageSavedRef.current = false;
-      initRunRef.current = false;
-      setInitPhase('idle');
-      setInitError(null);
-      setStep('storage');
+      finishRunRef.current = false;
+      attemptRef.current += 1;
+      setFinishPhase('idle');
+      setFinishError(null);
+      setStep('apikeys');
       return;
     }
-    setStep(step === 'database' ? 'token' : 'database');
+    setStep(
+      step === 'storage' ? 'token' : step === 'playback' ? 'storage' : 'playback',
+    );
   }
 
   const isBusy =
-    isValidatingToken ||
-    isSavingDatabase ||
-    initPhase === 'saving' ||
-    initPhase === 'polling';
+    isValidatingToken || finishPhase === 'saving' || finishPhase === 'polling';
 
   return {
     serverUrl,
@@ -355,21 +390,38 @@ export function useSetupWizard() {
     submitToken,
     status,
     isLocked,
-    databaseUrl,
-    setDatabaseUrl,
-    databaseError,
-    migrationSteps,
-    isSavingDatabase,
-    submitDatabase,
+    isConfigured,
     r2,
     setR2Field,
     storageError,
     submitStorage,
-    skipStorage,
-    initPhase,
-    initError,
-    retryInitialize,
+    playback,
+    setPlaybackField,
+    playbackError,
+    submitPlayback,
+    apiKeys,
+    setApiKeyField,
+    apiKeysError,
+    submitApiKeys,
+    finishPhase,
+    finishError,
+    retryFinish,
     goBack,
     isBusy,
   };
+}
+
+function patchesEqual(
+  patch: Record<string, string>,
+  lastSaved: Record<string, string> | null,
+): boolean {
+  if (lastSaved === null) {
+    return false;
+  }
+  const keys = Object.keys(patch);
+  const lastKeys = Object.keys(lastSaved);
+  return (
+    keys.length === lastKeys.length &&
+    keys.every((key) => lastSaved[key] === patch[key])
+  );
 }

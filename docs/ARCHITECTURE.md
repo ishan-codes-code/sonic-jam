@@ -102,6 +102,17 @@
   `useServerSetup` 143→161, `useSetupWizard` 371→375, `serverSwitch` 71→75,
   barrel 71→94. Working tree: **217 files, 22,816 lines**.
   Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, setup wizard 5-step + boot discovery):
+  token → storage → playback → API keys → finish wizard (no database step,
+  no skip; one-shot save; session-validating completion to home/login),
+  `useSetupWizard` 375→427, `setupApi` 514→579, `serverValidation` 200→210
+  (Termux-installer branch), `setupNavigation` 296→330 + 36 node:test
+  regressions (`setupNavigation.test` 933→1017), `useServerSetup` 161→156
+  (always re-validates), `serverStore` 159→175 (`markSetupPending`),
+  `_layout` 382→462 (background boot `/health` discovery),
+  -`SetupDatabaseStep` +`SetupPlaybackStep` +`SetupApiKeysStep` +`SetupField`,
+  `SetupInitializeStep`→`SetupFinishStep`, barrel 94→101. Working tree:
+  **219 files, 23,365 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -296,17 +307,19 @@ src/features/
 │   ├── hooks/useSearchHistory.ts  hooks/useSearchQuery.ts
 │   ├── screens/GenreScreen.tsx  screens/SearchFocusScreen.tsx  screens/SearchScreen.tsx
 │   └── components/ExploreGenres.tsx
-├── server/                       # runtime server config + setup/switch UI (22 files)
+├── server/                       # runtime server config + setup/switch UI (26 files)
 │   ├── index.ts  api/serverValidation.ts  api/serverValidation.test.ts
 │   ├── api/setupApi.ts  api/setupApi.test.ts  # setup token/config/poll
 │   ├── components/SecretInput.tsx  components/SetupTokenStep.tsx
-│   ├── components/SetupDatabaseStep.tsx  components/SetupStorageStep.tsx
-│   ├── components/SetupInitializeStep.tsx
+│   ├── components/SetupStorageStep.tsx  components/SetupPlaybackStep.tsx
+│   ├── components/SetupApiKeysStep.tsx  components/SetupFinishStep.tsx
+│   ├── components/SetupField.tsx  # shared wizard field idioms
 │   ├── hooks/useServerSetup.ts  hooks/useServerSwitch.ts  hooks/useSetupWizard.ts
 │   ├── screens/ServerSetupScreen.tsx  screens/ServerManagementScreen.tsx
 │   ├── screens/SetupWizardScreen.tsx  store/serverStore.ts
 │   ├── utils/serverConfig.ts  utils/serverConfig.test.ts  utils/serverStorage.ts
 │   ├── utils/serverSwitch.ts  # shared performServerSwitch()
+│   ├── utils/setupNavigation.ts  utils/setupNavigation.test.ts  # guard decisions
 │   └── utils/sessionGeneration.ts  # refresh invalidation counter
 ├── settings/                     # Settings hub (3 files)
 │   ├── index.ts  components/SettingsRow.tsx  screens/SettingsScreen.tsx

@@ -11,18 +11,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
-import { DATABASE_URL_KEY } from '../api/setupApi';
 import { useSetupWizard, SetupWizardStep } from '../hooks/useSetupWizard';
-import { SetupDatabaseStep } from '../components/SetupDatabaseStep';
-import { SetupInitializeStep } from '../components/SetupInitializeStep';
+import { SetupApiKeysStep } from '../components/SetupApiKeysStep';
+import { SetupFinishStep } from '../components/SetupFinishStep';
+import { SetupPlaybackStep } from '../components/SetupPlaybackStep';
 import { SetupStorageStep } from '../components/SetupStorageStep';
 import { SetupTokenStep } from '../components/SetupTokenStep';
 
 const STEPS: { key: SetupWizardStep; title: string }[] = [
   { key: 'token', title: 'Setup token' },
-  { key: 'database', title: 'Database' },
   { key: 'storage', title: 'Storage' },
-  { key: 'initialize', title: 'Initialize' },
+  { key: 'playback', title: 'Playback' },
+  { key: 'apikeys', title: 'API keys' },
+  { key: 'finish', title: 'Finish' },
 ];
 
 export const SetupWizardScreen = () => {
@@ -102,37 +103,42 @@ export const SetupWizardScreen = () => {
               onSubmit={wizard.submitToken}
               onInputFocus={onInputFocus}
             />
-          ) : wizard.step === 'database' ? (
-            <SetupDatabaseStep
-              databaseUrl={wizard.databaseUrl}
-              setDatabaseUrl={wizard.setDatabaseUrl}
-              error={wizard.databaseError}
-              migrationSteps={wizard.migrationSteps}
-              isBusy={wizard.isSavingDatabase}
-              isLocked={wizard.isLocked(DATABASE_URL_KEY)}
-              isConfigured={
-                wizard.status?.configured[DATABASE_URL_KEY] ?? false
-              }
-              onSubmit={wizard.submitDatabase}
-              onInputFocus={onInputFocus}
-            />
           ) : wizard.step === 'storage' ? (
             <SetupStorageStep
               r2={wizard.r2}
               setR2Field={wizard.setR2Field}
               error={wizard.storageError}
               isLocked={wizard.isLocked}
-              isConfigured={(key) => wizard.status?.configured[key] ?? false}
+              isConfigured={wizard.isConfigured}
               onSubmit={wizard.submitStorage}
-              onSkip={wizard.skipStorage}
+              onInputFocus={onInputFocus}
+            />
+          ) : wizard.step === 'playback' ? (
+            <SetupPlaybackStep
+              playback={wizard.playback}
+              setPlaybackField={wizard.setPlaybackField}
+              error={wizard.playbackError}
+              isLocked={wizard.isLocked}
+              isConfigured={wizard.isConfigured}
+              onSubmit={wizard.submitPlayback}
+              onInputFocus={onInputFocus}
+            />
+          ) : wizard.step === 'apikeys' ? (
+            <SetupApiKeysStep
+              apiKeys={wizard.apiKeys}
+              setApiKeyField={wizard.setApiKeyField}
+              error={wizard.apiKeysError}
+              isLocked={wizard.isLocked}
+              isConfigured={wizard.isConfigured}
+              onSubmit={wizard.submitApiKeys}
               onInputFocus={onInputFocus}
             />
           ) : (
-            <SetupInitializeStep
-              phase={wizard.initPhase}
-              error={wizard.initError}
-              onRetry={wizard.retryInitialize}
-              onBackToStorage={wizard.goBack}
+            <SetupFinishStep
+              phase={wizard.finishPhase}
+              error={wizard.finishError}
+              onRetry={wizard.retryFinish}
+              onBackToEdit={wizard.goBack}
             />
           )}
         </ScrollView>
