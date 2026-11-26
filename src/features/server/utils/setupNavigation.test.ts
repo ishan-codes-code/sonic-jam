@@ -39,6 +39,7 @@ import {
   isSetupWizardRoute,
   planConnectResult,
   serverGuardAction,
+  shouldInitAuth,
 } from './setupNavigation';
 import type {
   GuardAuthStatus,
@@ -990,6 +991,215 @@ describe('startup navigation sequences', () => {
         }
       }
     }
+  });
+});
+
+// --------------------------------------------------------------------------
+// 11. Leaving the wizard unfinished restores auth routing (no stuck flag).
+// --------------------------------------------------------------------------
+//
+// The wizard's beforeRemove listener releases setupPending on genuine route
+// removal (header Back, Android back, gesture) — listener wiring a node
+// suite cannot mount, so these timelines model the leave as the store
+// transition it produces (pending true → false plus the Back landing) and
+// prove the guards then behave: normal auth routing resumes, the wizard
+// never reopens by itself, and a server-screen Continue recheck recommits
+// a fresh setup id to reopen it.
+
+describe('wizard abandon restores auth routing', () => {
+  test('signed-in boot discovery: leave, then logout reaches login and login reaches home', () => {
+    const h = createHarness({
+      serverStatus: 'configured',
+      setupPending: false,
+      setupRequestId: 0,
+      authStatus: 'authenticated',
+      segments: HOME,
+    });
+    h.tick();
+    // Background /health found setupRequired: one push, auth yields.
+    const commit = h.tick({ setupPending: true, setupRequestId: 1 });
+    assert.equal(fmt(commit.server), 'push /setup-wizard');
+    assert.equal(fmt(commit.auth), '(silent)');
+    // Leave without finishing: the flag is released and Back lands on
+    // home. No commit changed, so neither guard reopens the wizard.
+    const left = h.tick({ setupPending: false, segments: HOME });
+    assert.equal(fmt(left.server), '(silent)');
+    assert.equal(fmt(left.auth), '(silent)');
+    // Logout now reaches login …
+    const loggedOut = h.tick({ authStatus: 'unauthenticated' });
+    assert.equal(fmt(loggedOut.server), '(silent)');
+    assert.equal(fmt(loggedOut.auth), 'replace /login');
+    // … and a fresh login reaches home.
+    const loggedIn = h.tick({ authStatus: 'authenticated' });
+    assert.equal(fmt(loggedIn.server), '(silent)');
+    assert.equal(fmt(loggedIn.auth), 'replace /home');
+    for (let i = 0; i < 3; i += 1) {
+      h.tick();
+    }
+    assert.deepEqual(
+      h.actions.map((a) => `${a.method} ${a.href}`),
+      ['push /setup-wizard', 'replace /login', 'replace /home'],
+    );
+  });
+
+  test('signed-out boot discovery: leave, then login reaches home without reopening', () => {
+    const h = createHarness({
+      serverStatus: 'configured',
+      setupPending: false,
+      setupRequestId: 0,
+      authStatus: 'unauthenticated',
+      segments: LOGIN,
+    });
+    h.tick();
+    const commit = h.tick({ setupPending: true, setupRequestId: 1 });
+    assert.equal(fmt(commit.server), 'push /setup-wizard');
+    assert.equal(fmt(commit.auth), '(silent)');
+    const left = h.tick({ setupPending: false, segments: LOGIN });
+    assert.equal(fmt(left.server), '(silent)');
+    assert.equal(fmt(left.auth), '(silent)');
+    const loggedIn = h.tick({ authStatus: 'authenticated' });
+    assert.equal(fmt(loggedIn.server), '(silent)');
+    assert.equal(fmt(loggedIn.auth), 'replace /home');
+    for (let i = 0; i < 3; i += 1) {
+      h.tick();
+    }
+    assert.deepEqual(
+      h.actions.map((a) => `${a.method} ${a.href}`),
+      ['push /setup-wizard', 'replace /home'],
+    );
+  });
+
+  test('first-launch back-out: Continue rechecks and reopens when setup is still required', () => {
+    const h = createHarness({
+      serverStatus: 'unconfigured',
+      setupPending: false,
+      setupRequestId: 0,
+      authStatus: 'idle',
+      segments: SETUP,
+    });
+    h.tick();
+    // First connect commits a setup flow; the wizard opens over the setup
+    // screen.
+    const commit = h.tick({
+      serverStatus: 'configured',
+      setupPending: true,
+      setupRequestId: 1,
+      authStatus: 'unauthenticated',
+    });
+    assert.equal(fmt(commit.server), 'push /setup-wizard');
+    assert.equal(fmt(commit.auth), '(silent)');
+    // Back out: the flag is released, the setup screen stays put, and no
+    // guard drags the user anywhere (Login must not appear here).
+    const left = h.tick({ setupPending: false, segments: SETUP });
+    assert.equal(fmt(left.server), '(silent)');
+    assert.equal(fmt(left.auth), '(silent)');
+    // Continue rechecks /health and setup is still required: the fresh
+    // commit reopens the wizard exactly once.
+    const recheck = h.tick({ setupPending: true, setupRequestId: 2 });
+    assert.equal(fmt(recheck.server), 'push /setup-wizard');
+    assert.equal(fmt(recheck.auth), '(silent)');
+    for (let i = 0; i < 3; i += 1) {
+      h.tick();
+    }
+    assert.deepEqual(
+      h.actions.map((a) => `${a.method} ${a.href}`),
+      ['push /setup-wizard', 'push /setup-wizard'],
+    );
+  });
+});
+
+// --------------------------------------------------------------------------
+// 12. Auth initializes once: no second refresh after setup.
+// --------------------------------------------------------------------------
+
+describe('auth initialization gate', () => {
+  test('boot initializes exactly once from idle on a ready backend', () => {
+    assert.equal(
+      shouldInitAuth({
+        serverStatus: 'configured',
+        setupPending: false,
+        authStatus: 'idle',
+      }),
+      true,
+    );
+  });
+
+  test('a resolved status never re-initializes (no second refresh after setup)', () => {
+    // The wizard's completion check resolves the status before clearing the
+    // flag, so the pending → false transition must stay quiet here.
+    for (const authStatus of [
+      'loading',
+      'authenticated',
+      'unauthenticated',
+    ] as const) {
+      assert.equal(
+        shouldInitAuth({
+          serverStatus: 'configured',
+          setupPending: false,
+          authStatus,
+        }),
+        false,
+        `auth=${authStatus}`,
+      );
+    }
+  });
+
+  test('setup pending or an unknown server never initializes', () => {
+    const serverStatuses: GuardServerStatus[] = [
+      'loading',
+      'unconfigured',
+      'configured',
+    ];
+    const authStatuses: GuardAuthStatus[] = [
+      'idle',
+      'loading',
+      'authenticated',
+      'unauthenticated',
+    ];
+    for (const serverStatus of serverStatuses) {
+      for (const authStatus of authStatuses) {
+        // Pending always skips, even from idle on a configured server.
+        assert.equal(
+          shouldInitAuth({ serverStatus, setupPending: true, authStatus }),
+          false,
+          `server=${serverStatus} auth=${authStatus} pending=true`,
+        );
+        // An unknown server always skips, even from idle without pending.
+        if (serverStatus !== 'configured') {
+          assert.equal(
+            shouldInitAuth({
+              serverStatus,
+              setupPending: false,
+              authStatus,
+            }),
+            false,
+            `server=${serverStatus} auth=${authStatus} pending=false`,
+          );
+        }
+      }
+    }
+  });
+
+  test('abandoning the wizard with idle auth re-arms boot initialization', () => {
+    // Discovery committed pending while auth was still idle, so boot init
+    // never ran; leaving releases the flag and the cleared snapshot
+    // initializes.
+    assert.equal(
+      shouldInitAuth({
+        serverStatus: 'configured',
+        setupPending: true,
+        authStatus: 'idle',
+      }),
+      false,
+    );
+    assert.equal(
+      shouldInitAuth({
+        serverStatus: 'configured',
+        setupPending: false,
+        authStatus: 'idle',
+      }),
+      true,
+    );
   });
 });
 

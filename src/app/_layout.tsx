@@ -15,6 +15,7 @@ import {
   authGuardAction,
   checkServerConnection,
   serverGuardAction,
+  shouldInitAuth,
   useServerStore,
 } from '@/features/server';
 import type {
@@ -195,18 +196,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const { stop } = usePlayer();
 
-  // Run once the server is known AND no backend setup is pending: the
-  // refresh below must target the active backend, and this guard now mounts
-  // at boot (it no longer waits behind the server gate), so an unconditional
-  // boot check could refresh against the wrong URL. Re-runs when the server
-  // status or the pending flag changes — in particular, completing the Setup
-  // Wizard (pending → false) starts auth initialization, which then routes
-  // to Login.
+  // Initialize auth once the server is known AND no backend setup is
+  // pending: the refresh below must target the active backend, and this
+  // guard now mounts at boot (it no longer waits behind the server gate),
+  // so an unconditional boot check could refresh against the wrong URL.
+  // Runs only from the untouched 'idle' state (see shouldInitAuth): the
+  // Setup Wizard validates the kept session itself on completion and
+  // resolves the status before clearing the flag, so that transition must
+  // NOT start a second refresh here. Abandoning the wizard with auth still
+  // idle does re-arm this effect, which resumes boot initialization.
   useEffect(() => {
-    if (serverStatus === 'configured' && !setupPending) {
+    if (
+      shouldInitAuth({
+        serverStatus,
+        setupPending,
+        authStatus: status,
+      })
+    ) {
       void checkAuth();
     }
-  }, [serverStatus, setupPending, checkAuth]);
+  }, [serverStatus, setupPending, status, checkAuth]);
 
   // React to auth state changes. Yields while the server is unknown or a
   // backend setup is pending — ServerGuard owns routing then, so Login can

@@ -1,6 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
+import { THEME } from '@/lib/theme';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
@@ -45,7 +46,7 @@ export function SecretInput({
         <Input
           className="h-full flex-1 border-0 bg-transparent text-[14px] font-display text-foreground shadow-none"
           placeholder={placeholder}
-          placeholderTextColor="#252525"
+          placeholderTextColor={THEME.dark.mutedForeground}
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={!visible}

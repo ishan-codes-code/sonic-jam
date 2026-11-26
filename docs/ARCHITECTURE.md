@@ -113,6 +113,12 @@
   -`SetupDatabaseStep` +`SetupPlaybackStep` +`SetupApiKeysStep` +`SetupField`,
   `SetupInitializeStep`→`SetupFinishStep`, barrel 94→101. Working tree:
   **219 files, 23,365 lines**. Re-baseline the commit hash on commit.
+- Structural delta (uncommitted, wizard abandon + single session check):
+  wizard `beforeRemove` releases `setupPending` (`useSetupWizard` 427→448),
+  idle-only auth init (`setupNavigation` 330→360 + 43 node:test regressions,
+  `setupNavigation.test` 1017→1227), `_layout` 462→471, barrel 101→103;
+  theme muted placeholders. Working tree: **219 files, 23,641 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 

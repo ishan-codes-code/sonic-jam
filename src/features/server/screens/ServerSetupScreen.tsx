@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { THEME } from '@/lib/theme';
 import { useKeyboardAwareScroll } from '@/components/useKeyboardAwareScroll';
 import { useServerSetup } from '../hooks/useServerSetup';
 
@@ -101,7 +102,7 @@ export const ServerSetupScreen = () => {
               <Input
                 className="h-full flex-1 border-0 bg-transparent text-[14px] font-display text-foreground shadow-none"
                 placeholder="https://sonic.example.com"
-                placeholderTextColor="#252525"
+                placeholderTextColor={THEME.dark.mutedForeground}
                 value={url}
                 onChangeText={setUrl}
                 keyboardType="url"

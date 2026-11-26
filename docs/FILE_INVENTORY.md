@@ -98,6 +98,14 @@
 > (`markSetupPending`), `_layout` 382→462 (background boot /health
 > discovery); suites 19/27/36/19 green.
 > Working tree: **219 files, 23,365 lines**. Re-baseline on commit.
+> Structural delta (uncommitted, wizard abandon + single session check):
+> wizard `beforeRemove` releases `setupPending` (`useSetupWizard` 427→448),
+> idle-only auth init (`setupNavigation` 330→360, `setupNavigation.test`
+> 1017→1227 with 43 regressions, `_layout` 462→471, barrel 101→103); theme
+> muted placeholders (`SecretInput` 90→91, `SetupField` 96→97,
+> `ServerSetupScreen` 176→177, `ServerManagementScreen` 241→242); suites
+> 19/27/43/19 green.
+> Working tree: **219 files, 23,641 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -112,7 +120,7 @@
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/app/_layout.tsx` | 462 | `RootLayout`: providers, `VersionGuard`/`ServerGuard`/`AuthGuard`, always-mounted `Stack` (guards overlay loaders + redirect via `setupNavigation`), `setupPlayer()` (via `ServerGuard`), background boot `/health` setup discovery (one-shot per URL, stale-safe), background handler |
+| `src/app/_layout.tsx` | 471 | `RootLayout`: providers, `VersionGuard`/`ServerGuard`/`AuthGuard`, always-mounted `Stack` (guards overlay loaders + redirect via `setupNavigation`), `setupPlayer()` (via `ServerGuard`), background boot `/health` setup discovery (one-shot per URL, stale-safe), idle-only auth init (`shouldInitAuth`), background handler |
 | `src/app/index.tsx` | 10 | Default route renders null; guards own boot routing (single owner per redirect) |
 | `src/app/player.tsx` | 4 | Route wrapper rendering `PlayerScreen` as full-screen modal |
 | `src/app/notification.click.tsx` | 7 | Notification-tap bounce route redirecting to `/player` |
@@ -382,35 +390,35 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 26 files, 5,827 lines
+## `src/features/server` — 26 files, 6,094 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 101 | Barrel (screens, hooks, store, validation, setup API + key registries, config/storage/switch/session-generation utils, setup navigation decisions) |
+| `src/features/server/index.ts` | 103 | Barrel (screens, hooks, store, validation, setup API + key registries, config/storage/switch/session-generation utils, setup navigation decisions + auth-init gate) |
 | `src/features/server/api/serverValidation.ts` | 210 | `checkServerConnection()`: unauthenticated `GET /health` probe (Sonic identity + `setupRequired` routing only with a healthy db, `db` ok/down/unconfigured incl. the setupRequired+unconfigured Termux-installer branch, informational `features.storage`), 15s timeout, inline failure codes |
 | `src/features/server/api/serverValidation.test.ts` | 338 | `node:test` (19): /health routing (ready/setup/down/Termux-unconfigured/invalid), malformed/non-Sonic, network/timeout, no-auth probe |
 | `src/features/server/api/setupApi.ts` | 579 | Setup API: `GET /setup/status`, `POST /setup/config` (`X-Setup-Token`, plain fetch), storage/playback/API-key registries, required-field + worker-URL validation, patch builder, secret redaction, readiness poll |
 | `src/features/server/api/setupApi.test.ts` | 546 | `node:test` (27): token validation, headers/payload, locked/configured fields, worker URL, restart polling, redaction |
-| `src/features/server/components/SecretInput.tsx` | 90 | Labeled credential field, masked by default with visibility toggle |
+| `src/features/server/components/SecretInput.tsx` | 91 | Labeled credential field, masked by default with visibility toggle; theme muted placeholder |
 | `src/features/server/components/SetupTokenStep.tsx` | 97 | Wizard step 1: setup-token explainer + secure input + validate CTA |
 | `src/features/server/components/SetupStorageStep.tsx` | 139 | Wizard step 2: required R2 fields (locked/configured variants) + continue CTA |
 | `src/features/server/components/SetupPlaybackStep.tsx` | 123 | Wizard step 3: worker stream URL + playback secret (locked/configured variants, worker-match note) + continue CTA |
 | `src/features/server/components/SetupApiKeysStep.tsx` | 113 | Wizard step 4: YouTube + Last.fm keys (locked/configured variants) + save CTA |
 | `src/features/server/components/SetupFinishStep.tsx` | 112 | Wizard step 5: one-shot save/poll progress, retry + back-to-edit on failure |
-| `src/features/server/components/SetupField.tsx` | 96 | Shared wizard field idioms: plain text field, environment-managed note, keep-saved-value note |
+| `src/features/server/components/SetupField.tsx` | 97 | Shared wizard field idioms: plain text field (theme muted placeholder), environment-managed note, keep-saved-value note |
 | `src/features/server/hooks/useServerSetup.ts` | 156 | Setup form state + validate → check → atomic commit connect flow (every Continue re-validates via /health; Login review mode prefills current with Continue/Connect CTA; ServerGuard owns wizard/first-launch routing, hook owns same-URL ready follow-ups; attempt/mounted guards; success toasts) |
 | `src/features/server/hooks/useServerSwitch.ts` | 148 | Switch form state + validate → confirm → shared `performServerSwitch()` (unconfigured targets blocked with inline guidance) |
-| `src/features/server/hooks/useSetupWizard.ts` | 427 | Wizard state machine: token → storage → playback → API keys → finish; local-only step validation, one-shot save + saved-patch-aware retry, memory-only secrets, stale-async guards, poll cancellation; validates the kept session on completion (home/login) |
-| `src/features/server/screens/ServerManagementScreen.tsx` | 241 | In-app server switching screen: current server ("Configured" label), prefilled edit, validate → confirm, inline states |
-| `src/features/server/screens/ServerSetupScreen.tsx` | 176 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring |
+| `src/features/server/hooks/useSetupWizard.ts` | 448 | Wizard state machine: token → storage → playback → API keys → finish; local-only step validation, one-shot save + saved-patch-aware retry, memory-only secrets, stale-async guards, poll cancellation; validates the kept session on completion (home/login); `beforeRemove` releases `setupPending` on abandon |
+| `src/features/server/screens/ServerManagementScreen.tsx` | 242 | In-app server switching screen: current server ("Configured" label), prefilled edit, validate → confirm, inline states; theme muted placeholder |
+| `src/features/server/screens/ServerSetupScreen.tsx` | 177 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring; theme muted placeholder |
 | `src/features/server/screens/SetupWizardScreen.tsx` | 148 | Wizard shell: back button, 5-step progress, per-step content wiring |
 | `src/features/server/store/serverStore.ts` | 175 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration (storage-failure safe), first-time stale-token clear, `setApiServerUrl` apply; atomic `setServer` commits `setupPending` + `setupRequestId` for guard routing; idempotent `markSetupPending()` for boot discovery |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverConfig.test.ts` | 177 | `node:test` (19): URL normalization/validation edge cases + localhost detection |
 | `src/features/server/utils/serverStorage.ts` | 45 | AsyncStorage `@sonic_server_url` get/set/clear; reads throw on storage failure (missing ≠ unreadable) |
 | `src/features/server/utils/serverSwitch.ts` | 75 | Shared `performServerSwitch()`: session invalidate + atomic session reset → `setServer` (setup-flag plumb-through) → player recreate |
-| `src/features/server/utils/setupNavigation.ts` | 330 | Pure guard/connect routing decisions (single owner per redirect, one-shot commit routing, AuthGuard setup yield, review-aware connect follow-ups, stale-attempt guard); shared by `_layout` guards, `useServerSetup`, and tests |
-| `src/features/server/utils/setupNavigation.test.ts` | 1017 | `node:test` (36): wizard-over-login, unmount-proof commits, login-once, loading silence, no competing redirects, pending yield, retryable failures, superseded attempts, review re-commit routing, boot discovery, completion landing, startup sequences |
+| `src/features/server/utils/setupNavigation.ts` | 360 | Pure guard/connect decisions (single owner per redirect, one-shot commit routing, AuthGuard setup yield, review-aware connect follow-ups, idle-only auth-init gate, stale-attempt guard); shared by `_layout` guards, `useServerSetup`, and tests |
+| `src/features/server/utils/setupNavigation.test.ts` | 1227 | `node:test` (43): wizard-over-login, unmount-proof commits, login-once, loading silence, no competing redirects, pending yield, retryable failures, superseded attempts, review re-commit routing, boot discovery, completion landing, abandon routing, init-once gate, startup sequences |
 | `src/features/server/utils/sessionGeneration.ts` | 53 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards + `onSessionInvalidated()` settle hook |
 
 ## `src/features/settings` — 3 files, 155 lines

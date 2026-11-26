@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { toastImperative } from '@/features/Toast/utils/toastSingleton';
 import { useServerStore } from '../store/serverStore';
 import {
@@ -56,6 +56,7 @@ export type FinishPhase =
  */
 export function useSetupWizard() {
   const router = useRouter();
+  const navigation = useNavigation();
   const serverUrl = useServerStore((s) => s.serverUrl);
 
   const [step, setStep] = useState<SetupWizardStep>('token');
@@ -116,6 +117,24 @@ export function useSetupWizard() {
       pollControllerRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    // Leaving the wizard without finishing (header Back, Android back, or
+    // gesture) removes this route: release the setup flag so AuthGuard
+    // resumes normal routing (login reaches home, logout reaches login).
+    // beforeRemove fires only on genuine route removal — subscribing never
+    // clears, so opening the wizard can't drop the flag by mistake (a plain
+    // unmount cleanup would, under dev StrictMode remounts), and Back
+    // between steps is in-component state that never touches the route.
+    // Completion already cleared the flag, so this is a no-op on the success
+    // path; clearing bumps no request id, so the wizard never reopens by
+    // itself — the server screen's Continue rechecks /health and commits a
+    // fresh setup id to reopen it when setup is still required.
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      useServerStore.getState().clearSetupPending();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   function setSetupToken(next: string) {
     setSetupTokenState(next);
@@ -309,8 +328,10 @@ export function useSetupWizard() {
       });
       // Validate the kept session against the restarted backend BEFORE
       // clearing the flag: while pending, the root guard's own checkAuth
-      // effect stays dormant, so this is the single refresh. A valid session
-      // lands on home, anything else on login.
+      // effect stays dormant, and resolving the status first means its
+      // idle-only gate (shouldInitAuth) also skips after the clear — so this
+      // is the single refresh. A valid session lands on home, anything else
+      // on login.
       const { useAuthStore } = await import(
         '@/features/auth/store/authStore'
       );

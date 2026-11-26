@@ -66,10 +66,12 @@ export {
   isSetupWizardRoute,
   planConnectResult,
   serverGuardAction,
+  shouldInitAuth,
 } from './utils/setupNavigation';
 export type {
   AttemptGuard,
   AuthGuardSnapshot,
+  AuthInitSnapshot,
   ConnectPlan,
   ConnectPlanOptions,
   GuardAuthStatus,

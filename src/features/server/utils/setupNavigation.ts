@@ -22,6 +22,9 @@
 //   freely afterwards — committed wizard navigation is never cancelled.
 // - AuthGuard yields while the server is unknown or setup is pending, so it
 //   can never redirect to Login ahead of the Setup Wizard.
+// - Auth initialization runs only from the untouched 'idle' state
+//   (`shouldInitAuth`): boot checks the session once, and the wizard's own
+//   completion check never triggers a second refresh from the guard.
 // --------------------------------------------------------------------------
 
 import type { ServerCheckResult } from '../api/serverValidation';
@@ -176,6 +179,33 @@ export function authGuardAction(
   return isAuthRoute(snap.segments)
     ? null
     : { method: 'replace', href: '/login' };
+}
+
+// --------------------------------------------------------------------------
+// AuthGuard: when to run the session check (checkAuth).
+// --------------------------------------------------------------------------
+
+export interface AuthInitSnapshot {
+  serverStatus: GuardServerStatus;
+  setupPending: boolean;
+  authStatus: GuardAuthStatus;
+}
+
+/**
+ * Pure body of AuthGuard's auth-initialization effect. The session check runs
+ * only from the untouched 'idle' state on a ready backend: boot initializes
+ * exactly once, while any already-resolved status is left alone — in
+ * particular, the wizard's own completion check resolves the status BEFORE
+ * clearing the flag, so this effect never starts a second refresh after
+ * setup. Abandoning the wizard with auth still 'idle' re-arms boot
+ * initialization on the cleared flag, which is exactly the desired resume.
+ */
+export function shouldInitAuth(snap: AuthInitSnapshot): boolean {
+  return (
+    snap.serverStatus === 'configured' &&
+    !snap.setupPending &&
+    snap.authStatus === 'idle'
+  );
 }
 
 // --------------------------------------------------------------------------
