@@ -53,7 +53,15 @@
 ],
       "expo-secure-store",
       "expo-font",
-      "expo-navigation-bar"
+      "expo-navigation-bar",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

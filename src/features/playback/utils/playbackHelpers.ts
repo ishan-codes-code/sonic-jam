@@ -20,10 +20,10 @@ export async function createPlaybackTrack(
   }
 
   const headers = {
-    Authorization: `Bearer ${playbackToken}`,
+    Authorization: "Bearer test123",
   };
   return {
-    url: { uri: song.streamUrl, headers },
+    url: { uri: `http://127.0.0.1:8899/test.m4a?run=${Date.now()}`, headers },
     mediaId: song.id,
     title: song.trackName,
     artist: song.artists?.map((a: any) => a.name).join(", "),
