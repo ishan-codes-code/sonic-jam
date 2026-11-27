@@ -1,14 +1,8 @@
-import TrackPlayer from "@rntp/player";
-import { resolveJob } from "./jobResolver";
+import { countEnqueuedBefore } from "../utils/streamHelpers";
 import {
   isJobPollingCancelled,
   JobPollingCancelledError,
-} from "./pollingResolver";
-import { createPlaybackTrack } from "../utils/playbackHelpers";
-import { countEnqueuedBefore } from "../utils/streamHelpers";
-import { useJobStore } from "../store/useJobStore";
-import { usePlaybackStore } from "../store/usePlaybackStore";
-import type { PlaybackTrack, ResolvedStream } from "../types";
+} from "./jobCancellation";
 
 // --------------------------------------------------------------------------
 // Playlist pending-track resolution (Local backend missing files).
@@ -18,26 +12,81 @@ import type { PlaybackTrack, ResolvedStream } from "../types";
 // its playlist-order position. Module-level run state (not per-hook): a
 // playPlaylist()/play()/stop() from ANY component — or a server switch —
 // invalidates in-flight resolutions before they can touch a replaced queue.
+//
+// Entry lifecycle: pending → resolving → inserting → ready, with failed for
+// terminal resolution/insertion failures. An entry reads ready ONLY after its
+// native insertion succeeds. Each entry owns at most one in-flight pipeline
+// promise: a tap racing a background resolution joins the same pipeline —
+// one poll per job, one insertion per entry — instead of inserting twice or
+// rebuilding the playlist. Terminal failure releases ownership so a retry
+// starts fresh.
+//
+// This module stays dependency-light (relative-only imports, no native
+// modules, no stores, no song/track types) so node:test executes this EXACT
+// orchestration code. All heavy effects arrive through injected deps (see
+// PlaylistPendingDeps): production wires the real poller, stores, track
+// builder, and RNTP calls once in usePlayer.ts.
 // --------------------------------------------------------------------------
 
-export type PlaylistEntryState = "resolving" | "ready" | "failed";
+export type PlaylistEntryState =
+  | "pending"
+  | "resolving"
+  | "inserting"
+  | "ready"
+  | "failed";
 
-export interface PlaylistPendingEntry {
+export interface PlaylistPendingEntry<T = unknown> {
   playlistIndex: number;
   jobId: string;
   songId: string;
   state: PlaylistEntryState;
+  /**
+   * Owned resolve→insert pipeline. Claimed synchronously: joiners await it
+   * instead of starting their own. Cleared on terminal failure so a retry
+   * starts fresh; kept once fulfilled so late joiners reuse the track.
+   */
+  pipeline: Promise<T> | null;
 }
 
-export interface PlaylistRun {
+export interface PlaylistPendingResolved<S = unknown> {
+  song: S;
+  playbackToken: string;
+}
+
+/**
+ * Heavy side effects behind the entry pipeline. `S` is the resolved song
+ * shape, `T` the native track shape (production: `Song`/`PlaybackTrack`).
+ */
+export interface PlaylistPendingDeps<S = unknown, T = unknown> {
+  pollJob(
+    jobId: string,
+    shouldAbort: () => boolean,
+  ): Promise<PlaylistPendingResolved<S>>;
+  registerJob(jobId: string, songId: string): void;
+  createTrack(song: S, playbackToken: string): Promise<T>;
+  addTrackToMap(track: T): void;
+  getNativeQueueLength(): Promise<number>;
+  insertNativeTrack(position: number, track: T): Promise<void>;
+  notifyQueueUpdate(): void;
+}
+
+export interface PlaylistRun<S = unknown, T = unknown> {
   runId: number;
   playlistId: string;
   /** Per playlist index: already in the native queue. */
   enqueued: boolean[];
   /** Pending entries by playlist index. */
-  entries: Map<number, PlaylistPendingEntry>;
+  entries: Map<number, PlaylistPendingEntry<T>>;
   /** In-flight polls by jobId — one poll per job, however many entries (or taps) share it. */
-  jobs: Map<string, Promise<ResolvedStream>>;
+  jobs: Map<string, Promise<PlaylistPendingResolved<S>>>;
+  deps: PlaylistPendingDeps<S, T>;
+  /**
+   * True once the initial queue has settled (loaded, or definitively
+   * unloadable with background work kicked off). Taps join entry pipelines
+   * only on joinable runs; anything earlier rebuilds the playlist instead of
+   * inserting into a queue that is about to be replaced.
+   */
+  joinable: boolean;
 }
 
 export interface PlaylistPendingInput {
@@ -47,38 +96,68 @@ export interface PlaylistPendingInput {
 }
 
 let playlistRunId = 0;
-let activeRun: PlaylistRun | null = null;
+// The live run, tracked by identity only: currency checks compare runId, so
+// the registry never needs the run's generic payload types.
+let activeRun: { runId: number } | null = null;
 
-/** Start tracking a playlist load, superseding any previous run. */
-export function startPlaylistRun(
+/**
+ * Start tracking a playlist load, superseding any previous run. The run
+ * starts non-joinable: taps rebuild until markPlaylistRunJoinable publishes
+ * the settled queue.
+ */
+export function startPlaylistRun<S, T>(
   playlistId: string,
   total: number,
   pending: PlaylistPendingInput[],
-): PlaylistRun {
-  const run: PlaylistRun = {
+  deps: PlaylistPendingDeps<S, T>,
+): PlaylistRun<S, T> {
+  const run: PlaylistRun<S, T> = {
     runId: ++playlistRunId,
     playlistId,
     enqueued: new Array(total).fill(false),
     entries: new Map(
       pending.map((entry) => [
         entry.playlistIndex,
-        { ...entry, state: "resolving" as const },
+        { ...entry, state: "pending" as const, pipeline: null },
       ]),
     ),
     jobs: new Map(),
+    deps,
+    joinable: false,
   };
   activeRun = run;
   return run;
 }
 
-export function getActivePlaylistRun(): PlaylistRun | null {
-  return activeRun;
+/**
+ * The live run, if any. Callers instantiate `S`/`T` with their own song and
+ * track shapes (exactly one production instantiation exists).
+ */
+export function getActivePlaylistRun<S, T>(): PlaylistRun<S, T> | null {
+  return activeRun as PlaylistRun<S, T> | null;
 }
 
-export function isPlaylistRunCurrent(
-  run: PlaylistRun | null | undefined,
+export function isPlaylistRunCurrent<S, T>(
+  run: PlaylistRun<S, T> | null | undefined,
 ): boolean {
   return !!run && activeRun?.runId === run.runId;
+}
+
+/** True when taps may join this run's entry pipelines. */
+export function isPlaylistRunJoinable<S, T>(
+  run: PlaylistRun<S, T> | null | undefined,
+): boolean {
+  if (!run) return false;
+  return isPlaylistRunCurrent(run) && run.joinable;
+}
+
+/**
+ * Publish the run for tap-joining once its initial queue has settled.
+ * No-op on a superseded run. Never throws.
+ */
+export function markPlaylistRunJoinable<S, T>(run: PlaylistRun<S, T>): void {
+  if (!isPlaylistRunCurrent(run)) return;
+  run.joinable = true;
 }
 
 /**
@@ -91,8 +170,8 @@ export function cancelPlaylistResolution(): void {
   activeRun = null;
 }
 
-export function getPlaylistEntryState(
-  run: PlaylistRun,
+export function getPlaylistEntryState<S, T>(
+  run: PlaylistRun<S, T>,
   playlistIndex: number,
 ): PlaylistEntryState | null {
   if (!isPlaylistRunCurrent(run)) return null;
@@ -100,8 +179,8 @@ export function getPlaylistEntryState(
 }
 
 /** Mark a playlist index enqueued without polling (ready tracks, resolved start track). */
-export function markPlaylistEntryEnqueued(
-  run: PlaylistRun,
+export function markPlaylistEntryEnqueued<S, T>(
+  run: PlaylistRun<S, T>,
   playlistIndex: number,
 ): void {
   if (!isPlaylistRunCurrent(run)) return;
@@ -110,18 +189,16 @@ export function markPlaylistEntryEnqueued(
   if (entry) entry.state = "ready";
 }
 
-function getOrPollJob(
-  run: PlaylistRun,
-  entry: PlaylistPendingEntry,
-): Promise<ResolvedStream> {
+function getOrPollJob<S, T>(
+  run: PlaylistRun<S, T>,
+  entry: PlaylistPendingEntry<T>,
+): Promise<PlaylistPendingResolved<S>> {
   const inFlight = run.jobs.get(entry.jobId);
   if (inFlight) return inFlight;
   // First poller registers the job (Processing tab shows progress via the
   // shared poller's store writes); joiners reuse the same promise.
-  useJobStore
-    .getState()
-    .addJob(entry.jobId, { payload: { songId: entry.songId } });
-  const created = resolveJob(entry.jobId, undefined, () =>
+  run.deps.registerJob(entry.jobId, entry.songId);
+  const created = run.deps.pollJob(entry.jobId, () =>
     !isPlaylistRunCurrent(run),
   );
   run.jobs.set(entry.jobId, created);
@@ -139,12 +216,13 @@ function getOrPollJob(
  * timeouts, and failure marking included). A failed entry retries on the
  * next call. Throws the poll error, or JobPollingCancelledError when the
  * run was superseded or the server switched. Touches no queue state — the
- * caller inserts the result.
+ * start-track path inserts the result into the initial queue itself, while
+ * background and tap paths go through ensurePlaylistEntryInserted.
  */
-export async function resolvePlaylistEntry(
-  run: PlaylistRun,
+export async function resolvePlaylistEntry<S, T>(
+  run: PlaylistRun<S, T>,
   playlistIndex: number,
-): Promise<ResolvedStream> {
+): Promise<PlaylistPendingResolved<S>> {
   const entry = run.entries.get(playlistIndex);
   if (!entry) {
     throw new Error("Unknown playlist entry");
@@ -152,7 +230,7 @@ export async function resolvePlaylistEntry(
   if (!isPlaylistRunCurrent(run)) {
     throw new JobPollingCancelledError();
   }
-  if (entry.state === "failed") {
+  if (entry.state === "pending" || entry.state === "failed") {
     entry.state = "resolving";
   }
   try {
@@ -167,68 +245,107 @@ export async function resolvePlaylistEntry(
 }
 
 /**
- * Claim-once insert of a resolved entry at its playlist-order position. The
- * claim is synchronous, so a background resolution racing a tap inserts
- * exactly once — the loser sees 'ready' and gets null. Returns the inserted
- * track, or null when stale, already claimed, or superseded mid-insert.
- * Insert failures mark the entry failed (taps retry) and rethrow.
+ * Resolve one pending entry and insert it at its playlist-order position,
+ * joining the in-flight pipeline when one exists. The claim is synchronous:
+ * the first caller owns the pipeline while every later caller (background
+ * task, tap, double tap) awaits the same promise — one poll per job, one
+ * native insertion per entry, no competing rebuilds. The entry reads ready
+ * only after the insertion succeeds; terminal failure releases ownership so
+ * a retry starts fresh. Throws the resolve/insert error, or
+ * JobPollingCancelledError when the run was superseded or the server
+ * switched (stale work never inserts into, marks, or notifies a replaced
+ * queue). Callers join joinable runs only (see isPlaylistRunJoinable).
  */
-export async function insertResolvedPlaylistEntry(
-  run: PlaylistRun,
+export function ensurePlaylistEntryInserted<S, T>(
+  run: PlaylistRun<S, T>,
   playlistIndex: number,
-  resolved: ResolvedStream,
-): Promise<PlaybackTrack | null> {
+): Promise<T> {
   const entry = run.entries.get(playlistIndex);
-  if (!entry || !isPlaylistRunCurrent(run) || entry.state !== "resolving") {
-    return null;
+  if (!entry) {
+    return Promise.reject(new Error("Unknown playlist entry"));
   }
-  entry.state = "ready";
+  if (!isPlaylistRunCurrent(run)) {
+    return Promise.reject(new JobPollingCancelledError());
+  }
+  if (entry.pipeline) return entry.pipeline;
+  if (entry.state === "ready") {
+    // Only the start-track path marks ready without a pipeline, and its
+    // track is already in the queue: reject loudly rather than inserting a
+    // duplicate. (The tap path skips ready entries before reaching here.)
+    return Promise.reject(new Error("Playlist entry is already inserted"));
+  }
+  const pipeline = runEntryPipeline(run, entry);
+  entry.pipeline = pipeline;
+  // Release ownership on terminal failure so a retry starts fresh (clearing
+  // a dead run's entry is harmless). Fulfilled pipelines stay: late joiners
+  // reuse the inserted track. This branch also guarantees the rejection is
+  // always handled, even with no joiners.
+  void pipeline.then(undefined, () => {
+    if (entry.pipeline === pipeline) {
+      entry.pipeline = null;
+    }
+  });
+  return pipeline;
+}
+
+async function runEntryPipeline<S, T>(
+  run: PlaylistRun<S, T>,
+  entry: PlaylistPendingEntry<T>,
+): Promise<T> {
   try {
-    const track = await createPlaybackTrack(
+    const resolved = await resolvePlaylistEntry(run, entry.playlistIndex);
+    if (!isPlaylistRunCurrent(run)) {
+      throw new JobPollingCancelledError();
+    }
+    entry.state = "inserting";
+    const track = await run.deps.createTrack(
       resolved.song,
       resolved.playbackToken,
     );
-    if (!isPlaylistRunCurrent(run)) return null;
-    usePlaybackStore.getState().addTrackToMap(track);
-    const queue = await TrackPlayer.getQueue();
-    if (!isPlaylistRunCurrent(run)) return null;
+    if (!isPlaylistRunCurrent(run)) {
+      throw new JobPollingCancelledError();
+    }
+    run.deps.addTrackToMap(track);
+    const queueLength = await run.deps.getNativeQueueLength();
+    if (!isPlaylistRunCurrent(run)) {
+      throw new JobPollingCancelledError();
+    }
     // Manual adds/removals shift the native queue after the load, so the
     // playlist-order position clamps to the live length.
     const position = Math.min(
-      countEnqueuedBefore(run.enqueued, playlistIndex),
-      queue.length,
+      countEnqueuedBefore(run.enqueued, entry.playlistIndex),
+      queueLength,
     );
-    await TrackPlayer.insertMediaItem(position, track as any);
-    if (!isPlaylistRunCurrent(run)) return null;
-    run.enqueued[playlistIndex] = true;
-    usePlaybackStore.getState().notifyQueueUpdate();
+    await run.deps.insertNativeTrack(position, track);
+    if (!isPlaylistRunCurrent(run)) {
+      throw new JobPollingCancelledError();
+    }
+    run.enqueued[entry.playlistIndex] = true;
+    entry.state = "ready";
+    run.deps.notifyQueueUpdate();
     return track;
   } catch (error) {
-    if (isPlaylistRunCurrent(run)) {
-      entry.state = "failed";
+    if (!isPlaylistRunCurrent(run) || isJobPollingCancelled(error)) {
+      throw error;
     }
+    entry.state = "failed";
     throw error;
   }
 }
 
 /**
- * Fire-and-forget background resolution: poll, then insert. Silent on
- * failure and cancellation — the entry retries when tapped, and the
- * Processing tab shows the shared job state. Never throws, never touches a
- * superseded run's queue.
+ * Fire-and-forget background resolution: join (or start) the entry pipeline.
+ * Silent on failure and cancellation — the entry retries when tapped, and
+ * the Processing tab shows the shared job state. Never throws, never touches
+ * a superseded run's queue.
  */
-export function resolvePlaylistEntryInBackground(
-  run: PlaylistRun,
+export function resolvePlaylistEntryInBackground<S, T>(
+  run: PlaylistRun<S, T>,
   playlistIndex: number,
 ): void {
-  void (async () => {
-    try {
-      const resolved = await resolvePlaylistEntry(run, playlistIndex);
-      await insertResolvedPlaylistEntry(run, playlistIndex, resolved);
-    } catch (error) {
-      if (!isPlaylistRunCurrent(run) || isJobPollingCancelled(error)) return;
-      // Terminal failure is already recorded on the entry (resolve/insert
-      // mark it failed); the track retries when tapped.
-    }
-  })();
+  void ensurePlaylistEntryInserted(run, playlistIndex).then(undefined, (error: unknown) => {
+    if (!isPlaylistRunCurrent(run) || isJobPollingCancelled(error)) return;
+    // Terminal failure is already recorded on the entry; the track retries
+    // when tapped.
+  });
 }

@@ -1,6 +1,10 @@
 import { playbackApi } from "@/features/playback/api/playback.api";
 import type { PlayJobResponse, ResolvedStream } from "../types";
 import { useJobStore } from "../store/useJobStore";
+import {
+  isJobPollingCancelled,
+  JobPollingCancelledError,
+} from "./jobCancellation";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -29,16 +33,8 @@ export function getPollingGeneration(): number {
   return pollingGeneration;
 }
 
-export class JobPollingCancelledError extends Error {
-  constructor() {
-    super('Job polling cancelled (server switched)');
-    this.name = 'JobPollingCancelledError';
-  }
-}
-
-export function isJobPollingCancelled(error: unknown): boolean {
-  return error instanceof JobPollingCancelledError;
-}
+// Re-exported so every existing importer keeps working unchanged.
+export { isJobPollingCancelled, JobPollingCancelledError };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

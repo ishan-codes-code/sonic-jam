@@ -120,6 +120,13 @@
 > 75→77, `useCollection` 110→115, `CollectionScreen` 483→498,
 > `library/types` 48→53, services barrel 17→34); suites 22/39/43/11 green.
 > Working tree: **223 files, 25,476 lines**. Re-baseline on commit.
+> Structural delta (feat/local-storage, pending-insertion race fix): entry
+> pipelines with per-entry ownership (`playlistPendingService` 234→351,
+> `playlistPendingService.test` 406 with 8 tests, `usePlayer` 948→987 with
+> production deps + joinable publishes, services barrel 34→38),
+> +`playback/services/jobCancellation.ts` (21, shared cancel signal),
+> `pollingResolver` 239→235 (re-export).
+> Working tree: **225 files, 26,059 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -333,16 +340,18 @@
 | `src/features/playback/api/playbackApi.ts` | 56 | `resolveStream()`: ready-vs-job dispatch + payload validation + pre-request polling-generation capture |
 | `src/features/playback/api/recommendationApi.ts` | 51 | `getRecommendations()` mapping + silent `[]` on error |
 | `src/features/playback/hooks/index.ts` | 2 | Re-exports `usePlayer`, `useSmartQueue` |
-| `src/features/playback/hooks/usePlayer.ts` | 948 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation; pending-aware `playPlaylist` + `skipToPlaylistIndex` |
+| `src/features/playback/hooks/usePlayer.ts` | 987 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation; pending-aware `playPlaylist` + pipeline-joining `skipToPlaylistIndex`; production pending-track deps |
 | `src/features/playback/hooks/useProgressSyncAuth.ts` | 50 | Native progress-sync header auth (`setProgressSyncToken` + hook) |
 | `src/features/playback/hooks/useSmartQueue.ts` | 26 | Transition listener + `loadRecommendations()` trigger |
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
-| `src/features/playback/services/index.ts` | 34 | Service barrel (named exports, incl. playlist pending-track runs) |
+| `src/features/playback/services/index.ts` | 38 | Service barrel (named exports, incl. playlist pending-track pipelines) |
 | `src/features/playback/services/jobResolver.ts` | 17 | `resolveJob()` abstraction over polling (passes expected generation + owner abort through) |
-| `src/features/playback/services/playlistPendingService.ts` | 234 | Playlist pending-track runs: deduped job polls, claim-once playlist-order inserts, run invalidation |
+| `src/features/playback/services/jobCancellation.ts` | 21 | Shared `JobPollingCancelledError` + predicate (zero imports; re-exported by the poller) |
+| `src/features/playback/services/playlistPendingService.ts` | 351 | Playlist pending-track runs: per-entry owned resolve→insert pipelines (pending/resolving/inserting/ready/failed), injected effects, joinable runs, run invalidation |
+| `src/features/playback/services/playlistPendingService.test.ts` | 406 | `node:test` (8): tap-join, double tap, no-duplicate-insert, failure+retry, replacement mid-resolve/mid-insert, order, joinability |
 | `src/features/playback/services/nativeSync.ts` | 152 | Shared native→store resync (`syncPlayerFromNative` + `syncTrackMetadata` + `resolveStoreStatus`); lazy store imports for headless use |
 | `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
-| `src/features/playback/services/pollingResolver.ts` | 239 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check + owner abort |
+| `src/features/playback/services/pollingResolver.ts` | 235 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check + owner abort (cancellation error shared via `jobCancellation`) |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
 | `src/features/playback/services/smartQueueService.ts` | 491 | Radio pipeline: recommend → enrich → resolve → fill native queue; consistent radio-generation checks on every async path |
 | `src/features/playback/services/trackPlayerService.ts` | 91 | Headless `PlaybackService`: remote controls + background transition + native resync |

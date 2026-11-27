@@ -26,18 +26,39 @@ import {
 } from "../utils/streamHelpers";
 import {
   cancelPlaylistResolution,
+  ensurePlaylistEntryInserted,
   getActivePlaylistRun,
   getPlaylistEntryState,
-  insertResolvedPlaylistEntry,
   isPlaylistRunCurrent,
+  isPlaylistRunJoinable,
   markPlaylistEntryEnqueued,
+  markPlaylistRunJoinable,
   resolvePlaylistEntry,
   resolvePlaylistEntryInBackground,
   startPlaylistRun,
+  type PlaylistPendingDeps,
 } from "../services/playlistPendingService";
+import { resolveJob } from "../services/jobResolver";
 import { ensureFreshToken } from "@/features/auth/utils/tokenManager";
 import { toastImperative } from "@/features/Toast/utils/toastSingleton";
 import { isJobPollingCancelled } from "../services/pollingResolver";
+
+// Production effects for playlist pending-track pipelines: the shared job
+// poller, job registration, track building, track-map mirror + queue
+// revision, and the native queue length/insert calls.
+const playlistPendingDeps: PlaylistPendingDeps<Song, PlaybackTrack> = {
+  pollJob: (jobId, shouldAbort) => resolveJob(jobId, undefined, shouldAbort),
+  registerJob: (jobId, songId) =>
+    useJobStore.getState().addJob(jobId, { payload: { songId } }),
+  createTrack: (song, playbackToken) =>
+    createPlaybackTrack(song, playbackToken),
+  addTrackToMap: (track) => usePlaybackStore.getState().addTrackToMap(track),
+  getNativeQueueLength: async () => (await TrackPlayer.getQueue()).length,
+  insertNativeTrack: async (position, track) => {
+    await TrackPlayer.insertMediaItem(position, track as any);
+  },
+  notifyQueueUpdate: () => usePlaybackStore.getState().notifyQueueUpdate(),
+};
 
 export function usePlayer() {
   const isSettingUp = useRef(false);
@@ -532,6 +553,8 @@ export function usePlayer() {
 
         // Track the run from here: every background resolution below aborts
         // when another playlist (or a single play/stop/switch) supersedes it.
+        // The run publishes for tap-joining only once the initial queue has
+        // settled (see markPlaylistRunJoinable below).
         const run = startPlaylistRun(
           playlistId,
           songs.length,
@@ -540,6 +563,7 @@ export function usePlayer() {
             jobId: normalizeJobId(entry.track.jobId) ?? "",
             songId: entry.track.id,
           })),
+          playlistPendingDeps,
         );
         const isRunCurrent = () => isPlaylistRunCurrent(run) && isCurrent();
 
@@ -584,6 +608,9 @@ export function usePlayer() {
             // Unplayable (no URL, no job): fall back without polling.
             const fallback = nearestReadyIndex(readyAt, effectiveStart + 1);
             if (fallback === -1) {
+              // Nothing will load: publish so taps join the background work
+              // instead of rebuilding into the same state.
+              markPlaylistRunJoinable(run);
               resolveRestInBackground();
               store.setError(
                 "This playlist has no playable tracks right now.",
@@ -608,7 +635,9 @@ export function usePlayer() {
               );
               if (!isRunCurrent()) return;
               store.addTrackToMap(startTrack);
-              markPlaylistEntryEnqueued(run, effectiveStart);
+              // The entry marks enqueued only after the initial queue lands
+              // (see below): until setMediaItems succeeds it is still
+              // resolving, never ready.
             } catch (e) {
               if (!isPlaylistRunCurrent(run) || isJobPollingCancelled(e)) {
                 return;
@@ -629,6 +658,7 @@ export function usePlayer() {
                 });
                 // The rest keep resolving in the background; the user can tap
                 // them once they land.
+                markPlaylistRunJoinable(run);
                 resolveRestInBackground();
                 return;
               }
@@ -687,6 +717,11 @@ export function usePlayer() {
           // The actual backend stream URL — never a guessed path.
           store.setStream(startSong.streamUrl);
         }
+        // The initial queue landed: a resolved start track is truly enqueued
+        // now, and taps may join entry pipelines instead of rebuilding.
+        // Both calls no-op on a superseded run.
+        if (startTrack) markPlaylistEntryEnqueued(run, effectiveStart);
+        markPlaylistRunJoinable(run);
         store.notifyQueueUpdate();
 
         // Pending tracks resolve without blocking playback; each one slots
@@ -779,10 +814,11 @@ export function usePlayer() {
   // ── Playlist: Skip to a playlist position ──────────────────────
   // Resolution-aware skip for playlists with pending tracks, where playlist
   // positions and native queue indices diverge. Ready tracks skip by song
-  // identity (live queue read — robust against shifts); pending tracks await
-  // the shared in-flight resolution (never a duplicate poll), insert, then
-  // skip; failed tracks retry. Falls back to a full playlist rebuild when
-  // the live queue no longer belongs to this playlist run.
+  // identity (live queue read — robust against shifts); pending tracks join
+  // the entry's in-flight pipeline (never a duplicate poll or insertion) and
+  // skip once it lands; failed tracks retry. Falls back to a full playlist
+  // rebuild when the live queue no longer belongs to this playlist run, or
+  // the run's initial queue has not settled yet.
   const skipToPlaylistIndex = useCallback(
     async (
       songs: PlaylistTrack[],
@@ -794,8 +830,12 @@ export function usePlayer() {
       const target = songs[playlistIndex];
       if (!target) return;
 
-      const run = getActivePlaylistRun();
-      if (!run || run.playlistId !== playlistId || !isPlaylistRunCurrent(run)) {
+      const run = getActivePlaylistRun<Song, PlaybackTrack>();
+      if (
+        !run ||
+        run.playlistId !== playlistId ||
+        !isPlaylistRunJoinable(run)
+      ) {
         await playPlaylist(songs, playlistIndex, playlistId, playbackToken);
         return;
       }
@@ -837,8 +877,9 @@ export function usePlayer() {
           return;
         }
 
-        // Pending or failed: join the shared resolution (a tap racing the
-        // background poll reuses its promise), insert once, then skip.
+        // Pending, resolving, inserting, or failed: join the entry pipeline
+        // (a tap racing the background work awaits the same operation — one
+        // poll, one insertion), then skip to the inserted track.
         store.setPendingJobId(normalizeJobId(target.jobId));
         toastImperative.show({
           type: "info",
@@ -848,11 +889,9 @@ export function usePlayer() {
               : "Downloading track...",
         });
         try {
-          const resolved = await resolvePlaylistEntry(run, playlistIndex);
+          const track = await ensurePlaylistEntryInserted(run, playlistIndex);
           if (!isPlaylistRunCurrent(run)) return;
-          await insertResolvedPlaylistEntry(run, playlistIndex, resolved);
-          if (!isPlaylistRunCurrent(run)) return;
-          if (!(await skipToSongId(resolved.song.id))) {
+          if (!(await skipToSongId(track.song.id))) {
             await playPlaylist(songs, playlistIndex, playlistId, playbackToken);
           }
         } finally {

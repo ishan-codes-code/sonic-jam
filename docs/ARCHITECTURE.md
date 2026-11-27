@@ -128,6 +128,13 @@
   579→703, `useSetupWizard` 448→572, `SetupStorageStep` 139→279,
   `serverValidation` 210→244; `getPlaybackUrl()` removed. Working tree:
   **223 files, 25,476 lines**. Re-baseline the commit hash on commit.
+- Structural delta (feat/local-storage, pending-insertion race fix):
+  per-entry owned pipelines (pending/resolving/inserting/ready/failed),
+  injected effects, joinable runs. +`playback/services/jobCancellation.ts`
+  (21) +`playlistPendingService.test.ts` (406, 8 tests);
+  `playlistPendingService` 234→351, `usePlayer` 948→987, barrel 34→38.
+  Working tree: **225 files, 26,059 lines**.
+  Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 
@@ -294,13 +301,14 @@ src/features/
 │       components/PlaylistGridItem.tsx  components/PlaylistListItem.tsx
 ├── miniplayer/                   # persistent mini player (1 file)
 │   └── screens/MiniplayerScreen.tsx
-├── playback/                     # audio engine + queue + radio (43 files, largest slice)
+├── playback/                     # audio engine + queue + radio (45 files, largest slice)
 │   ├── index.ts  types/index.ts  utils/playbackHelpers.ts  utils/streamHelpers.ts
 │   ├── api/index.ts  api/playback.api.ts  api/playbackApi.ts  api/recommendationApi.ts
 │   ├── hooks/index.ts  hooks/usePlayer.ts  hooks/useProgressSyncAuth.ts  hooks/useSmartQueue.ts
 │   ├── screens/PlayerScreen.tsx
-│   ├── services/index.ts  services/jobResolver.ts  services/nativeSync.ts
-│   ├── services/playlistPendingService.ts  services/playerSetup.ts
+│   ├── services/index.ts  services/jobResolver.ts  services/jobCancellation.ts
+│   ├── services/nativeSync.ts  services/playlistPendingService.ts
+│   ├── services/playerSetup.ts
 │   ├── services/pollingResolver.ts  services/repeatManager.ts
 │   ├── services/smartQueueService.ts  services/trackPlayerService.ts
 │   ├── store/index.ts  store/useJobStore.ts  store/usePlaybackStore.ts  store/useSmartQueueStore.ts
