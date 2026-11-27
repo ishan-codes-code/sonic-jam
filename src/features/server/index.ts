@@ -21,6 +21,7 @@ export type { ServerStatus } from './store/serverStore';
 export {
   checkServerConnection,
   parseHealthPayload,
+  parseStorageModes,
 } from './api/serverValidation';
 export type {
   HealthDbState,
@@ -28,18 +29,23 @@ export type {
   HealthStorage,
   ServerCheckFailureCode,
   ServerCheckResult,
+  StorageMode,
 } from './api/serverValidation';
 export {
   API_KEY_FIELD_KEYS,
   buildConfigPatch,
+  getCurrentStorage,
   getSetupStatus,
+  hasStoredStorageConfig,
   missingSetupFields,
   PLAYBACK_FIELD_KEYS,
   pollHealthUntilReady,
   R2_FIELD_KEYS,
   redactSecrets,
+  requiredKeysForMode,
   saveSetupConfig,
   SETUP_CONFIG_KEYS,
+  STORAGE_MODE_KEY,
   validateWorkerStreamUrl,
 } from './api/setupApi';
 export type {

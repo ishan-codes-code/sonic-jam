@@ -106,6 +106,20 @@
 > `ServerSetupScreen` 176→177, `ServerManagementScreen` 241→242); suites
 > 19/27/43/19 green.
 > Working tree: **219 files, 23,641 lines**. Re-baseline on commit.
+> Structural delta (feat/local-storage, Local storage mode): health/setup
+> advertise + parse `storageModes` (`serverValidation` 210→244,
+> `serverValidation.test` 338→409 with 22 tests, `setupApi` 579→703,
+> `setupApi.test` 546→774 with 39 tests, `setupNavigation.test` 1227→1229);
+> wizard mode selector + local path (`useSetupWizard` 448→572,
+> `SetupStorageStep` 139→279, `SetupWizardScreen` 148→166, barrel 103→109);
+> pending playlist tracks (`usePlayer` 694→948, +`playback/services/
+> playlistPendingService.ts` 234, +`playback/utils/streamHelpers.ts` 124 +
+> `streamHelpers.test.ts` 196 with 11 tests, `pollingResolver` 231→239 with
+> owner abort, `jobResolver` 16→17, `playbackHelpers` 45→47 with
+> `getPlaybackUrl()` removed, `playback/types` 177→188, `serverSwitch`
+> 75→77, `useCollection` 110→115, `CollectionScreen` 483→498,
+> `library/types` 48→53, services barrel 17→34); suites 22/39/43/11 green.
+> Working tree: **223 files, 25,476 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -241,8 +255,8 @@
 | `src/features/collections/components/CollectionAlbumHeader.tsx` | 231 | Album/playlist hero header + share † |
 | `src/features/collections/components/SongListCard.tsx` | 211 | Memoized track row with active/remove states † |
 | `src/features/collections/components/StickyCollectionHeader.tsx` | 196 | Collapsing blur header on scroll † |
-| `src/features/collections/hooks/useCollection.ts` | 110 | Remote-vs-local fetch + mapping into `Collection` |
-| `src/features/collections/screens/CollectionScreen.tsx` | 483 | Collection detail screen (largest non-playback file) † |
+| `src/features/collections/hooks/useCollection.ts` | 115 | Remote-vs-local fetch + mapping into `Collection` (pending playlist shapes pass through untouched) |
+| `src/features/collections/screens/CollectionScreen.tsx` | 498 | Collection detail screen (largest non-playback file; resolution-aware skip for pending playlists) † |
 
 ## `src/features/drawer` — 5 files, 231 lines
 
@@ -284,7 +298,7 @@
 | File | Lines | Responsibility |
 |------|------:|----------------|
 | `src/features/library/index.ts` | 19 | Barrel (screen, hook, components, API, types) |
-| `src/features/library/types/index.ts` | 48 | `Playlist`, payloads, `PlaylistWithSongs` (+`playbackToken`) |
+| `src/features/library/types/index.ts` | 53 | `Playlist`, payloads, `PlaylistWithSongs` (+`playbackToken`), `PlaylistSong` (+pending `jobId`) |
 | `src/features/library/api/library.api.ts` | 71 | `libraryApi`: playlist CRUD + song add/remove + lookups |
 | `src/features/library/hooks/useLibrary.ts` | 116 | Playlists query + all playlist mutations with invalidation |
 | `src/features/library/screens/LibraryScreen.tsx` | 265 | Library tab screen † |
@@ -310,22 +324,25 @@
 | File | Lines | Responsibility |
 |------|------:|----------------|
 | `src/features/playback/index.ts` | 6 | Barrel re-exporting api/components/hooks/services/store/types |
-| `src/features/playback/types/index.ts` | 177 | `Song`, `PlaySongDto`, `PlayResponseDto`, `PlaybackTrack`, store-state types |
-| `src/features/playback/utils/playbackHelpers.ts` | 45 | `createPlaybackTrack()`, display-only `getPlaybackUrl()`, no-op `syncQueueTokens()` |
+| `src/features/playback/types/index.ts` | 188 | `Song`, `PlaylistTrack` (playlist `jobId`), `PlaySongDto`, `PlayResponseDto`, `PlaybackTrack`, store-state types |
+| `src/features/playback/utils/playbackHelpers.ts` | 47 | `createPlaybackTrack()` (verbatim `streamUrl` + playback-token headers, throws on empty URL), no-op `syncQueueTokens()` |
+| `src/features/playback/utils/streamHelpers.ts` | 124 | Pure playability predicates (`hasUsableStreamUrl`, pending detection, partition, header builder, insert positions, ready fallback) |
+| `src/features/playback/utils/streamHelpers.test.ts` | 196 | `node:test` (11): playability/pending/partition/headers/positions/fallback |
 | `src/features/playback/api/index.ts` | 1 | Re-exports `playbackApi` resolver module |
 | `src/features/playback/api/playback.api.ts` | 25 | Endpoints: `POST /song/play`, `GET /song/job/:id`, `POST /listening/event` |
 | `src/features/playback/api/playbackApi.ts` | 56 | `resolveStream()`: ready-vs-job dispatch + payload validation + pre-request polling-generation capture |
 | `src/features/playback/api/recommendationApi.ts` | 51 | `getRecommendations()` mapping + silent `[]` on error |
 | `src/features/playback/hooks/index.ts` | 2 | Re-exports `usePlayer`, `useSmartQueue` |
-| `src/features/playback/hooks/usePlayer.ts` | 566 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation |
+| `src/features/playback/hooks/usePlayer.ts` | 948 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation; pending-aware `playPlaylist` + `skipToPlaylistIndex` |
 | `src/features/playback/hooks/useProgressSyncAuth.ts` | 50 | Native progress-sync header auth (`setProgressSyncToken` + hook) |
 | `src/features/playback/hooks/useSmartQueue.ts` | 26 | Transition listener + `loadRecommendations()` trigger |
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
-| `src/features/playback/services/index.ts` | 17 | Service barrel (named exports) |
-| `src/features/playback/services/jobResolver.ts` | 16 | `resolveJob()` abstraction over polling (passes expected generation through) |
+| `src/features/playback/services/index.ts` | 34 | Service barrel (named exports, incl. playlist pending-track runs) |
+| `src/features/playback/services/jobResolver.ts` | 17 | `resolveJob()` abstraction over polling (passes expected generation + owner abort through) |
+| `src/features/playback/services/playlistPendingService.ts` | 234 | Playlist pending-track runs: deduped job polls, claim-once playlist-order inserts, run invalidation |
 | `src/features/playback/services/nativeSync.ts` | 152 | Shared native→store resync (`syncPlayerFromNative` + `syncTrackMetadata` + `resolveStoreStatus`); lazy store imports for headless use |
 | `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
-| `src/features/playback/services/pollingResolver.ts` | 231 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check |
+| `src/features/playback/services/pollingResolver.ts` | 239 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check + owner abort |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
 | `src/features/playback/services/smartQueueService.ts` | 491 | Radio pipeline: recommend → enrich → resolve → fill native queue; consistent radio-generation checks on every async path |
 | `src/features/playback/services/trackPlayerService.ts` | 91 | Headless `PlaybackService`: remote controls + background transition + native resync |
@@ -394,31 +411,31 @@
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 103 | Barrel (screens, hooks, store, validation, setup API + key registries, config/storage/switch/session-generation utils, setup navigation decisions + auth-init gate) |
-| `src/features/server/api/serverValidation.ts` | 210 | `checkServerConnection()`: unauthenticated `GET /health` probe (Sonic identity + `setupRequired` routing only with a healthy db, `db` ok/down/unconfigured incl. the setupRequired+unconfigured Termux-installer branch, informational `features.storage`), 15s timeout, inline failure codes |
-| `src/features/server/api/serverValidation.test.ts` | 338 | `node:test` (19): /health routing (ready/setup/down/Termux-unconfigured/invalid), malformed/non-Sonic, network/timeout, no-auth probe |
-| `src/features/server/api/setupApi.ts` | 579 | Setup API: `GET /setup/status`, `POST /setup/config` (`X-Setup-Token`, plain fetch), storage/playback/API-key registries, required-field + worker-URL validation, patch builder, secret redaction, readiness poll |
-| `src/features/server/api/setupApi.test.ts` | 546 | `node:test` (27): token validation, headers/payload, locked/configured fields, worker URL, restart polling, redaction |
+| `src/features/server/index.ts` | 109 | Barrel (screens, hooks, store, validation, setup API + key registries, storage-mode helpers, config/storage/switch/session-generation utils, setup navigation decisions + auth-init gate) |
+| `src/features/server/api/serverValidation.ts` | 244 | `checkServerConnection()`: unauthenticated `GET /health` probe (Sonic identity + `setupRequired` routing only with a healthy db, `db` ok/down/unconfigured incl. the setupRequired+unconfigured Termux-installer branch, informational `features.storage` incl. `local`, `storageModes` capabilities defaulting to R2-only), 15s timeout, inline failure codes |
+| `src/features/server/api/serverValidation.test.ts` | 409 | `node:test` (22): /health routing (ready/setup/down/Termux-unconfigured/invalid), Local + storageModes, R2-only default, malformed/non-Sonic, network/timeout, no-auth probe |
+| `src/features/server/api/setupApi.ts` | 703 | Setup API: `GET /setup/status` (modes), `POST /setup/config` (`X-Setup-Token`, plain fetch), mode/storage/playback/API-key registries, per-mode required keys, patch builder, secret redaction, mode-verifying readiness poll, current-storage probe |
+| `src/features/server/api/setupApi.test.ts` | 774 | `node:test` (39): token validation, headers/payload, modes, locked/configured fields, worker URL, restart polling + mode verification, redaction, current storage |
 | `src/features/server/components/SecretInput.tsx` | 91 | Labeled credential field, masked by default with visibility toggle; theme muted placeholder |
 | `src/features/server/components/SetupTokenStep.tsx` | 97 | Wizard step 1: setup-token explainer + secure input + validate CTA |
-| `src/features/server/components/SetupStorageStep.tsx` | 139 | Wizard step 2: required R2 fields (locked/configured variants) + continue CTA |
+| `src/features/server/components/SetupStorageStep.tsx` | 279 | Wizard step 2: mode selector (advertised modes only) + R2 fields or local explainer + no-migration warning + continue CTA |
 | `src/features/server/components/SetupPlaybackStep.tsx` | 123 | Wizard step 3: worker stream URL + playback secret (locked/configured variants, worker-match note) + continue CTA |
 | `src/features/server/components/SetupApiKeysStep.tsx` | 113 | Wizard step 4: YouTube + Last.fm keys (locked/configured variants) + save CTA |
 | `src/features/server/components/SetupFinishStep.tsx` | 112 | Wizard step 5: one-shot save/poll progress, retry + back-to-edit on failure |
 | `src/features/server/components/SetupField.tsx` | 97 | Shared wizard field idioms: plain text field (theme muted placeholder), environment-managed note, keep-saved-value note |
 | `src/features/server/hooks/useServerSetup.ts` | 156 | Setup form state + validate → check → atomic commit connect flow (every Continue re-validates via /health; Login review mode prefills current with Continue/Connect CTA; ServerGuard owns wizard/first-launch routing, hook owns same-URL ready follow-ups; attempt/mounted guards; success toasts) |
 | `src/features/server/hooks/useServerSwitch.ts` | 148 | Switch form state + validate → confirm → shared `performServerSwitch()` (unconfigured targets blocked with inline guidance) |
-| `src/features/server/hooks/useSetupWizard.ts` | 448 | Wizard state machine: token → storage → playback → API keys → finish; local-only step validation, one-shot save + saved-patch-aware retry, memory-only secrets, stale-async guards, poll cancellation; validates the kept session on completion (home/login); `beforeRemove` releases `setupPending` on abandon |
+| `src/features/server/hooks/useSetupWizard.ts` | 572 | Wizard state machine: token → storage (mode + R2/local) → playback (R2 only) → API keys → finish; mode preselect from current storage, local patch + mode-verified poll, local-only step validation, one-shot save + saved-patch-aware retry, memory-only secrets, stale-async guards, poll cancellation; validates the kept session on completion (home/login); `beforeRemove` releases `setupPending` on abandon |
 | `src/features/server/screens/ServerManagementScreen.tsx` | 242 | In-app server switching screen: current server ("Configured" label), prefilled edit, validate → confirm, inline states; theme muted placeholder |
 | `src/features/server/screens/ServerSetupScreen.tsx` | 177 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring; theme muted placeholder |
-| `src/features/server/screens/SetupWizardScreen.tsx` | 148 | Wizard shell: back button, 5-step progress, per-step content wiring |
+| `src/features/server/screens/SetupWizardScreen.tsx` | 166 | Wizard shell: back button, mode-aware step progress (playback hidden in local mode), per-step content wiring |
 | `src/features/server/store/serverStore.ts` | 175 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration (storage-failure safe), first-time stale-token clear, `setApiServerUrl` apply; atomic `setServer` commits `setupPending` + `setupRequestId` for guard routing; idempotent `markSetupPending()` for boot discovery |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverConfig.test.ts` | 177 | `node:test` (19): URL normalization/validation edge cases + localhost detection |
 | `src/features/server/utils/serverStorage.ts` | 45 | AsyncStorage `@sonic_server_url` get/set/clear; reads throw on storage failure (missing ≠ unreadable) |
-| `src/features/server/utils/serverSwitch.ts` | 75 | Shared `performServerSwitch()`: session invalidate + atomic session reset → `setServer` (setup-flag plumb-through) → player recreate |
+| `src/features/server/utils/serverSwitch.ts` | 77 | Shared `performServerSwitch()`: session invalidate + atomic session reset (incl. playlist-run cancel) → `setServer` (setup-flag plumb-through) → player recreate |
 | `src/features/server/utils/setupNavigation.ts` | 360 | Pure guard/connect decisions (single owner per redirect, one-shot commit routing, AuthGuard setup yield, review-aware connect follow-ups, idle-only auth-init gate, stale-attempt guard); shared by `_layout` guards, `useServerSetup`, and tests |
-| `src/features/server/utils/setupNavigation.test.ts` | 1227 | `node:test` (43): wizard-over-login, unmount-proof commits, login-once, loading silence, no competing redirects, pending yield, retryable failures, superseded attempts, review re-commit routing, boot discovery, completion landing, abandon routing, init-once gate, startup sequences |
+| `src/features/server/utils/setupNavigation.test.ts` | 1229 | `node:test` (43): wizard-over-login, unmount-proof commits, login-once, loading silence, no competing redirects, pending yield, retryable failures, superseded attempts, review re-commit routing, boot discovery, completion landing, abandon routing, init-once gate, startup sequences |
 | `src/features/server/utils/sessionGeneration.ts` | 53 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards + `onSessionInvalidated()` settle hook |
 
 ## `src/features/settings` — 3 files, 155 lines

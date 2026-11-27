@@ -22,8 +22,12 @@ All endpoints require Bearer auth unless noted.
 - Response — one of:
   - Ready: `{ type: "ready", song: Song, playbackToken: string }`
   - Job: `{ type: "job", jobId: string }` → client registers the job and polls.
-- Audio playback uses `song.streamUrl` with header `Authorization: Bearer <playbackToken>`.
-  (`GET {BASE_URL}/song/:id` exists only as a display helper client-side; it is NOT the audio source.)
+- Audio playback uses `song.streamUrl` verbatim with header `Authorization: Bearer <playbackToken>`.
+  The app never rebuilds the URL or substitutes the user's access token (the stream
+  endpoints reject login tokens). Headers ride on the RNTP `MediaItem` itself, so they
+  are attached before the native player starts loading — no delay workaround exists.
+  Playback state (`store.streamUrl`) always holds the backend-provided URL; a missing
+  URL reads as pending/unavailable, never as a playable URL.
 
 ## `GET /song/job/:jobId` — **[Confirmed]** (as handled by the client)
 

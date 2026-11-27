@@ -76,9 +76,15 @@ function getNextPollInterval(pollCount: number): number {
 
 // ─── Implementation ─────────────────────────────────────────────────────────
 
+/**
+ * Poll a download job to completion. `shouldAbort` (playlist pending-track
+ * resolutions) aborts the loop with JobPollingCancelledError just like a
+ * server switch — same silent treatment by callers, no failed marking.
+ */
 export async function pollJobStatus(
   jobId: string,
   expectedGeneration?: number,
+  shouldAbort?: () => boolean,
 ): Promise<ResolvedStream> {
   let startTime = Date.now();
   let pollCount = 0;
@@ -96,7 +102,7 @@ export async function pollJobStatus(
   }
 
   while (Date.now() - startTime < MAX_TIMEOUT) {
-    if (generation !== pollingGeneration) {
+    if (generation !== pollingGeneration || shouldAbort?.()) {
       throw new JobPollingCancelledError();
     }
 
@@ -104,7 +110,7 @@ export async function pollJobStatus(
 
     try {
       response = await playbackApi.getJob(jobId);
-      if (generation !== pollingGeneration) {
+      if (generation !== pollingGeneration || shouldAbort?.()) {
         throw new JobPollingCancelledError();
       }
     } catch (error: any) {
@@ -115,8 +121,10 @@ export async function pollJobStatus(
       }
       // A fetch that was in flight during a server switch rejects here with
       // an old-server error: never mark the job failed (the registry was
-      // already cleared and the write would resurrect it).
-      if (generation !== pollingGeneration) {
+      // already cleared and the write would resurrect it). Same for an
+      // owner-aborted poll (e.g. its playlist was replaced): the failure
+      // belongs to no live run, so it must not mark anything either.
+      if (generation !== pollingGeneration || shouldAbort?.()) {
         throw new JobPollingCancelledError();
       }
       const isInternetDrop =
@@ -220,7 +228,7 @@ export async function pollJobStatus(
   }
 
   const timeoutMsg = "Job timeout";
-  if (generation !== pollingGeneration) {
+  if (generation !== pollingGeneration || shouldAbort?.()) {
     throw new JobPollingCancelledError();
   }
   jobStore.updateJob(jobId, {

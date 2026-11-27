@@ -6,7 +6,9 @@ import {
   API_KEY_FIELD_KEYS,
   ApiKeyFieldKey,
   buildConfigPatch,
+  getCurrentStorage,
   getSetupStatus,
+  hasStoredStorageConfig,
   missingSetupFields,
   PLAYBACK_FIELD_KEYS,
   PlaybackFieldKey,
@@ -15,8 +17,13 @@ import {
   R2FieldKey,
   saveSetupConfig,
   SetupStatusInfo,
+  STORAGE_MODE_KEY,
   validateWorkerStreamUrl,
 } from '../api/setupApi';
+import type {
+  HealthStorage,
+  StorageMode,
+} from '../api/serverValidation';
 
 export type SetupWizardStep =
   | 'token'
@@ -35,11 +42,13 @@ export type FinishPhase =
 /**
  * Backend setup wizard state machine.
  *
- * Steps: setup token → storage (R2) → playback → API keys → finish. The
- * database is configured via the Termux installer only — the wizard never
- * collects or sends it. Every field is required unless the backend reports
- * it already configured (blank keeps the saved value) or environment-locked
- * (shown as managed, never sent).
+ * Steps: setup token → storage (mode + R2 fields) → playback (R2 only) →
+ * API keys → finish. Local mode skips the playback step entirely: it needs
+ * no R2 credentials, no worker stream URL, and no playback secret (the
+ * backend generates one on save). The database is configured via the Termux
+ * installer only — the wizard never collects or sends it. Every field is
+ * required unless the backend reports it already configured (blank keeps the
+ * saved value) or environment-locked (shown as managed, never sent).
  *
  * No step saves: intermediate steps only validate locally, and Finish sends
  * all entered values in ONE request, then polls /health to readiness. When
@@ -50,9 +59,10 @@ export type FinishPhase =
  * errors, step navigation, and finish retries.
  *
  * Completion is reported only after public /health confirms
- * `setupRequired === false` and `db === 'ok'`; a successful save alone
- * (the API exits right after responding) never finishes the wizard. The kept
- * session is then validated: home when it is still valid, login otherwise.
+ * `setupRequired === false` and `db === 'ok'` (plus the submitted storage
+ * mode on backends that advertise modes); a successful save alone (the API
+ * exits right after responding) never finishes the wizard. The kept session
+ * is then validated: home when it is still valid, login otherwise.
  */
 export function useSetupWizard() {
   const router = useRouter();
@@ -67,7 +77,13 @@ export function useSetupWizard() {
   const [isValidatingToken, setIsValidatingToken] = useState(false);
   const [status, setStatus] = useState<SetupStatusInfo | null>(null);
 
-  // Step 2 — storage (memory only).
+  // Step 2 — storage (memory only). The mode defaults to R2 and is
+  // re-initialized from the server's current mode on token validation, so an
+  // already-configured server keeps its mode unless the user changes it.
+  const [storageMode, setStorageModeState] = useState<StorageMode>('r2');
+  const [currentStorage, setCurrentStorage] = useState<HealthStorage | null>(
+    null,
+  );
   const [r2, setR2State] = useState<Record<R2FieldKey, string>>({
     R2_ACCOUNT_ID: '',
     R2_ACCESS_KEY: '',
@@ -109,6 +125,9 @@ export function useSetupWizard() {
   // Guards runFinish itself: a double-invoked effect must not submit the
   // patch twice. Cleared on retry and when leaving the step.
   const finishRunRef = useRef(false);
+  // True once the user picks a storage mode explicitly: a token re-submit
+  // (back + continue) keeps their choice instead of re-initializing it.
+  const modeTouchedRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -139,6 +158,12 @@ export function useSetupWizard() {
   function setSetupToken(next: string) {
     setSetupTokenState(next);
     setTokenError(null);
+  }
+
+  function setStorageMode(next: StorageMode) {
+    modeTouchedRef.current = true;
+    setStorageModeState(next);
+    setStorageError(null);
   }
 
   function setR2Field(key: R2FieldKey, next: string) {
@@ -184,7 +209,12 @@ export function useSetupWizard() {
     setTokenError(null);
     setIsValidatingToken(true);
     try {
-      const result = await getSetupStatus(serverUrl, token);
+      // The current storage mode rides along for free: it needs no token, so
+      // it runs concurrently with the status check instead of delaying it.
+      const [result, current] = await Promise.all([
+        getSetupStatus(serverUrl, token),
+        getCurrentStorage(serverUrl),
+      ]);
       if (!isCurrent()) return;
       if (!result.ok) {
         setTokenError(result.message);
@@ -192,6 +222,27 @@ export function useSetupWizard() {
       }
       setSetupTokenState(token);
       setStatus(result.status);
+      setCurrentStorage(current);
+      const modes = result.status.storageModes;
+      const modeLocked = result.status.envLocked.includes(STORAGE_MODE_KEY);
+      if (modeLocked) {
+        // Environment-owned: the selector is disabled and the choice follows
+        // the server's effective mode (R2 when unknown).
+        setStorageModeState(current === 'local' ? 'local' : 'r2');
+      } else if (!modeTouchedRef.current) {
+        // Fresh facts, untouched choice: preselect the server's current mode
+        // so an already-configured server is never silently switched.
+        const initial =
+          current === 'local' || current === 'r2' ? current : 'r2';
+        setStorageModeState(
+          modes.includes(initial) ? initial : (modes[0] ?? 'r2'),
+        );
+      } else {
+        // Keep the user's choice, clamped to what this backend offers.
+        setStorageModeState((prev) =>
+          modes.includes(prev) ? prev : (modes[0] ?? 'r2'),
+        );
+      }
       setStep('storage');
     } catch {
       if (!isCurrent()) return;
@@ -227,6 +278,12 @@ export function useSetupWizard() {
   }
 
   function submitStorage() {
+    if (storageMode === 'local') {
+      // Local mode has no storage fields: R2 credentials are neither
+      // required nor collected, and the playback step is skipped.
+      setStep('apikeys');
+      return;
+    }
     const error = requiredError(r2, R2_FIELD_KEYS);
     if (error) {
       setStorageError(error);
@@ -281,14 +338,23 @@ export function useSetupWizard() {
     setFinishError(null);
     try {
       // Single save of every entered value (locked keys and blanks excluded
-      // by the patch builder). An empty patch means everything is already
-      // configured or managed — just check readiness. A retry skips the save
-      // when the values are unchanged since the last successful one, so a
-      // poll-only retry never restarts the API again.
-      const patch = buildConfigPatch(
-        { ...r2, ...playback, ...apiKeys },
-        status?.envLocked ?? [],
-      );
+      // by the patch builder). Local mode sends only its API keys plus the
+      // mode itself — never R2, worker, or playback-secret fields. An empty
+      // patch means everything is already configured or managed — just check
+      // readiness. A retry skips the save when the values are unchanged since
+      // the last successful one, so a poll-only retry never restarts the API
+      // again.
+      const values =
+        storageMode === 'local' ? { ...apiKeys } : { ...r2, ...playback, ...apiKeys };
+      const patch = buildConfigPatch(values, status?.envLocked ?? []);
+      // STORAGE_MODE goes out only when the backend advertised modes (older
+      // backends reject unknown keys) and the environment does not own it.
+      const submitsMode =
+        (status?.storageModesAdvertised ?? false) &&
+        !(status?.envLocked.includes(STORAGE_MODE_KEY) ?? false);
+      if (submitsMode) {
+        patch[STORAGE_MODE_KEY] = storageMode;
+      }
       const lastSaved = lastSavedPatchRef.current;
       if (Object.keys(patch).length > 0 && !patchesEqual(patch, lastSaved)) {
         setFinishPhase('saving');
@@ -309,6 +375,10 @@ export function useSetupWizard() {
       pollControllerRef.current = controller;
       const poll = await pollHealthUntilReady(serverUrl, {
         signal: controller.signal,
+        // Verify the submitted mode took effect. Omitted whenever no mode
+        // was submitted (older backends, environment-owned mode), where the
+        // pre-existing readiness rule applies unchanged.
+        expectStorage: submitsMode ? storageMode : undefined,
       });
       if (!isCurrent()) return;
       if (!poll.ready) {
@@ -316,7 +386,11 @@ export function useSetupWizard() {
         setFinishError(
           poll.lastDb === 'down'
             ? "The server came back, but its database is unavailable. Make sure the database is reachable, then retry — your settings are kept."
-            : 'The server is still starting. Wait a moment, then retry — your settings are kept.',
+            : submitsMode &&
+                poll.lastStorage !== null &&
+                poll.lastStorage !== storageMode
+              ? `The server is ready, but its storage is "${poll.lastStorage}" instead of "${storageMode}". The backend environment may override the mode — check the server configuration, then retry.`
+              : 'The server is still starting. Wait a moment, then retry — your settings are kept.',
         );
         return;
       }
@@ -358,7 +432,7 @@ export function useSetupWizard() {
       setFinishPhase('failed');
       setFinishError('Something went wrong. Check your connection and try again.');
     }
-  }, [router, serverUrl, setupToken, r2, playback, apiKeys, status]);
+  }, [router, serverUrl, setupToken, r2, playback, apiKeys, status, storageMode]);
 
   // Auto-run once on entering the finish step.
   useEffect(() => {
@@ -393,10 +467,52 @@ export function useSetupWizard() {
       setStep('apikeys');
       return;
     }
+    // Local mode has no playback step: API keys back straight to storage.
     setStep(
-      step === 'storage' ? 'token' : step === 'playback' ? 'storage' : 'playback',
+      step === 'storage'
+        ? 'token'
+        : step === 'playback'
+          ? 'storage'
+          : storageMode === 'local'
+            ? 'storage'
+            : 'playback',
     );
   }
+
+  const storageModes: StorageMode[] = status?.storageModes ?? ['r2'];
+  const storageModesAdvertised = status?.storageModesAdvertised ?? false;
+  const storageModeLocked = isLocked(STORAGE_MODE_KEY);
+  const showModeSelector =
+    storageModesAdvertised && !storageModeLocked && storageModes.length > 1;
+
+  /**
+   * No-migration warning for an already-configured server whose stored mode
+   * differs from the selection (or cannot be confirmed). Null on fresh
+   * servers and when the selection matches the stored mode.
+   */
+  const storageSwitchWarning: string | null = (() => {
+    if (!hasStoredStorageConfig(status?.configured ?? {})) {
+      return null;
+    }
+    if (currentStorage === 'local' || currentStorage === 'r2') {
+      if (currentStorage === storageMode) {
+        return null;
+      }
+      const currentLabel =
+        currentStorage === 'local' ? 'local storage' : 'Cloudflare R2';
+      const nextLabel =
+        storageMode === 'local' ? 'local storage' : 'Cloudflare R2';
+      return (
+        `This server already uses ${currentLabel}. Switching to ${nextLabel} ` +
+        'does not move existing songs — they stay where they are, and anything ' +
+        'missing is downloaded again on demand.'
+      );
+    }
+    return (
+      'This server already has storage configured. Changing modes does not ' +
+      'move existing songs — they stay where they are.'
+    );
+  })();
 
   const isBusy =
     isValidatingToken || finishPhase === 'saving' || finishPhase === 'polling';
@@ -412,6 +528,14 @@ export function useSetupWizard() {
     status,
     isLocked,
     isConfigured,
+    storageMode,
+    setStorageMode,
+    storageModes,
+    storageModesAdvertised,
+    storageModeLocked,
+    showModeSelector,
+    storageSwitchWarning,
+    currentStorage,
     r2,
     setR2Field,
     storageError,

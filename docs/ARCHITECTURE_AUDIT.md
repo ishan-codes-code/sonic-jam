@@ -157,14 +157,16 @@ Findings that shape everything else:
   calls `POST /song/play` → `ready {song, playbackToken}` returns directly; `job {jobId}` → `resolveJob()` →
   `pollJobStatus()`. `createPlaybackTrack()` builds `{url: {uri: song.streamUrl, headers: {Authorization:
   Bearer playbackToken}}, mediaId: song.id, title/artist/artworkUrl/duration, mimeType audio/aac, song, source}`.
-  `getPlaybackUrl()` (`{BASE_URL}/song/:id`) is display state only, not the audio source.
+  `getPlaybackUrl()` (`{BASE_URL}/song/:id`) is gone: playback state holds the backend-provided `streamUrl` directly, `createPlaybackTrack()` throws on an empty URL, and no `{BASE_URL}`-derived playback URL remains (share links still use `MEDIA_URL`).
 - **Job polling. [Verified]** `pollingResolver.ts`: 5-min cap, staged backoff (2s/2s/11s dead-zone, then +2s to 10s
   cap), `busy` + `retryAfter` handling (shifts timeout, resets poll count), network-drop retry vs server-error fail,
   `useJobStore` updates (`waiting/active/completed/failed`). No `AbortSignal`.
 - **Queue ops. [Verified]** `hooks/usePlayer.ts` (`usePlayer()`): `play` (optimistic song + `pendingJobId`,
   force-replace when playlist active or `preserveQueue: false`, `clear/setMediaItems/insert/skip/play`,
-  `ensureSmartQueueActive()`), `playPlaylist` (single pre-resolved token for ALL tracks, `setMediaItems(tracks,
-  clampedIndex)`), `enqueue`, `playNext` (insert after current), `addToQueue` (append), `removeFromQueue[_BySongId]`
+  `ensureSmartQueueActive()`), `playPlaylist` (shared playlist token for ready tracks, per-track tokens
+  for job-resolved pendings, `setMediaItems(readyTracks, nativeStartIndex)` + playlist-order inserts as
+  pendings complete; `skipToPlaylistIndex` for resolution-aware taps), `enqueue`, `playNext` (insert after
+  current), `addToQueue` (append), `removeFromQueue[_BySongId]`
   (live-queue reads, never removes active), `seek` (with debug logs), `stop` (native stop/clear + `reset()`),
   `skipToNext/Previous/Index`, `toggleShuffle`, `toggleRepeatMode`, `syncSleepTimer`. `queueOpLock` is reset on
   hard queue replacement but never actually chains ops; `findAddToQueueInsertIndex` is defined but uncalled.

@@ -17,6 +17,7 @@ import AnimatedPressable from '@/components/AnimatedPressable';
 import { AlertCircle, RefreshCw, Music2, Share2, Pencil, Trash2, Play } from 'lucide-react-native';
 import { Icon } from '@/components/ui/icon';
 import { usePlaybackStore, usePlayer } from '@/features/playback';
+import { hasUsableStreamUrl } from '@/features/playback/utils/streamHelpers';
 import SongListCard from '../components/SongListCard';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/features/auth';
@@ -201,7 +202,15 @@ export const CollectionScreen = () => {
         },
     });
 
-    const { play, playPlaylist, skipToIndex, removeFromQueueBySongId } = usePlayer();
+    const { play, playPlaylist, skipToIndex, skipToPlaylistIndex, removeFromQueueBySongId } = usePlayer();
+
+    // Local backends serve missing-file tracks as streamUrl '' + jobId: those
+    // playlists need resolution-aware skipping (playlist positions diverge
+    // from native indices until every pending track lands).
+    const hasPendingTracks = useMemo(
+        () => (rawSongs ?? []).some((song) => !hasUsableStreamUrl(song.streamUrl)),
+        [rawSongs],
+    );
 
 
 
@@ -282,8 +291,14 @@ export const CollectionScreen = () => {
 
         if (collection && !collection.isRemote && rawSongs?.length && index !== -1) {
             if (isThisQueueActive) {
-                // Already playing this playlist -> skip directly to index
-                skipToIndex(index);
+                if (hasPendingTracks) {
+                    // Positions diverge from native indices until pending
+                    // tracks resolve — skip by identity, resolving on demand.
+                    void skipToPlaylistIndex(rawSongs, index, collection.id, playbackToken);
+                } else {
+                    // Already playing this playlist -> skip directly to index
+                    skipToIndex(index);
+                }
             } else {
                 // Play playlist starting from this index
                 playPlaylist(rawSongs, index, collection.id, playbackToken);
@@ -304,7 +319,7 @@ export const CollectionScreen = () => {
                 duration: Number(track.duration),
             });
         }
-    }, [play, playPlaylist, skipToIndex, collection, isThisQueueActive, rawSongs, playbackToken]);
+    }, [play, playPlaylist, skipToIndex, skipToPlaylistIndex, collection, isThisQueueActive, rawSongs, playbackToken, hasPendingTracks]);
 
     // ── List ─────────────────────────────────────────────────────────────────
     const renderItem = useCallback(

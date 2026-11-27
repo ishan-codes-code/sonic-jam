@@ -58,6 +58,17 @@ export type PlayResponseDto =
   | { type: "ready"; song: Song; playbackToken: string }
   | { type: "job"; jobId: string };
 
+/**
+ * A playlist track as served by GET /playlist/:id/songs. Ready tracks carry
+ * a playable `streamUrl`; tracks whose file is missing (Local backend)
+ * carry `streamUrl: ''` plus the `jobId` to resolve before playback. The
+ * `jobId` is the download job for that track — poll the job endpoint, then
+ * play the returned song.
+ */
+export type PlaylistTrack = Song & {
+  jobId?: string;
+};
+
 // ─────────────────────────────────────────
 // RNTP Types
 // ─────────────────────────────────────────

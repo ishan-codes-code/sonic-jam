@@ -73,6 +73,7 @@ const okReady = (serverUrl: string): ServerCheckResult => ({
   ok: true,
   serverUrl,
   storage: null,
+  storageModes: ['r2'],
   setupRequired: false,
 });
 
@@ -80,6 +81,7 @@ const okSetupRequired = (serverUrl: string): ServerCheckResult => ({
   ok: true,
   serverUrl,
   storage: null,
+  storageModes: ['r2'],
   setupRequired: true,
 });
 

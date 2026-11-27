@@ -26,7 +26,15 @@ export type ServerCheckFailureCode =
   | 'db-unconfigured'
   | 'db-down';
 
-export type HealthStorage = 'r2' | 'none';
+export type HealthStorage = 'r2' | 'local' | 'none';
+
+/**
+ * Storage modes a backend can be configured with. `storageModes` (plural) is
+ * the capability list the backend advertises; `storage` (singular) is the
+ * currently configured mode. Backends that predate the Local mode omit
+ * `storageModes`, which reads as R2-only.
+ */
+export type StorageMode = 'local' | 'r2';
 
 export type HealthDbState = 'ok' | 'down' | 'unconfigured';
 
@@ -34,6 +42,7 @@ export interface HealthPayload {
   setupRequired: boolean;
   db: HealthDbState;
   storage: HealthStorage | null;
+  storageModes: StorageMode[];
 }
 
 export type ServerCheckResult =
@@ -41,6 +50,7 @@ export type ServerCheckResult =
       ok: true;
       serverUrl: string;
       storage: HealthStorage | null;
+      storageModes: StorageMode[];
       setupRequired: boolean;
     }
   | { ok: false; code: ServerCheckFailureCode; message: string };
@@ -84,6 +94,7 @@ export function parseHealthPayload(body: unknown): HealthPayload | null {
     setupRequired: record.setupRequired,
     db,
     storage: parseStorage(record.features),
+    storageModes: parseStorageModes(record.features),
   };
 }
 
@@ -92,10 +103,30 @@ function parseStorage(features: unknown): HealthStorage | null {
     return null;
   }
   const storage = (features as { storage?: unknown }).storage;
-  if (storage === 'r2' || storage === 'none') {
+  if (storage === 'r2' || storage === 'local' || storage === 'none') {
     return storage;
   }
   return null;
+}
+
+/**
+ * Capability list for the setup wizard's mode selector. A missing or
+ * unusable value means an older R2-only backend, so it defaults to `['r2']`
+ * — never empty, so the wizard always has a mode to offer. Unknown entries
+ * are dropped, never trusted.
+ */
+export function parseStorageModes(features: unknown): StorageMode[] {
+  if (features === null || typeof features !== 'object') {
+    return ['r2'];
+  }
+  const modes = (features as { storageModes?: unknown }).storageModes;
+  if (!Array.isArray(modes)) {
+    return ['r2'];
+  }
+  const known = modes.filter(
+    (mode): mode is StorageMode => mode === 'local' || mode === 'r2',
+  );
+  return known.length > 0 ? [...new Set(known)] : ['r2'];
 }
 
 export async function checkServerConnection(
@@ -163,6 +194,7 @@ export async function checkServerConnection(
         ok: true,
         serverUrl: normalized,
         storage: health.storage,
+        storageModes: health.storageModes,
         setupRequired: true,
       };
     }
@@ -178,10 +210,12 @@ export async function checkServerConnection(
 
     // Storage readiness is informational only: R2 is not required to accept
     // a server URL, and its absence limits only storage-backed features.
+    // A Local backend is a valid Sonic server exactly like an R2 one.
     return {
       ok: true,
       serverUrl: normalized,
       storage: health.storage,
+      storageModes: health.storageModes,
       setupRequired: false,
     };
   } catch (error) {
