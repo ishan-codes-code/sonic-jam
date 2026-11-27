@@ -16,7 +16,10 @@ import type { PlaybackStatus, PlaybackTrack } from "../types";
  */
 export function mediaUrlToString(url: MediaUrl | undefined): string | undefined {
   if (typeof url === "string") return url;
-  if (url && typeof url === "object") return url.uri;
+  if (url && typeof url === "object") {
+    // RNTP 5.2+ allows a numeric uri (bundled asset); only strings resolve.
+    return typeof url.uri === "string" ? url.uri : undefined;
+  }
   return undefined;
 }
 
@@ -87,6 +90,77 @@ export async function syncTrackMetadata(fullTrack: PlaybackTrack): Promise<void>
   } catch (error) {
     console.warn("[nativeSync] syncTrackMetadata failed:", error);
   }
+}
+
+// One wait round polls the live queue this often, this many times:
+// 25 x 400 ms ≈ 10 s, matching the library's own controller-connect
+// timeout (MainThreadMediaController posts its timeout at 10 s).
+export const NATIVE_QUEUE_POLL_MS = 400;
+export const NATIVE_QUEUE_WAIT_ROUNDS = 25;
+
+export type NativeQueueWaitDeps = {
+  /** Resolves to the live native queue length; a throw counts as empty. */
+  getQueueLength: () => Promise<number>;
+  /** Tears down and re-runs native setup (discards buffered commands). */
+  recreate: () => Promise<unknown>;
+  /** Re-sends the caller's queue-building commands exactly once. */
+  rebuild: () => Promise<void>;
+  /** False once a newer play (or stop) has taken over. */
+  isCurrent: () => boolean;
+  sleep: (ms: number) => Promise<void>;
+};
+
+/**
+ * Waits for a non-empty native queue, recreating the player only when the
+ * queue stays empty. On 5.13+ the native controller queues commands while
+ * it connects and getQueue() reads empty until it is ready — so an empty
+ * queue usually means "still connecting", not "dead". Each wait round
+ * polls WITHOUT resending (re-sending while connecting would queue
+ * duplicates); each recreate is followed by exactly one rebuild, because
+ * the recreate discards whatever the old controller had buffered.
+ * A stale op bails promptly and skips further recreates/rebuilds.
+ * True = the native queue is non-empty. A rebuild throw propagates, so
+ * callers pass a swallowing tryRebuild wrapper.
+ */
+export async function waitForNativeQueue(
+  deps: NativeQueueWaitDeps,
+  pollMs = NATIVE_QUEUE_POLL_MS,
+  waitRounds = NATIVE_QUEUE_WAIT_ROUNDS,
+): Promise<boolean> {
+  const { getQueueLength, recreate, rebuild, isCurrent, sleep } = deps;
+  const queueAlive = async (): Promise<boolean> => {
+    try {
+      return (await getQueueLength()) > 0;
+    } catch {
+      return false;
+    }
+  };
+  const waitRound = async (): Promise<boolean> => {
+    for (let attempt = 0; attempt < waitRounds; attempt++) {
+      await sleep(pollMs);
+      if (!isCurrent()) return false;
+      if (await queueAlive()) return true;
+    }
+    return false;
+  };
+
+  // Healthy fast path: no added delay when the queue is already there.
+  if (await queueAlive()) return true;
+  // The controller may still be connecting: wait before any recreate.
+  if (await waitRound()) return true;
+  // A stale op skips the recreate: a newer op runs its own.
+  if (!isCurrent()) return false;
+  await recreate();
+  if (!isCurrent()) return false;
+  await rebuild();
+  if (await waitRound()) return true;
+  if (!isCurrent()) return false;
+  // One last chance: recreate again (fresh controller build), one single
+  // rebuild, one last wait before giving up.
+  await recreate();
+  if (!isCurrent()) return false;
+  await rebuild();
+  return waitRound();
 }
 
 /**

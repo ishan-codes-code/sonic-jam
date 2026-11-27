@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sonic",
     "slug": "sonic",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/sonicIcons/ios/AppIcon~ios-marketing.png",
     "scheme": "sonic",

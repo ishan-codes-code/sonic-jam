@@ -1,7 +1,7 @@
 import TrackPlayer from "@rntp/player";
 import { useCallback, useRef } from "react";
 import { recreatePlayer, setupPlayer } from "../services/playerSetup";
-import { isNativePlayerDead } from "../services/nativeSync";
+import { isNativePlayerDead, waitForNativeQueue } from "../services/nativeSync";
 import { resolveStream } from "../api/playbackApi";
 import { RepeatManager } from "../services/repeatManager";
 import {
@@ -62,15 +62,12 @@ export function usePlayer() {
     [],
   );
 
-  // ── Helper: Dead-player retry ──────────────────────────────────
-  // When Android has killed the native service, queue-building calls are
-  // silent no-ops and getQueue() stays empty. After a recreate the native
-  // MediaController reconnects asynchronously and commands sent before it
-  // connects are silently dropped, so poll + rebuild until the queue lands.
-  // rebuild() only runs while the queue is still empty — nothing is added
-  // twice. isCurrent bails the loop as soon as a newer op (or stop) takes
-  // over. True = the native queue is non-empty. Callers show the error +
-  // bail on false.
+  // ── Helper: Dead-player wait + recreate ──────────────────────────
+  // Thin wiring around waitForNativeQueue (see nativeSync.ts): waits for
+  // the queue to land before any recreate, then one rebuild per recreate.
+  // isCurrent bails the waits as soon as a newer op (or stop) takes over.
+  // True = the native queue is non-empty. Callers show the error + bail
+  // on false.
   const ensureNativeQueue = useCallback(
     async (
       rebuild: () => Promise<void>,
@@ -78,38 +75,13 @@ export function usePlayer() {
     ): Promise<boolean> => {
       const sleep = (ms: number) =>
         new Promise<void>((resolve) => setTimeout(resolve, ms));
-      const queueAlive = async (): Promise<boolean> => {
-        try {
-          return (await TrackPlayer.getQueue()).length > 0;
-        } catch {
-          return false;
-        }
-      };
-      const pollAndRebuild = async (): Promise<boolean> => {
-        for (let attempt = 0; attempt < 8; attempt++) {
-          await sleep(400);
-          if (!isCurrent()) return false;
-          if (await queueAlive()) return true;
-          if (!isCurrent()) return false;
-          await tryRebuild(rebuild);
-          if (await queueAlive()) return true;
-        }
-        return false;
-      };
-
-      try {
-        if ((await TrackPlayer.getQueue()).length > 0) return true;
-      } catch {
-        // Fall through to recreate — a throw also means dead.
-      }
-      await recreatePlayer();
-      if (await pollAndRebuild()) return true;
-      // A stale op skips the second recreate: a newer op runs its own.
-      if (!isCurrent()) return false;
-      // One last chance: recreate again (fresh controller build) + one
-      // more round of the same loop before giving up.
-      await recreatePlayer();
-      return pollAndRebuild();
+      return waitForNativeQueue({
+        getQueueLength: async () => (await TrackPlayer.getQueue()).length,
+        recreate: () => recreatePlayer(),
+        rebuild: () => tryRebuild(rebuild),
+        isCurrent,
+        sleep,
+      });
     },
     [tryRebuild],
   );
