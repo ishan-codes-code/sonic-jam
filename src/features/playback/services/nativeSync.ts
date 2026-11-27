@@ -16,7 +16,10 @@ import type { PlaybackStatus, PlaybackTrack } from "../types";
  */
 export function mediaUrlToString(url: MediaUrl | undefined): string | undefined {
   if (typeof url === "string") return url;
-  if (url && typeof url === "object") return url.uri;
+  if (url && typeof url === "object") {
+    // RNTP 5.2+ allows a numeric uri (bundled asset); only strings resolve.
+    return typeof url.uri === "string" ? url.uri : undefined;
+  }
   return undefined;
 }
 

@@ -85,10 +85,17 @@ export const RNTPQueueItem = React.memo(function RNTPQueueItem({
     const title = item.title;
     const artist = item.artist || item.song?.artists?.[0]?.name || "Unknown";
     const artwork = item.artworkUrl;
-    const artworkSource = useMemo(
-        () => (typeof artwork === "string" ? { uri: artwork } : artwork),
-        [artwork],
-    );
+    const artworkSource = useMemo(() => {
+        // RNTP 5.2+ allows a numeric uri (bundled asset); expo-image takes it as a bare number.
+        if (typeof artwork === "string") return { uri: artwork };
+        if (typeof artwork === "number") return artwork;
+        const uri = artwork?.uri;
+        if (typeof uri === "string") {
+            return artwork?.headers ? { uri, headers: artwork.headers } : { uri };
+        }
+        if (typeof uri === "number") return uri;
+        return undefined;
+    }, [artwork]);
 
     const active = usePlaybackStore((s) => isTrackActive(s.currentSong, item));
     const isPlaying = usePlaybackStore((s) => s.status === "playing");
