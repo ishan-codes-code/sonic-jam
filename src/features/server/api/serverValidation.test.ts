@@ -79,7 +79,8 @@ afterEach(() => {
   fetchCalls = 0;
 });
 
-// Authoritative backend health shapes (backend-sonic feat/setup-mode-health).
+// Authoritative backend health shapes (backend-sonic feat/setup-mode-health,
+// plus features.storage 'local' + storageModes from feat/local-storage).
 const READY_BODY = {
   app: 'sonic-backend',
   version: '0.0.1',
@@ -144,6 +145,7 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'https://sonic.example.com',
       storage: 'r2',
+      storageModes: ['r2'],
       setupRequired: false,
     });
   });
@@ -157,6 +159,7 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'https://sonic.example.com',
       storage: 'none',
+      storageModes: ['r2'],
       setupRequired: true,
     });
   });
@@ -181,6 +184,7 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'http://192.168.1.10:3000',
       storage: 'none',
+      storageModes: ['r2'],
       setupRequired: false,
     });
   });
@@ -195,8 +199,75 @@ describe('checkServerConnection via GET /health', () => {
       ok: true,
       serverUrl: 'https://sonic.example.com',
       storage: null,
+      storageModes: ['r2'],
       setupRequired: false,
     });
+  });
+
+  test('accepts a Local backend as a valid Sonic server', async () => {
+    respond(200, {
+      ...READY_BODY,
+      features: { storage: 'local', storageModes: ['local', 'r2'] },
+    });
+
+    const result = await checkServerConnection('https://sonic.example.com');
+
+    assert.deepEqual(result, {
+      ok: true,
+      serverUrl: 'https://sonic.example.com',
+      storage: 'local',
+      storageModes: ['local', 'r2'],
+      setupRequired: false,
+    });
+  });
+
+  test('older backends without storageModes read as R2-only', async () => {
+    respond(200, READY_BODY);
+
+    const result = await checkServerConnection('https://sonic.example.com');
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.ok ? result.storageModes : null, ['r2']);
+  });
+
+  test('unknown storage values stay informational, never a rejection', async () => {
+    for (const features of [
+      { storage: 's3' },
+      { storage: 'local', storageModes: ['local', 's3', 'r2', 42] },
+      { storage: 'r2', storageModes: [] },
+      { storage: 'r2', storageModes: 'r2' },
+    ]) {
+      respond(200, { ...READY_BODY, features });
+      const result = await checkServerConnection('https://sonic.example.com');
+      assert.equal(
+        result.ok,
+        true,
+        `features ${JSON.stringify(features)} rejected`,
+      );
+    }
+
+    respond(200, { ...READY_BODY, features: { storage: 's3' } });
+    const unknownStorage = await checkServerConnection(
+      'https://sonic.example.com',
+    );
+    assert.equal(
+      unknownStorage.ok ? unknownStorage.storage : 'rejected',
+      null,
+    );
+
+    respond(200, {
+      ...READY_BODY,
+      features: { storage: 'local', storageModes: ['local', 's3', 'r2', 42] },
+    });
+    const filtered = await checkServerConnection('https://sonic.example.com');
+    assert.deepEqual(filtered.ok ? filtered.storageModes : null, [
+      'local',
+      'r2',
+    ]);
+
+    respond(200, { ...READY_BODY, features: { storage: 'r2', storageModes: [] } });
+    const emptied = await checkServerConnection('https://sonic.example.com');
+    assert.deepEqual(emptied.ok ? emptied.storageModes : null, ['r2']);
   });
 
   test('db down reports a database-unavailable message', async () => {

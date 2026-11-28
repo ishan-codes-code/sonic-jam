@@ -3,6 +3,7 @@ import { tokenStorage } from '@/features/auth/utils/tokenStorage';
 import { resetPlaybackRecovery } from '@/features/playback/components/PlaybackSync';
 import { setProgressSyncToken } from '@/features/playback/hooks/useProgressSyncAuth';
 import { recreatePlayer } from '@/features/playback/services/playerSetup';
+import { cancelPlaylistResolution } from '@/features/playback/services/playlistPendingService';
 import { cancelAllJobPolling } from '@/features/playback/services/pollingResolver';
 import {
   cancelSmartQueueWork,
@@ -44,6 +45,7 @@ export async function performServerSwitch(
   //    every write to the new session).
   invalidateSession();
   cancelAllJobPolling();
+  cancelPlaylistResolution();
   cancelSmartQueueWork();
   resetSmartQueueRadio();
   useJobStore.getState().clearJobs();

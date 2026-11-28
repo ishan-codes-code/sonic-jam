@@ -1,6 +1,9 @@
 import {
   HealthDbState,
+  HealthStorage,
   parseHealthPayload,
+  parseStorageModes,
+  StorageMode,
 } from './serverValidation';
 
 // --------------------------------------------------------------------------
@@ -40,11 +43,18 @@ export const API_KEY_FIELD_KEYS = [
 
 export type ApiKeyFieldKey = (typeof API_KEY_FIELD_KEYS)[number];
 
+/** Storage mode selector key. Only ever sent as `"local"` or `"r2"`. */
+export const STORAGE_MODE_KEY = 'STORAGE_MODE' as const;
+
 /**
  * Every key the wizard may submit. The database URL is deliberately absent:
  * it is entered only in the Termux installer, never in the app.
+ * `STORAGE_MODE` is sent only to backends that advertise `storageModes` —
+ * older backends reject unknown keys, so their R2 patch stays exactly as it
+ * was.
  */
 export const SETUP_CONFIG_KEYS = [
+  STORAGE_MODE_KEY,
   ...R2_FIELD_KEYS,
   ...PLAYBACK_FIELD_KEYS,
   ...API_KEY_FIELD_KEYS,
@@ -123,6 +133,16 @@ export interface SetupStatusInfo {
   setupRequired: boolean;
   configured: Record<string, boolean>;
   envLocked: string[];
+  /**
+   * Effective storage modes the wizard may offer. Defaults to `['r2']` when
+   * the backend predates mode advertisement.
+   */
+  storageModes: StorageMode[];
+  /**
+   * True only when the backend actually sent `storageModes`. The wizard sends
+   * `STORAGE_MODE` solely in that case — older backends reject unknown keys.
+   */
+  storageModesAdvertised: boolean;
 }
 
 export type SetupStatusResult =
@@ -201,6 +221,7 @@ function parseSetupStatus(data: unknown): SetupStatusInfo | null {
     setupRequired?: unknown;
     configured?: unknown;
     envLocked?: unknown;
+    storageModes?: unknown;
   };
   if (typeof record.setupRequired !== 'boolean') {
     return null;
@@ -229,7 +250,13 @@ function parseSetupStatus(data: unknown): SetupStatusInfo | null {
     }
     envLocked.push(entry);
   }
-  return { setupRequired: record.setupRequired, configured, envLocked };
+  return {
+    setupRequired: record.setupRequired,
+    configured,
+    envLocked,
+    storageModes: parseStorageModes({ storageModes: record.storageModes }),
+    storageModesAdvertised: Array.isArray(record.storageModes),
+  };
 }
 
 // --------------------------------------------------------------------------
@@ -241,6 +268,13 @@ export interface SavedSetupConfig {
   setupRequired: boolean;
   migration?: { status: string; steps: string[] };
   restartRequired?: boolean;
+  /** Effective storage mode after the save (new backends only). */
+  storageMode?: StorageMode;
+  /**
+   * Names (never values) of secrets the backend generated during the save,
+   * e.g. the local-mode playback secret. Display-safe.
+   */
+  generatedKeys?: string[];
 }
 
 export type SaveSetupConfigResult =
@@ -295,6 +329,34 @@ export interface RequiredFieldOptions {
    * saved value, so blanks are allowed (the patch builder drops them).
    */
   configured?: Record<string, boolean>;
+}
+
+/**
+ * Wizard field keys required for a storage mode. R2 keeps the existing
+ * storage + playback + API-key fields; Local needs only the API keys — no R2
+ * credentials, no worker stream URL, and no playback secret (the backend
+ * generates and persists one during a local save).
+ */
+export function requiredKeysForMode(mode: StorageMode): readonly string[] {
+  if (mode === 'local') {
+    return API_KEY_FIELD_KEYS;
+  }
+  return [...R2_FIELD_KEYS, ...PLAYBACK_FIELD_KEYS, ...API_KEY_FIELD_KEYS];
+}
+
+/**
+ * True when the server already holds storage configuration (any R2 key, any
+ * playback key, or an explicit mode). Used to warn that picking a different
+ * mode switches storage without migrating existing songs.
+ */
+export function hasStoredStorageConfig(
+  configured: Record<string, boolean>,
+): boolean {
+  return (
+    configured[STORAGE_MODE_KEY] === true ||
+    R2_FIELD_KEYS.some((key) => configured[key] === true) ||
+    PLAYBACK_FIELD_KEYS.some((key) => configured[key] === true)
+  );
 }
 
 /**
@@ -472,6 +534,8 @@ function parseSavedConfig(data: unknown): SavedSetupConfig | null {
     setupRequired?: unknown;
     migration?: unknown;
     restartRequired?: unknown;
+    storageMode?: unknown;
+    generatedKeys?: unknown;
   };
   if (record.saved !== true || typeof record.setupRequired !== 'boolean') {
     return null;
@@ -486,6 +550,15 @@ function parseSavedConfig(data: unknown): SavedSetupConfig | null {
   }
   if (typeof record.restartRequired === 'boolean') {
     saved.restartRequired = record.restartRequired;
+  }
+  if (record.storageMode === 'local' || record.storageMode === 'r2') {
+    saved.storageMode = record.storageMode;
+  }
+  if (
+    Array.isArray(record.generatedKeys) &&
+    record.generatedKeys.every((key) => typeof key === 'string')
+  ) {
+    saved.generatedKeys = [...record.generatedKeys];
   }
   return saved;
 }
@@ -516,20 +589,29 @@ export interface HealthPollOptions {
   attemptTimeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
   signal?: AbortSignal;
+  /**
+   * When set, readiness additionally requires `features.storage` to equal
+   * this mode — the wizard passes its submitted selection so a save that did
+   * not take effect (e.g. an environment override) cannot finish silently.
+   * Omit for older backends, where storage never affects readiness.
+   */
+  expectStorage?: StorageMode;
 }
 
 export interface HealthPollResult {
   ready: boolean;
   lastDb: HealthDbState | null;
+  lastStorage: HealthStorage | null;
 }
 
 /**
  * Poll public /health until the backend reports setup complete
- * (`setupRequired === false` and `db === 'ok'`). Every failed attempt —
- * refused connection during the API restart, timeout, unparsable body — is
- * tolerated until the overall deadline; only then does the poll report
- * not-ready with the last known database state. Throws an `AbortError` when
- * `signal` aborts. Storage state never affects readiness.
+ * (`setupRequired === false` and `db === 'ok'`, plus the expected storage
+ * mode when `expectStorage` is set). Every failed attempt — refused
+ * connection during the API restart, timeout, unparsable body — is tolerated
+ * until the overall deadline; only then does the poll report not-ready with
+ * the last known database and storage state. Throws an `AbortError` when
+ * `signal` aborts.
  */
 export async function pollHealthUntilReady(
   serverUrl: string,
@@ -542,6 +624,7 @@ export async function pollHealthUntilReady(
   const sleep = options?.sleep ?? defaultSleep;
   const startedAt = Date.now();
   let lastDb: HealthDbState | null = null;
+  let lastStorage: HealthStorage | null = null;
 
   for (;;) {
     if (options?.signal?.aborted) {
@@ -561,8 +644,12 @@ export async function pollHealthUntilReady(
       );
       if (health !== null) {
         lastDb = health.db;
-        if (!health.setupRequired && health.db === 'ok') {
-          return { ready: true, lastDb };
+        lastStorage = health.storage;
+        const storageOk =
+          options?.expectStorage === undefined ||
+          health.storage === options.expectStorage;
+        if (!health.setupRequired && health.db === 'ok' && storageOk) {
+          return { ready: true, lastDb, lastStorage };
         }
       }
     } catch {
@@ -572,8 +659,45 @@ export async function pollHealthUntilReady(
       throw abortError();
     }
     if (Date.now() - startedAt >= timeoutMs) {
-      return { ready: false, lastDb };
+      return { ready: false, lastDb, lastStorage };
     }
     await sleep(intervalMs);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Current configured storage (public GET /health, one shot).
+// --------------------------------------------------------------------------
+
+interface CurrentStorageOptions {
+  timeoutMs?: number;
+}
+
+/**
+ * Read the server's currently configured storage mode from public /health.
+ * The wizard uses it to preselect the mode on an already-configured server
+ * instead of silently switching it. Fail-open: any failure yields null and
+ * the wizard falls back to R2.
+ */
+export async function getCurrentStorage(
+  serverUrl: string,
+  options?: CurrentStorageOptions,
+): Promise<HealthStorage | null> {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_STATUS_TIMEOUT_MS;
+  try {
+    const response = await fetchWithTimeout(
+      `${serverUrl}/health`,
+      {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      },
+      timeoutMs,
+    );
+    const health = parseHealthPayload(
+      await response.json().catch(() => null),
+    );
+    return health?.storage ?? null;
+  } catch {
+    return null;
   }
 }

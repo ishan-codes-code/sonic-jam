@@ -3,14 +3,19 @@ import { fetchRemoteAlbum } from '../api/collections.api';
 import { libraryApi } from '@/features/library/api/library.api';
 import { Collection, CollectionTrack } from '../types';
 import { PlaylistWithSongs } from '@/features/library/types';
-import type { Song } from '@/features/playback';
+import type { PlaylistTrack } from '@/features/playback';
 
 // ─── Result shape ─────────────────────────────────────────────────────────────
 
 interface CollectionResult {
     collection: Collection;
-    /** Full Song objects for local playlists — used by playPlaylist. Undefined for remote albums. */
-    rawSongs?: Song[];
+    /**
+     * Full playlist tracks for local playlists — used by playPlaylist.
+     * Undefined for remote albums. Missing-file tracks (Local backend) keep
+     * their `streamUrl: ''` + `jobId` pending shape for the player to
+     * resolve; they are never filtered or rewritten here.
+     */
+    rawSongs?: PlaylistTrack[];
     /** Playlist-scoped playback token returned by the API — pass straight to playPlaylist. */
     playbackToken?: string;
 }
@@ -77,7 +82,7 @@ function mapPlaylistToCollection(playlist: PlaylistWithSongs): CollectionResult 
             isPublic: playlist.isPublic,
             isSystem: playlist.isSystem,
         },
-        rawSongs: playlist.tracks as Song[],
+        rawSongs: playlist.tracks,
         playbackToken: playlist.playbackToken,
     };
 }

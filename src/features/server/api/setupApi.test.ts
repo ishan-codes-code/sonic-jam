@@ -17,14 +17,18 @@ import assert from 'node:assert/strict';
 import {
   API_KEY_FIELD_KEYS,
   buildConfigPatch,
+  getCurrentStorage,
   getSetupStatus,
+  hasStoredStorageConfig,
   missingSetupFields,
   PLAYBACK_FIELD_KEYS,
   pollHealthUntilReady,
   R2_FIELD_KEYS,
   redactSecrets,
+  requiredKeysForMode,
   saveSetupConfig,
   SETUP_CONFIG_KEYS,
+  STORAGE_MODE_KEY,
   validateWorkerStreamUrl,
 } from './setupApi';
 
@@ -126,8 +130,72 @@ describe('getSetupStatus', () => {
         setupRequired: true,
         configured: { R2_BUCKET: false, JWT_PLAYBACK_SECRET: true },
         envLocked: ['YOUTUBE_API_KEY'],
+        storageModes: ['r2'],
+        storageModesAdvertised: false,
       },
     });
+  });
+
+  test('parses advertised storage modes for the mode selector', async () => {
+    respond(200, {
+      setupRequired: true,
+      configured: {},
+      envLocked: [],
+      storageModes: ['local', 'r2'],
+    });
+
+    const result = await getSetupStatus(SERVER_URL, TOKEN);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      result.ok ? result.status.storageModes : null,
+      ['local', 'r2'],
+    );
+    assert.equal(
+      result.ok ? result.status.storageModesAdvertised : null,
+      true,
+    );
+  });
+
+  test('older backends without storageModes read as unadvertised R2-only', async () => {
+    respond(200, {
+      setupRequired: true,
+      configured: {},
+      envLocked: [],
+    });
+
+    const result = await getSetupStatus(SERVER_URL, TOKEN);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      result.ok ? result.status.storageModes : null,
+      ['r2'],
+    );
+    assert.equal(
+      result.ok ? result.status.storageModesAdvertised : null,
+      false,
+    );
+  });
+
+  test('drops unknown advertised modes but keeps the advertised flag', async () => {
+    respond(200, {
+      setupRequired: true,
+      configured: {},
+      envLocked: [],
+      storageModes: ['local', 's3'],
+    });
+
+    const result = await getSetupStatus(SERVER_URL, TOKEN);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      result.ok ? result.status.storageModes : null,
+      ['local'],
+    );
+    assert.equal(
+      result.ok ? result.status.storageModesAdvertised : null,
+      true,
+    );
   });
 
   test('rejects an invalid token without exposing it', async () => {
@@ -295,17 +363,103 @@ describe('saveSetupConfig', () => {
     assert.equal(timedOut.ok, false);
     assert.equal(timedOut.ok ? null : timedOut.code, 'timeout');
   });
+
+  test('parses the saved storage mode and generated key names', async () => {
+    respond(200, {
+      saved: true,
+      setupRequired: false,
+      restartRequired: true,
+      storageMode: 'local',
+      generatedKeys: ['JWT_PLAYBACK_SECRET'],
+    });
+
+    const result = await saveSetupConfig(SERVER_URL, TOKEN, {
+      STORAGE_MODE: 'local',
+      YOUTUBE_API_KEY: 'yt-key',
+      LASTFM_API_KEY: 'fm-key',
+    });
+
+    assert.deepEqual(result, {
+      ok: true,
+      result: {
+        saved: true,
+        setupRequired: false,
+        restartRequired: true,
+        storageMode: 'local',
+        generatedKeys: ['JWT_PLAYBACK_SECRET'],
+      },
+    });
+  });
+
+  test('ignores unknown saved storage modes and key lists', async () => {
+    respond(200, {
+      saved: true,
+      setupRequired: false,
+      storageMode: 's3',
+      generatedKeys: 'JWT_PLAYBACK_SECRET',
+    });
+
+    const result = await saveSetupConfig(SERVER_URL, TOKEN, {
+      R2_BUCKET: 'music',
+    });
+
+    assert.deepEqual(result, {
+      ok: true,
+      result: { saved: true, setupRequired: false },
+    });
+  });
 });
 
 describe('setup config keys', () => {
-  test('covers storage, playback, and API keys — never the database URL', () => {
+  test('covers mode, storage, playback, and API keys — never the database URL', () => {
     assert.deepEqual([...SETUP_CONFIG_KEYS], [
+      STORAGE_MODE_KEY,
       ...R2_FIELD_KEYS,
       ...PLAYBACK_FIELD_KEYS,
       ...API_KEY_FIELD_KEYS,
     ]);
-    assert.equal(SETUP_CONFIG_KEYS.length, 8);
+    assert.equal(SETUP_CONFIG_KEYS.length, 9);
     assert.ok(!SETUP_CONFIG_KEYS.includes('DATABASE_URL' as never));
+  });
+});
+
+describe('requiredKeysForMode', () => {
+  test('local mode needs only the API keys', () => {
+    assert.deepEqual([...requiredKeysForMode('local')], [
+      ...API_KEY_FIELD_KEYS,
+    ]);
+    const keys = requiredKeysForMode('local');
+    assert.ok(!keys.includes('R2_BUCKET'));
+    assert.ok(!keys.includes('WORKER_STREAM_URL'));
+    assert.ok(!keys.includes('JWT_PLAYBACK_SECRET'));
+  });
+
+  test('r2 mode keeps the existing storage, playback, and API keys', () => {
+    assert.deepEqual([...requiredKeysForMode('r2')], [
+      ...R2_FIELD_KEYS,
+      ...PLAYBACK_FIELD_KEYS,
+      ...API_KEY_FIELD_KEYS,
+    ]);
+  });
+});
+
+describe('hasStoredStorageConfig', () => {
+  test('detects stored R2, playback, and mode configuration', () => {
+    assert.equal(hasStoredStorageConfig({}), false);
+    assert.equal(
+      hasStoredStorageConfig({ YOUTUBE_API_KEY: true, LASTFM_API_KEY: true }),
+      false,
+    );
+    assert.equal(hasStoredStorageConfig({ R2_BUCKET: true }), true);
+    assert.equal(
+      hasStoredStorageConfig({ WORKER_STREAM_URL: true }),
+      true,
+    );
+    assert.equal(hasStoredStorageConfig({ STORAGE_MODE: true }), true);
+    assert.equal(
+      hasStoredStorageConfig({ R2_BUCKET: false, STORAGE_MODE: false }),
+      false,
+    );
   });
 });
 
@@ -447,7 +601,7 @@ describe('pollHealthUntilReady', () => {
       },
     });
 
-    assert.deepEqual(result, { ready: true, lastDb: 'ok' });
+    assert.deepEqual(result, { ready: true, lastDb: 'ok', lastStorage: 'none' });
     assert.deepEqual(sleeps, []);
   });
 
@@ -478,7 +632,7 @@ describe('pollHealthUntilReady', () => {
       },
     });
 
-    assert.deepEqual(result, { ready: true, lastDb: 'ok' });
+    assert.deepEqual(result, { ready: true, lastDb: 'ok', lastStorage: 'none' });
     assert.equal(fetchCalls, 4);
     assert.deepEqual(sleeps, [10, 10, 10]);
   });
@@ -502,6 +656,7 @@ describe('pollHealthUntilReady', () => {
 
     assert.equal(result.ready, false);
     assert.equal(result.lastDb, 'unconfigured');
+    assert.equal(result.lastStorage, 'none');
     assert.ok(sleeps.length >= 1 && sleeps.length <= 5);
   });
 
@@ -512,7 +667,47 @@ describe('pollHealthUntilReady', () => {
       sleep: async () => {},
     });
 
-    assert.deepEqual(result, { ready: true, lastDb: 'ok' });
+    assert.deepEqual(result, { ready: true, lastDb: 'ok', lastStorage: 'none' });
+  });
+
+  test('verifies the submitted storage mode when expected', async () => {
+    respond(200, {
+      ...READY_HEALTH,
+      features: { storage: 'local', storageModes: ['local', 'r2'] },
+    });
+
+    const matched = await pollHealthUntilReady(SERVER_URL, {
+      sleep: async () => {},
+      expectStorage: 'local',
+    });
+
+    assert.deepEqual(matched, {
+      ready: true,
+      lastDb: 'ok',
+      lastStorage: 'local',
+    });
+  });
+
+  test('a ready backend in the wrong mode never reads as ready', async () => {
+    respond(200, {
+      ...READY_HEALTH,
+      features: { storage: 'r2', storageModes: ['local', 'r2'] },
+    });
+    // Real short sleeps: the window is deadline-based, so instant fake
+    // sleeps would spin an unbounded number of iterations here.
+    const sleep = (ms: number): Promise<void> =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    const result = await pollHealthUntilReady(SERVER_URL, {
+      intervalMs: 10,
+      timeoutMs: 25,
+      sleep,
+      expectStorage: 'local',
+    });
+
+    assert.equal(result.ready, false);
+    assert.equal(result.lastDb, 'ok');
+    assert.equal(result.lastStorage, 'r2');
   });
 
   test('aborts promptly when the signal fires', async () => {
@@ -542,5 +737,38 @@ describe('pollHealthUntilReady', () => {
     assert.equal(lastUrl, `${SERVER_URL}/health`);
     assert.equal(headers().Authorization, undefined);
     assert.equal(headers()['X-Setup-Token'], undefined);
+  });
+});
+
+describe('getCurrentStorage', () => {
+  test('reads the configured mode from public /health', async () => {
+    respond(200, {
+      ...READY_HEALTH,
+      features: { storage: 'local', storageModes: ['local', 'r2'] },
+    });
+
+    const storage = await getCurrentStorage(SERVER_URL);
+
+    assert.equal(fetchCalls, 1);
+    assert.equal(lastUrl, `${SERVER_URL}/health`);
+    assert.equal(headers().Authorization, undefined);
+    assert.equal(storage, 'local');
+  });
+
+  test('fails open to null without throwing', async () => {
+    respond(200, { app: 'sonic-backend', setupRequired: false, db: 'ok' });
+    assert.equal(await getCurrentStorage(SERVER_URL), null);
+
+    respond(200, { statusCode: 404, message: 'Cannot GET /health' });
+    assert.equal(await getCurrentStorage(SERVER_URL), null);
+
+    failWithNetworkError();
+    assert.equal(await getCurrentStorage(SERVER_URL), null);
+
+    hangUntilAborted();
+    assert.equal(
+      await getCurrentStorage(SERVER_URL, { timeoutMs: 50 }),
+      null,
+    );
   });
 });

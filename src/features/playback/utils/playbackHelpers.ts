@@ -1,14 +1,8 @@
-import TrackPlayer from "@rntp/player";
-import { BASE_URL } from "@/api/apiClient";
-import { ensureFreshToken } from "@/features/auth/utils/tokenManager";
 import { PlaybackTrack, Song, TrackSource } from "../types";
-
-export function getPlaybackUrl(song: Song): string {
-  if (!BASE_URL) {
-    throw new Error("BASE_URL is not configured");
-  }
-  return `${BASE_URL}/song/${song.id}`;
-}
+import {
+  buildPlaybackHeaders,
+  hasUsableStreamUrl,
+} from "./streamHelpers";
 
 export async function createPlaybackTrack(
   song: Song,
@@ -18,10 +12,18 @@ export async function createPlaybackTrack(
   if (!song.id) {
     throw new Error("Song is missing id");
   }
+  // The native queue must never hold an unplayable URL: pending playlist
+  // tracks (streamUrl '') resolve through the job endpoint first, and every
+  // caller routes through this choke point.
+  if (!hasUsableStreamUrl(song.streamUrl)) {
+    throw new Error("Song has no playable stream URL yet");
+  }
 
-  const headers = {
-    Authorization: `Bearer ${playbackToken}`,
-  };
+  // The backend-provided stream URL goes to the native player verbatim —
+  // never rebuilt, never appended to — with the playback token (not the
+  // user's access token) attached up front in the track headers, so the
+  // headers are present before the native player starts loading.
+  const headers = buildPlaybackHeaders(playbackToken);
   return {
     url: { uri: song.streamUrl, headers },
     mediaId: song.id,

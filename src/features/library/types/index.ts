@@ -19,6 +19,11 @@ export interface PlayListReqPayload {
 
 export type PlaylistSong = Song & {
   position?: number;
+  /**
+   * Present only on missing-file tracks (Local backend): the track's
+   * `streamUrl` is '' and this job must resolve before playback.
+   */
+  jobId?: string;
 };
 
 export interface AddSongToPlaylistPayload {
@@ -42,7 +47,7 @@ export interface PlaylistWithSongs {
     name: string;
     email: string;
   }
-  tracks: Song[]
+  tracks: PlaylistSong[]
   playbackToken: string;
   createdAt: string;
   updatedAt: string;

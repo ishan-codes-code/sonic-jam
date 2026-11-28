@@ -19,7 +19,7 @@ Status today: NONE of this exists. Everything below is build-time static. Do not
 | 1 | `src/api/apiClient.ts` | `BASE_URL`, `MEDIA_URL`, `axios.create({baseURL})` | Baked at import; refresh uses `axios.post(BASE_URL/auth/refresh)` |
 | 2 | `src/features/auth/utils/tokenManager.ts` | `doRefresh()` | `fetch(BASE_URL/auth/refresh)` |
 | 3 | `src/features/playback/services/playerSetup.ts` | `PLAYER_CONFIG.progressSync.http.url` | Baked `${BASE_URL}/listening/progress-sync` at boot |
-| 4 | `src/features/playback/utils/playbackHelpers.ts` | `getPlaybackUrl()` | Returns `${BASE_URL}/song/:id`, throws if missing |
+| 4 | `src/features/playback/utils/playbackHelpers.ts` | (removed) `getPlaybackUrl()` | Gone: playback state holds the backend `streamUrl` directly; no `BASE_URL`-derived playback URL remains |
 | 5 | `src/features/song/utils/shareSong.ts` | `shareSong()` | Share links from `MEDIA_URL` |
 | 6 | `src/features/collections/screens/CollectionScreen.tsx` | share handler | Share links from `MEDIA_URL` |
 | 7 | `src/features/collections/components/CollectionAlbumHeader.tsx` | share handler | Share links from `MEDIA_URL` |

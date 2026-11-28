@@ -11,6 +11,7 @@ import type { ResolvedStream } from '../types';
 export async function resolveJob(
     jobId: string,
     expectedGeneration?: number,
+    shouldAbort?: () => boolean,
 ): Promise<ResolvedStream> {
-    return pollJobStatus(jobId, expectedGeneration);
+    return pollJobStatus(jobId, expectedGeneration, shouldAbort);
 }

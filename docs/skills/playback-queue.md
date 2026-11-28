@@ -9,7 +9,9 @@ and the playback must-read list have been read.
   `PlaybackTrack` objects because RNTP v5 strips custom props. Touch both, always.
 - Two transition handlers exist: foreground `PlaybackSync.tsx` and headless
   `trackPlayerService.ts`. Keep them idempotent and in sync — never fix one side only.
-- Real audio comes from `song.streamUrl` + `playbackToken` header. `getPlaybackUrl()` is display only.
+- Real audio comes from `song.streamUrl` + `playbackToken` header, attached up front on the
+  RNTP `MediaItem` (`createPlaybackTrack()` throws on an empty URL — pending playlist tracks
+  resolve through `playlistPendingService.ts` first; see `utils/streamHelpers.ts` predicates).
 
 ## Steps
 

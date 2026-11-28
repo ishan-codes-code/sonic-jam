@@ -18,7 +18,7 @@ import { SetupPlaybackStep } from '../components/SetupPlaybackStep';
 import { SetupStorageStep } from '../components/SetupStorageStep';
 import { SetupTokenStep } from '../components/SetupTokenStep';
 
-const STEPS: { key: SetupWizardStep; title: string }[] = [
+const ALL_STEPS: { key: SetupWizardStep; title: string }[] = [
   { key: 'token', title: 'Setup token' },
   { key: 'storage', title: 'Storage' },
   { key: 'playback', title: 'Playback' },
@@ -35,7 +35,18 @@ export const SetupWizardScreen = () => {
   } = useKeyboardAwareScroll();
   const wizard = useSetupWizard();
 
-  const stepIndex = STEPS.findIndex((entry) => entry.key === wizard.step);
+  // Local mode has no playback step (no worker URL or playback secret), so
+  // the indicator and counter follow the active path.
+  const STEPS = ALL_STEPS.filter(
+    (entry) =>
+      entry.key !== 'playback' ||
+      wizard.storageMode === 'r2' ||
+      wizard.step === 'playback',
+  );
+  const stepIndex = Math.max(
+    0,
+    STEPS.findIndex((entry) => entry.key === wizard.step),
+  );
 
   return (
     <KeyboardAvoidingView
@@ -112,6 +123,13 @@ export const SetupWizardScreen = () => {
               isConfigured={wizard.isConfigured}
               onSubmit={wizard.submitStorage}
               onInputFocus={onInputFocus}
+              modes={wizard.storageModes}
+              storageMode={wizard.storageMode}
+              setStorageMode={wizard.setStorageMode}
+              showSelector={wizard.showModeSelector}
+              modeLocked={wizard.storageModeLocked}
+              currentStorage={wizard.currentStorage}
+              switchWarning={wizard.storageSwitchWarning}
             />
           ) : wizard.step === 'playback' ? (
             <SetupPlaybackStep

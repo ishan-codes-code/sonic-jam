@@ -14,9 +14,15 @@ Backend implementation: `src/features/library/api/library.api.ts`, `src/features
 - `PATCH /playlist/:playlistId` body partial create-payload → `Playlist`.
 - `DELETE /playlist/:playlistId` → `{ message: string }`.
 - `GET /playlist/:playlistId/songs` → `PlaylistWithSongs`: playlist fields + `user: { id, name, email }`
-  + `tracks: Song[]` + **`playbackToken: string`** (scoped token the client reuses for every track it queues)
+  + `tracks: PlaylistSong[]` + **`playbackToken: string`** (scoped token the client reuses for every track it queues)
   + `createdAt`/`updatedAt`. NOTE: `thumbnailUrl` here is typed `string | string[] | null`, while base
   `Playlist` types it `string[] | null` — inconsistent, do not assume one shape.
+  `PlaylistSong` is `Song` + `position?` + `jobId?`. On a Local backend a track whose file is
+  missing arrives as `streamUrl: ""` with `jobId: "<youtubeId>"` (a download was started):
+  the client resolves it through `GET /song/job/:jobId` (shared poller, one poll per job)
+  and inserts the returned song — with its own playback token — at its playlist-order
+  position; empty URLs never enter the native queue (`usePlayer.playPlaylist()` +
+  `playlistPendingService.ts`, predicates in `utils/streamHelpers.ts`).
 - `POST /playlist/song/add` body `{ playlistId, songId }` → `{ message: string }`.
 - `DELETE /playlist/:playlistId/song/:songId` → `{ message: string }`.
   404 `"Song not found in playlist"` is benign (double-tap/race) and intentionally un-toasted.

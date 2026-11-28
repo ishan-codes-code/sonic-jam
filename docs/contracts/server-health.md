@@ -11,7 +11,8 @@
   timeout. Implementation: `src/features/server/api/serverValidation.ts`
   (`checkServerConnection()`); the setup readiness poll reuses the same
   `parseHealthPayload()` (`src/features/server/api/setupApi.ts`).
-- Response contract (backend: `feat/setup-mode-health` branch):
+- Response contract (backend: `feat/setup-mode-health` branch, storage modes
+  added on `feat/local-storage`):
   - `app`: `"sonic-backend"` — backend identity marker, required.
   - `setupRequired`: boolean — `true` with `db: "ok"` routes into the setup
     wizard (see `docs/contracts/backend-setup.md`); `true` with
@@ -21,9 +22,13 @@
     unavailable — retryable error, never the wizard) | `"unconfigured"`
     (database URL not entered in the Termux installer — retryable
     guidance, never the wizard).
-  - `features.storage`: `"r2"` | `"none"` — storage capability indicator,
-    informational only. R2 is NOT required to accept a server URL or to
-    complete setup.
+  - `features.storage`: `"r2"` | `"local"` | `"none"` — currently configured
+    storage mode, informational only. Storage is NOT required to accept a
+    server URL: a Local backend validates exactly like an R2 one.
+  - `features.storageModes`: `["local", "r2"]` — modes this backend can be
+    configured with (capabilities, not the current mode). Older backends omit
+    the field, which reads as R2-only. Unknown entries are dropped; a missing
+    or unusable value defaults to `["r2"]`.
   - Other fields (`version`, `apiVersion`, `minAppVersion`) are currently
     informational; the client does not enforce version compatibility.
 - Acceptance: the body must be a JSON object with the Sonic identity, a
