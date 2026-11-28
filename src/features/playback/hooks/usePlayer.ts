@@ -34,7 +34,7 @@ import {
   markPlaylistEntryEnqueued,
   markPlaylistRunJoinable,
   resolvePlaylistEntry,
-  resolvePlaylistEntryInBackground,
+  resolvePlaylistEntriesInBackground,
   startPlaylistRun,
   type PlaylistPendingDeps,
 } from "../services/playlistPendingService";
@@ -591,10 +591,12 @@ export function usePlayer() {
         if (!isRunCurrent()) return;
 
         const resolveRestInBackground = () => {
-          for (const entry of partition.pending) {
-            if (entry.index === effectiveStart) continue;
-            resolvePlaylistEntryInBackground(run, entry.index);
-          }
+          resolvePlaylistEntriesInBackground(
+            run,
+            partition.pending
+              .map((entry) => entry.index)
+              .filter((index) => index !== effectiveStart),
+          );
         };
 
         // Resolve-then-play when the start track is pending: the queue cannot

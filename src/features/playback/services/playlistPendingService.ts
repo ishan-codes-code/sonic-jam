@@ -21,6 +21,12 @@ import {
 // rebuilding the playlist. Terminal failure releases ownership so a retry
 // starts fresh.
 //
+// Background entries resolve one at a time in playlist order (taps still
+// start immediately and join/share in-flight work). Native insertions are
+// additionally serialized per run: positions derive from the live enqueued
+// flags, so a tap racing the background queue cannot compute from a stale
+// snapshot and misorder the queue.
+//
 // This module stays dependency-light (relative-only imports, no native
 // modules, no stores, no song/track types) so node:test executes this EXACT
 // orchestration code. All heavy effects arrive through injected deps (see
@@ -87,6 +93,13 @@ export interface PlaylistRun<S = unknown, T = unknown> {
    * inserting into a queue that is about to be replaced.
    */
   joinable: boolean;
+  /**
+   * Tail of the per-run insertion chain. Each insert phase awaits the
+   * previous one, so positions always derive from up-to-date enqueued flags
+   * and concurrent completions (a tap racing the background queue) cannot
+   * misorder the queue.
+   */
+  insertChain: Promise<void>;
 }
 
 export interface PlaylistPendingInput {
@@ -124,6 +137,7 @@ export function startPlaylistRun<S, T>(
     jobs: new Map(),
     deps,
     joinable: false,
+    insertChain: Promise.resolve(),
   };
   activeRun = run;
   return run;
@@ -297,33 +311,50 @@ async function runEntryPipeline<S, T>(
     if (!isPlaylistRunCurrent(run)) {
       throw new JobPollingCancelledError();
     }
-    entry.state = "inserting";
-    const track = await run.deps.createTrack(
-      resolved.song,
-      resolved.playbackToken,
-    );
-    if (!isPlaylistRunCurrent(run)) {
-      throw new JobPollingCancelledError();
+    // Serialize the insert phase per run: the link handoff is synchronous,
+    // so exactly one pipeline inserts at a time and each position derives
+    // from enqueued flags that already include every earlier insertion.
+    // Stale waiters pass through, then throw at the currency check below.
+    const previousInsert = run.insertChain;
+    let releaseInsert!: () => void;
+    run.insertChain = new Promise<void>((resolve) => {
+      releaseInsert = resolve;
+    });
+    await previousInsert;
+    try {
+      if (!isPlaylistRunCurrent(run)) {
+        throw new JobPollingCancelledError();
+      }
+      entry.state = "inserting";
+      const track = await run.deps.createTrack(
+        resolved.song,
+        resolved.playbackToken,
+      );
+      if (!isPlaylistRunCurrent(run)) {
+        throw new JobPollingCancelledError();
+      }
+      run.deps.addTrackToMap(track);
+      const queueLength = await run.deps.getNativeQueueLength();
+      if (!isPlaylistRunCurrent(run)) {
+        throw new JobPollingCancelledError();
+      }
+      // Manual adds/removals shift the native queue after the load, so the
+      // playlist-order position clamps to the live length.
+      const position = Math.min(
+        countEnqueuedBefore(run.enqueued, entry.playlistIndex),
+        queueLength,
+      );
+      await run.deps.insertNativeTrack(position, track);
+      if (!isPlaylistRunCurrent(run)) {
+        throw new JobPollingCancelledError();
+      }
+      run.enqueued[entry.playlistIndex] = true;
+      entry.state = "ready";
+      run.deps.notifyQueueUpdate();
+      return track;
+    } finally {
+      releaseInsert();
     }
-    run.deps.addTrackToMap(track);
-    const queueLength = await run.deps.getNativeQueueLength();
-    if (!isPlaylistRunCurrent(run)) {
-      throw new JobPollingCancelledError();
-    }
-    // Manual adds/removals shift the native queue after the load, so the
-    // playlist-order position clamps to the live length.
-    const position = Math.min(
-      countEnqueuedBefore(run.enqueued, entry.playlistIndex),
-      queueLength,
-    );
-    await run.deps.insertNativeTrack(position, track);
-    if (!isPlaylistRunCurrent(run)) {
-      throw new JobPollingCancelledError();
-    }
-    run.enqueued[entry.playlistIndex] = true;
-    entry.state = "ready";
-    run.deps.notifyQueueUpdate();
-    return track;
   } catch (error) {
     if (!isPlaylistRunCurrent(run) || isJobPollingCancelled(error)) {
       throw error;
@@ -348,4 +379,31 @@ export function resolvePlaylistEntryInBackground<S, T>(
     // Terminal failure is already recorded on the entry; the track retries
     // when tapped.
   });
+}
+
+/**
+ * Fire-and-forget background resolution of several entries, strictly one at
+ * a time in playlist order: each entry's poll starts only after the previous
+ * entry has fully landed (or terminally failed), so queued entries never
+ * burn their poll timeout while waiting, and one failed download never
+ * starves the rest of the playlist. Taps bypass the queue — ensure() starts
+ * (or joins) immediately — and the chain simply joins tap-owned pipelines
+ * when it reaches them. Stops silently on a superseded run. Never throws.
+ */
+export function resolvePlaylistEntriesInBackground<S, T>(
+  run: PlaylistRun<S, T>,
+  playlistIndices: readonly number[],
+): void {
+  const ordered = [...new Set(playlistIndices)].sort((a, b) => a - b);
+  void (async () => {
+    for (const playlistIndex of ordered) {
+      if (!isPlaylistRunCurrent(run)) return;
+      try {
+        await ensurePlaylistEntryInserted(run, playlistIndex);
+      } catch (error) {
+        if (!isPlaylistRunCurrent(run) || isJobPollingCancelled(error)) return;
+        // Recorded on the entry (tap retries); continue with the next one.
+      }
+    }
+  })();
 }

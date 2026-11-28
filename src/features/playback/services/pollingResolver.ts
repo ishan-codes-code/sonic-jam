@@ -5,6 +5,7 @@ import {
   isJobPollingCancelled,
   JobPollingCancelledError,
 } from "./jobCancellation";
+import { isRateLimitError, parseRateLimitDelayMs } from "./rateLimit";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -39,6 +40,27 @@ export { isJobPollingCancelled, JobPollingCancelledError };
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Sleep that stays responsive to cancellation: wakes in slices to re-check,
+ * so a server switch or playlist replacement aborts a long rate-limit wait
+ * instead of sleeping through it.
+ */
+const sleepCancellable = async (
+  ms: number,
+  isCancelled: () => boolean,
+): Promise<void> => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (isCancelled()) {
+      throw new JobPollingCancelledError();
+    }
+    await sleep(Math.min(1000, Math.max(0, end - Date.now())));
+  }
+  if (isCancelled()) {
+    throw new JobPollingCancelledError();
+  }
+};
 
 /**
  * Calculates the next poll sleep interval based on the number of completed polls.
@@ -122,6 +144,34 @@ export async function pollJobStatus(
       // belongs to no live run, so it must not mark anything either.
       if (generation !== pollingGeneration || shouldAbort?.()) {
         throw new JobPollingCancelledError();
+      }
+      // HTTP 429 is temporary (API rate limit): wait it out like the busy
+      // path — honor Retry-After (exact or suffixed header, else body
+      // seconds), otherwise back off on the poll-stage interval. The wait
+      // never marks the job failed and never counts against its timeout.
+      if (isRateLimitError(error)) {
+        const headerDelayMs = parseRateLimitDelayMs(error);
+        const delayMs = headerDelayMs ?? getNextPollInterval(pollCount);
+        if (headerDelayMs === null) {
+          // No server direction: escalate subsequent waits instead of
+          // hammering at a fixed pace.
+          pollCount++;
+        }
+        const delaySec = Math.max(1, Math.ceil(delayMs / 1000));
+        jobStore.updateJob(jobId, {
+          status: "waiting",
+          error: `Rate limited. Retrying in ${delaySec}s...`,
+        });
+        console.warn(
+          `[pollingResolver] HTTP 429 for job ${jobId}: waiting ${delaySec}s before next poll...`,
+        );
+        // Pause max timeout by shifting startTime forward by the sleep duration
+        startTime += delayMs;
+        await sleepCancellable(
+          delayMs,
+          () => generation !== pollingGeneration || shouldAbort?.() === true,
+        );
+        continue;
       }
       const isInternetDrop =
         !error.response ||

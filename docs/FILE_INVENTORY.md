@@ -127,6 +127,15 @@
 > +`playback/services/jobCancellation.ts` (21, shared cancel signal),
 > `pollingResolver` 239→235 (re-export).
 > Working tree: **225 files, 26,059 lines**. Re-baseline on commit.
+> Structural delta (feat/local-storage, sequential queue + 429 + cleartext):
+> sequential background resolution + serialized inserts
+> (`playlistPendingService` 351→409, `playlistPendingService.test` 406→577
+> with 12 tests, `usePlayer` 987→989, barrel 38→39), HTTP 429 wait
+> (`pollingResolver` 235→285, +`playback/services/rateLimit.ts` 92 +
+> `rateLimit.test.ts` 184 with 9 tests), Termux warning
+> (`SetupStorageStep` 279→293); +expo-build-properties 1.0.10 with
+> android.usesCleartextTraffic.
+> Working tree: **227 files, 26,631 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
@@ -340,18 +349,20 @@
 | `src/features/playback/api/playbackApi.ts` | 56 | `resolveStream()`: ready-vs-job dispatch + payload validation + pre-request polling-generation capture |
 | `src/features/playback/api/recommendationApi.ts` | 51 | `getRecommendations()` mapping + silent `[]` on error |
 | `src/features/playback/hooks/index.ts` | 2 | Re-exports `usePlayer`, `useSmartQueue` |
-| `src/features/playback/hooks/usePlayer.ts` | 987 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation; pending-aware `playPlaylist` + pipeline-joining `skipToPlaylistIndex`; production pending-track deps |
+| `src/features/playback/hooks/usePlayer.ts` | 989 | Playback command center: play/queue/seek/shuffle/repeat/sleep (largest file); resolve sites ignore switch-cancellation; pending-aware `playPlaylist` + pipeline-joining `skipToPlaylistIndex`; production pending-track deps |
 | `src/features/playback/hooks/useProgressSyncAuth.ts` | 50 | Native progress-sync header auth (`setProgressSyncToken` + hook) |
 | `src/features/playback/hooks/useSmartQueue.ts` | 26 | Transition listener + `loadRecommendations()` trigger |
 | `src/features/playback/screens/PlayerScreen.tsx` | 148 | Full player screen composition (memoized, shallow store select) |
-| `src/features/playback/services/index.ts` | 38 | Service barrel (named exports, incl. playlist pending-track pipelines) |
+| `src/features/playback/services/index.ts` | 39 | Service barrel (named exports, incl. playlist pending-track pipelines) |
 | `src/features/playback/services/jobResolver.ts` | 17 | `resolveJob()` abstraction over polling (passes expected generation + owner abort through) |
 | `src/features/playback/services/jobCancellation.ts` | 21 | Shared `JobPollingCancelledError` + predicate (zero imports; re-exported by the poller) |
-| `src/features/playback/services/playlistPendingService.ts` | 351 | Playlist pending-track runs: per-entry owned resolve→insert pipelines (pending/resolving/inserting/ready/failed), injected effects, joinable runs, run invalidation |
-| `src/features/playback/services/playlistPendingService.test.ts` | 406 | `node:test` (8): tap-join, double tap, no-duplicate-insert, failure+retry, replacement mid-resolve/mid-insert, order, joinability |
+| `src/features/playback/services/playlistPendingService.ts` | 409 | Playlist pending-track runs: per-entry owned pipelines (pending/resolving/inserting/ready/failed), sequential background queue, serialized inserts, injected effects, joinable runs, run invalidation |
+| `src/features/playback/services/playlistPendingService.test.ts` | 577 | `node:test` (12): tap-join, double tap, no-duplicate-insert, failure+retry, replacement mid-resolve/mid-insert, order, joinability, sequential queue, tap-during-queue, failure-no-starve, chain stop |
 | `src/features/playback/services/nativeSync.ts` | 152 | Shared native→store resync (`syncPlayerFromNative` + `syncTrackMetadata` + `resolveStoreStatus`); lazy store imports for headless use |
 | `src/features/playback/services/playerSetup.ts` | 89 | `buildPlayerConfig()` (lazy, uses runtime server) + `setupPlayer()` (cache, notification, progressSync URL) + `recreatePlayer()` for server switch |
-| `src/features/playback/services/pollingResolver.ts` | 235 | `pollJobStatus()` backoff loop with busy/retryAfter handling + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check + owner abort (cancellation error shared via `jobCancellation`) |
+| `src/features/playback/services/pollingResolver.ts` | 285 | `pollJobStatus()` backoff loop with busy/retryAfter handling + HTTP 429 wait (Retry-After honor, cancellable sleep, timeout-exempt) + generation-guarded `cancelAllJobPolling()` (incl. error/timeout paths) + expected-generation entry check + owner abort (cancellation error shared via `jobCancellation`) |
+| `src/features/playback/services/rateLimit.ts` | 92 | Pure 429 parsing: status check, Retry-After exact/suffixed/case-insensitive header, seconds/HTTP-date values, body fallback |
+| `src/features/playback/services/rateLimit.test.ts` | 184 | `node:test` (9): status detection, header variants, dates, arrays, body fallback, unparseable shapes |
 | `src/features/playback/services/repeatManager.ts` | 44 | Off↔track repeat toggle; end-handlers are no-ops |
 | `src/features/playback/services/smartQueueService.ts` | 491 | Radio pipeline: recommend → enrich → resolve → fill native queue; consistent radio-generation checks on every async path |
 | `src/features/playback/services/trackPlayerService.ts` | 91 | Headless `PlaybackService`: remote controls + background transition + native resync |
@@ -427,7 +438,7 @@
 | `src/features/server/api/setupApi.test.ts` | 774 | `node:test` (39): token validation, headers/payload, modes, locked/configured fields, worker URL, restart polling + mode verification, redaction, current storage |
 | `src/features/server/components/SecretInput.tsx` | 91 | Labeled credential field, masked by default with visibility toggle; theme muted placeholder |
 | `src/features/server/components/SetupTokenStep.tsx` | 97 | Wizard step 1: setup-token explainer + secure input + validate CTA |
-| `src/features/server/components/SetupStorageStep.tsx` | 279 | Wizard step 2: mode selector (advertised modes only) + R2 fields or local explainer + no-migration warning + continue CTA |
+| `src/features/server/components/SetupStorageStep.tsx` | 293 | Wizard step 2: mode selector (advertised modes only) + R2 fields or local explainer + Termux data-loss warning + no-migration warning + continue CTA |
 | `src/features/server/components/SetupPlaybackStep.tsx` | 123 | Wizard step 3: worker stream URL + playback secret (locked/configured variants, worker-match note) + continue CTA |
 | `src/features/server/components/SetupApiKeysStep.tsx` | 113 | Wizard step 4: YouTube + Last.fm keys (locked/configured variants) + save CTA |
 | `src/features/server/components/SetupFinishStep.tsx` | 112 | Wizard step 5: one-shot save/poll progress, retry + back-to-edit on failure |

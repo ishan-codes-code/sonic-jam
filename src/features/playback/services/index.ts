@@ -10,6 +10,7 @@ export {
   markPlaylistEntryEnqueued,
   markPlaylistRunJoinable,
   resolvePlaylistEntry,
+  resolvePlaylistEntriesInBackground,
   resolvePlaylistEntryInBackground,
   startPlaylistRun,
 } from "./playlistPendingService";

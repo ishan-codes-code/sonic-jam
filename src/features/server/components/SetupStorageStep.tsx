@@ -178,19 +178,33 @@ export function SetupStorageStep({
       ) : null}
 
       {isLocal ? (
-        <View className="mb-4 flex-row gap-2.5 rounded-md border border-emerald-400/20 bg-emerald-400/[0.08] px-4 py-3">
-          <Icon
-            as={Check}
-            size={15}
-            className="mt-0.5 shrink-0 text-emerald-300"
-            strokeWidth={2.5}
-          />
-          <Text className="flex-1 text-[12px] leading-relaxed text-emerald-200/90">
-            No storage keys needed — the server keeps its own music folder and
-            creates the playback secret automatically. Continue to add your API
-            keys.
-          </Text>
-        </View>
+        <>
+          <View className="mb-4 flex-row gap-2.5 rounded-md border border-emerald-400/20 bg-emerald-400/[0.08] px-4 py-3">
+            <Icon
+              as={Check}
+              size={15}
+              className="mt-0.5 shrink-0 text-emerald-300"
+              strokeWidth={2.5}
+            />
+            <Text className="flex-1 text-[12px] leading-relaxed text-emerald-200/90">
+              No storage keys needed — the server keeps its own music folder
+              and creates the playback secret automatically. Continue to add
+              your API keys.
+            </Text>
+          </View>
+          <View className="mb-4 flex-row gap-2.5 rounded-md border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3">
+            <Icon
+              as={AlertTriangle}
+              size={15}
+              className="mt-0.5 shrink-0 text-amber-300"
+              strokeWidth={1.8}
+            />
+            <Text className="flex-1 text-[12px] leading-relaxed text-amber-200/90">
+              Uninstalling Termux or clearing its data deletes your downloaded
+              songs.
+            </Text>
+          </View>
+        </>
       ) : allLocked ? (
         <View className="mb-4 flex-row gap-2.5 rounded-md border border-emerald-400/20 bg-emerald-400/[0.08] px-4 py-3">
           <Icon

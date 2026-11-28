@@ -21,10 +21,12 @@ import {
   isPlaylistRunJoinable,
   markPlaylistEntryEnqueued,
   markPlaylistRunJoinable,
+  resolvePlaylistEntriesInBackground,
   resolvePlaylistEntryInBackground,
   startPlaylistRun,
   type PlaylistPendingDeps,
   type PlaylistPendingResolved,
+  type PlaylistRun,
 } from './playlistPendingService';
 import { JobPollingCancelledError } from './jobCancellation';
 
@@ -402,5 +404,174 @@ describe('run joinability', () => {
     assert.equal(isPlaylistRunJoinable(run), false);
     markPlaylistRunJoinable(run);
     assert.equal(isPlaylistRunJoinable(run), false);
+  });
+});
+
+describe('sequential background resolution', () => {
+  function startTriple(h: MockHarness): PlaylistRun<FakeSong, FakeTrack> {
+    const run = startPlaylistRun(
+      'pl',
+      3,
+      [
+        { playlistIndex: 0, jobId: 'job-0', songId: 'song-0' },
+        { playlistIndex: 1, jobId: 'job-1', songId: 'song-1' },
+        { playlistIndex: 2, jobId: 'job-2', songId: 'song-2' },
+      ],
+      h.deps,
+    );
+    markPlaylistRunJoinable(run);
+    return run;
+  }
+
+  test('background entries resolve one at a time in playlist order', async () => {
+    const h = makeHarness();
+    const run = startTriple(h);
+
+    resolvePlaylistEntriesInBackground(run, [0, 1, 2]);
+    await tick();
+    // Only the first entry polls; the rest wait without burning timeouts.
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0'],
+    );
+    assert.equal(getPlaylistEntryState(run, 1), 'pending');
+    assert.equal(getPlaylistEntryState(run, 2), 'pending');
+
+    h.releasePoll('job-0', 'song-0');
+    await tick();
+    assert.equal(h.insertCalls.length, 1);
+    h.insertCalls[0].release();
+    await tick();
+    assert.equal(getPlaylistEntryState(run, 0), 'ready');
+
+    // Entry 1 starts only after entry 0 fully landed.
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0', 'job-1'],
+    );
+    h.releasePoll('job-1', 'song-1');
+    await tick();
+    h.insertCalls[1].release();
+    await tick();
+
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0', 'job-1', 'job-2'],
+    );
+    h.releasePoll('job-2', 'song-2');
+    await tick();
+    h.insertCalls[2].release();
+    await tick();
+
+    assert.deepEqual(h.nativeQueue, ['song-0', 'song-1', 'song-2']);
+    assert.equal(getPlaylistEntryState(run, 2), 'ready');
+  });
+
+  test('a tap starts immediately while the background queue keeps order', async () => {
+    const h = makeHarness();
+    const run = startTriple(h);
+
+    resolvePlaylistEntriesInBackground(run, [0, 1, 2]);
+    await tick();
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0'],
+    );
+
+    // Tap the last entry: its poll starts at once, ahead of the queue.
+    const tap = ensurePlaylistEntryInserted(run, 2);
+    await tick();
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0', 'job-2'],
+    );
+
+    // The tapped entry finishes first and inserts at the (still empty) head.
+    h.releasePoll('job-2', 'song-2');
+    await tick();
+    assert.equal(h.insertCalls.length, 1);
+    assert.equal(h.insertCalls[0].position, 0);
+    h.insertCalls[0].release();
+    const tapped = await tap;
+    assert.equal(tapped.song.id, 'song-2');
+
+    // The background queue continues in order behind it.
+    h.releasePoll('job-0', 'song-0');
+    await tick();
+    assert.equal(h.insertCalls.length, 2);
+    assert.equal(h.insertCalls[1].position, 0);
+    h.insertCalls[1].release();
+    await tick();
+
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0', 'job-2', 'job-1'],
+    );
+    h.releasePoll('job-1', 'song-1');
+    await tick();
+    assert.equal(h.insertCalls[2].position, 1);
+    h.insertCalls[2].release();
+    await tick();
+
+    // Out-of-order completion still lands in playlist order.
+    assert.deepEqual(h.nativeQueue, ['song-0', 'song-1', 'song-2']);
+    assert.deepEqual(run.enqueued, [true, true, true]);
+  });
+
+  test('a failed entry does not starve the rest of the queue', async () => {
+    const h = makeHarness();
+    const run = startTriple(h);
+
+    resolvePlaylistEntriesInBackground(run, [0, 1, 2]);
+    await tick();
+    h.failPoll('job-0', new Error('download failed'));
+    await tick();
+    assert.equal(getPlaylistEntryState(run, 0), 'failed');
+
+    // The chain moves on despite the failure.
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0', 'job-1'],
+    );
+    h.releasePoll('job-1', 'song-1');
+    await tick();
+    h.insertCalls[0].release();
+    await tick();
+    assert.equal(getPlaylistEntryState(run, 1), 'ready');
+
+    // And the failed entry still retries on demand.
+    const retry = ensurePlaylistEntryInserted(run, 0);
+    await tick();
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0', 'job-1', 'job-2', 'job-0'],
+    );
+    h.releasePoll('job-0', 'song-0');
+    await tick();
+    h.insertCalls[h.insertCalls.length - 1].release();
+    await retry;
+    assert.equal(getPlaylistEntryState(run, 0), 'ready');
+  });
+
+  test('playlist replacement stops the background queue', async () => {
+    const h = makeHarness();
+    const runA = startTriple(h);
+
+    resolvePlaylistEntriesInBackground(runA, [0, 1, 2]);
+    await tick();
+    assert.equal(h.pollCalls.length, 1);
+
+    startPlaylistRun('pl-next', 0, [], h.deps);
+    h.releasePoll('job-0', 'song-0');
+    await tick();
+    await tick();
+
+    // The old chain never reaches entry 1; nothing inserts or notifies.
+    assert.deepEqual(
+      h.pollCalls.map((call) => call.jobId),
+      ['job-0'],
+    );
+    assert.equal(h.insertCalls.length, 0);
+    assert.equal(h.notifications.count, 0);
   });
 });

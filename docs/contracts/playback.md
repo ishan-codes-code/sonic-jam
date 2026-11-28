@@ -33,11 +33,18 @@ All endpoints require Bearer auth unless noted.
 
 - Response fields read by the client: `status: string`, `retryAfter?: number`,
   `song?: Song`, `playbackToken?: string`, `progress?: number`, `message?: string`.
+  NOTE: the backend reports `active` both while a job waits in the worker queue and while
+  it downloads — the two are indistinguishable in the response, so the client polls
+  either way (correct for both; only the Processing-tab label is imprecise).
 - Statuses handled: `busy` (sleep `retryAfter` seconds, default 5, then resume rapid polling),
   `completed`/`finished` (requires `song` + `playbackToken`, else client throws),
   `failed` (throws `message`), anything else is treated as pending with staged backoff.
-- Client polling caps at 5 minutes total, then throws `Job timeout`. Network drops retry silently;
-  HTTP error statuses fail the job immediately.
+- Client polling caps at 5 minutes total, then throws `Job timeout`. Network drops retry silently.
+  HTTP 429 is temporary, not a failure: the client honors `Retry-After` (exact or `-suffixed`
+  header, seconds or HTTP-date; numeric body `retryAfter` as fallback), else backs off on the
+  poll-stage interval with escalation; the wait neither fails the job nor counts against its
+  timeout, and stays responsive to cancellation (parsing in `services/rateLimit.ts`).
+  Other HTTP error statuses fail the job immediately.
 
 ## `POST /listening/event` — **[Partial]**
 
