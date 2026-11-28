@@ -15,6 +15,7 @@ Files:
 - `library-search.md` — playlists, history, discovery/genre, plus third-party (iTunes/RSS) notes.
 - `server-health.md` — **[Implemented]** `/health` validation + first-launch routing for self-hosted servers.
 - `backend-setup.md` — **[Implemented]** first-launch setup wizard endpoints (`/setup/status`, `/setup/config`) + readiness poll.
+- `admin-storage.md` — **[Implemented]** admin storage settings (`GET`/`POST /admin/storage`, `role` on `/auth/me`) + same-server restart flow.
 
 Global rules (all backend calls, confirmed in `src/api/apiClient.ts`):
 
@@ -24,4 +25,5 @@ Global rules (all backend calls, confirmed in `src/api/apiClient.ts`):
 - Errors: message lives in `response.data.message` (string or string array; first element wins) or
   `response.data.error`. Mutations and 5xx surface a global toast; other GET failures are silent at this layer.
 - 401: one automatic refresh (`POST /auth/refresh`) + single retry; concurrent 401s queue behind the refresh.
-  If refresh fails, tokens are cleared and the session resets to `unauthenticated`.
+  If the server rejects the refresh, tokens are cleared and the session resets to `unauthenticated`;
+  a network-level refresh failure (no response) preserves the session instead.

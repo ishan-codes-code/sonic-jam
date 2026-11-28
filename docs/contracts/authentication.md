@@ -26,7 +26,10 @@ client expectations; backend field names beyond these are unverified).
 - Used by: boot `checkAuth()`, the 401 interceptor (direct `axios.post`, bypassing interceptors),
   and the pre-flight `ensureFreshToken()` (`fetch`). All three persist the rotated pair and push the
   new access token into the native progress-sync headers.
-- Failure (no token, non-OK, network): tokens cleared + `resetAuth()` → `unauthenticated`.
+- Failure: no token or a refresh the server answers with an error status clears tokens +
+  `resetAuth()` → `unauthenticated`. A network-level failure (no HTTP response: backend restart,
+  outage, client timeout — `isNetworkRefreshError()`) PRESERVES the session instead, so a backend
+  restart never logs the user out; the failed request rejects retryably.
 
 ## `POST /auth/logout` — **[Partial]**
 
@@ -36,7 +39,8 @@ client expectations; backend field names beyond these are unverified).
 ## `GET /auth/me` — **[Confirmed]**
 
 - Auth: Bearer access token required. Response: `{ user: User }`.
-- `User`: `{ id: string, name?: string, email: string, createdAt: string, favoritesPlaylistId: string }`.
+- `User`: `{ id: string, name?: string, email: string, createdAt: string, favoritesPlaylistId: string, role?: "user" | "admin" }`.
+  A missing `role` (older backends) always means a non-admin: admin UI (Settings → Storage) stays hidden.
 - Called after login, after boot refresh, and never cached in React Query (lives in `useAuthStore`).
 - Without a token the backend answers `401` + JSON (`{ statusCode: 401, … }`, verified live
   2026-11-21). The server-setup validator previously depended on this identity probe; it now

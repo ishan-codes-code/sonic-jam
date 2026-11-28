@@ -19,6 +19,14 @@ interface SetupPlaybackStepProps {
   isConfigured: (key: string) => boolean;
   onSubmit: () => void;
   onInputFocus: () => void;
+  /**
+   * Admin-settings reuse (all optional; the wizard leaves them unset and
+   * renders exactly as before): hide the Continue button when the host owns
+   * submission, and override wizard-specific copy.
+   */
+  hideSubmit?: boolean;
+  description?: string;
+  configuredNote?: string;
 }
 
 export function SetupPlaybackStep({
@@ -29,6 +37,9 @@ export function SetupPlaybackStep({
   isConfigured,
   onSubmit,
   onInputFocus,
+  hideSubmit = false,
+  description,
+  configuredNote,
 }: SetupPlaybackStepProps) {
   const allLocked = PLAYBACK_FIELD_KEYS.every((key) => isLocked(key));
   const anyKeepable = PLAYBACK_FIELD_KEYS.some(
@@ -41,8 +52,8 @@ export function SetupPlaybackStep({
         Playback
       </Text>
       <Text className="mb-7 text-[13px] font-heading leading-relaxed text-muted-foreground">
-        Your Cloudflare worker streams music to the app. Every field is
-        required — nothing is saved until the final step.
+        {description ??
+          'Your Cloudflare worker streams music to the app. Every field is required — nothing is saved until the final step.'}
       </Text>
 
       {error ? (
@@ -97,27 +108,34 @@ export function SetupPlaybackStep({
             />
           )}
           {anyKeepable ? (
-            <SetupConfiguredNote text="Some playback values are already configured. Leave a field blank to keep its saved value." />
+            <SetupConfiguredNote
+              text={
+                configuredNote ??
+                'Some playback values are already configured. Leave a field blank to keep its saved value.'
+              }
+            />
           ) : null}
         </>
       )}
 
-      <Pressable
-        onPress={onSubmit}
-        accessibilityRole="button"
-        accessibilityLabel="Continue"
-        className="mt-5 h-[52px] w-full items-center justify-center rounded-md bg-amber-300"
-        style={({ pressed }) => ({
-          opacity: pressed ? 0.8 : 1,
-        })}
-      >
-        <View className="flex-row items-center gap-2">
-          <Icon as={Play} size={16} className="text-secondary" />
-          <Text className="text-[15px] font-display text-secondary">
-            Continue
-          </Text>
-        </View>
-      </Pressable>
+      {hideSubmit ? null : (
+        <Pressable
+          onPress={onSubmit}
+          accessibilityRole="button"
+          accessibilityLabel="Continue"
+          className="mt-5 h-[52px] w-full items-center justify-center rounded-md bg-amber-300"
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <View className="flex-row items-center gap-2">
+            <Icon as={Play} size={16} className="text-secondary" />
+            <Text className="text-[15px] font-display text-secondary">
+              Continue
+            </Text>
+          </View>
+        </Pressable>
+      )}
     </View>
   );
 }

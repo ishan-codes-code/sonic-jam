@@ -1,9 +1,16 @@
 // Screens
+export { AdminStorageScreen } from './screens/AdminStorageScreen';
 export { ServerManagementScreen } from './screens/ServerManagementScreen';
 export { ServerSetupScreen } from './screens/ServerSetupScreen';
 export { SetupWizardScreen } from './screens/SetupWizardScreen';
 
 // Hooks
+export { useAdminStorage } from './hooks/useAdminStorage';
+export type {
+  AdminSavePhase,
+  AdminStorageLoadError,
+  AdminStorageLoadPhase,
+} from './hooks/useAdminStorage';
 export { useServerSetup } from './hooks/useServerSetup';
 export { useServerSwitch } from './hooks/useServerSwitch';
 export type { ServerSwitchPhase } from './hooks/useServerSwitch';
@@ -31,6 +38,33 @@ export type {
   ServerCheckResult,
   StorageMode,
 } from './api/serverValidation';
+export {
+  ADMIN_STORAGE_GET_TIMEOUT_MS,
+  ADMIN_STORAGE_SAVE_TIMEOUT_MS,
+  ADMIN_STORAGE_VALUE_KEYS,
+  adminStorageModeLabel,
+  buildAdminStoragePatch,
+  getAdminStorage,
+  hasAdminStorageChanges,
+  isAdmin,
+  missingAdminStorageFields,
+  parseAdminSaveResult,
+  parseAdminStorageInfo,
+  planUnknownResultRetry,
+  saveAdminStorage,
+} from './api/adminStorageApi';
+export type {
+  AdminRequiredOptions,
+  AdminStorageHttpClient,
+  AdminStorageInfo,
+  AdminStorageLoadResult,
+  AdminStoragePatchInput,
+  AdminStorageSaved,
+  AdminStorageSaveResult,
+  AdminStorageValueKey,
+  UnknownRetryPlan,
+  UnknownStorageCheck,
+} from './api/adminStorageApi';
 export {
   API_KEY_FIELD_KEYS,
   buildConfigPatch,
@@ -102,6 +136,8 @@ export {
 } from './utils/serverStorage';
 export { performServerSwitch } from './utils/serverSwitch';
 export type { ServerSwitchDeps } from './utils/serverSwitch';
+export { resetPlaybackForStorageChange } from './utils/adminStorageReset';
+export type { AdminStorageResetDeps } from './utils/adminStorageReset';
 export {
   getSessionGeneration,
   invalidateSession,

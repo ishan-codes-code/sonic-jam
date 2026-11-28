@@ -136,17 +136,28 @@
 > (`SetupStorageStep` 279→293); +expo-build-properties 1.0.10 with
 > android.usesCleartextTraffic.
 > Working tree: **227 files, 26,631 lines**. Re-baseline on commit.
+> Structural delta (feat/admin-storage, admin storage settings):
+> +`server/api/adminStorageApi.ts` (593) +`server/api/adminStorageApi.test.ts`
+> (776, 44 tests) +`server/hooks/useAdminStorage.ts` (605)
+> +`server/screens/AdminStorageScreen.tsx` (384)
+> +`server/utils/adminStorageReset.ts` (47) +`auth/utils/refreshError.ts` (46)
+> +`(tabs)/settings/storage.tsx` (19); `SetupStorageStep` 293→306 /
+> `SetupPlaybackStep` 123→141 (optional admin props, wizard defaults
+> unchanged), `SettingsScreen` 66→77, `index` 109→145, `apiClient` 349→358
+> (network refresh preserves session), `auth.types` 23→28, `_layout` 156→157;
+> suites 44/39/22/43/19/9/11/12/9 green, `tsc --noEmit` clean.
+> Working tree: **234 files, 29,194 lines**. Re-baseline on commit.
 > Legend: rows ending in `†` describe files not individually read end-to-end; the responsibility
 > is inferred from the file path plus its verified exported symbols. All other rows were read during
 > the audit. Line counts are exact in every row.
 
-## `src/api` — 1 file, 349 lines
+## `src/api` — 1 file, 358 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/api/apiClient.ts` | 349 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (generation-tagged, takeover, ownership-guarded, captured-URL + stamped save) |
+| `src/api/apiClient.ts` | 358 | Shared Axios client: `BASE_URL`/`MEDIA_URL` (runtime-settable via `setApiServerUrl`), auth + device-ID interceptors, 401 refresh queue (generation-tagged, takeover, ownership-guarded, captured-URL + stamped save, network failures preserve the session) |
 
-## `src/app` — 24 files, 725 lines
+## `src/app` — 25 files, 834 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
@@ -159,7 +170,7 @@
 | `src/app/(auth)/signup.tsx` | 5 | Route wrapper rendering `SignupScreen` |
 | `src/app/(auth)/server-setup.tsx` | 5 | Route wrapper rendering `ServerSetupScreen` (first-launch entry + Login review mode) |
 | `src/app/(auth)/setup-wizard.tsx` | 5 | Route wrapper rendering `SetupWizardScreen` (first-launch backend setup) |
-| `src/app/(tabs)/_layout.tsx` | 156 | Custom tab bar (Home/Search/Library/Processing) + hidden-route registration |
+| `src/app/(tabs)/_layout.tsx` | 157 | Custom tab bar (Home/Search/Library/Processing) + hidden-route registration |
 | `src/app/(tabs)/library.tsx` | 4 | Route wrapper rendering `LibraryScreen` |
 | `src/app/(tabs)/processing.tsx` | 5 | Route wrapper rendering `ProcessingScreen` |
 | `src/app/(tabs)/about/developers.tsx` | 4 | Route wrapper rendering `DeveloperScreen` |
@@ -170,6 +181,7 @@
 | `src/app/(tabs)/settings/index.tsx` | 5 | Route wrapper rendering `SettingsScreen` (hub) |
 | `src/app/(tabs)/settings/account.tsx` | 5 | Route wrapper rendering `ProfileScreen` |
 | `src/app/(tabs)/settings/server.tsx` | 5 | Route wrapper rendering `ServerManagementScreen` |
+| `src/app/(tabs)/settings/storage.tsx` | 19 | Admin-guarded route wrapper rendering `AdminStorageScreen` (signed-in non-admins bounce to Settings) |
 | `src/app/(tabs)/search/_layout.tsx` | 14 | Search nested-stack shell |
 | `src/app/(tabs)/search/index.tsx` | 11 | Toggles `SearchScreen` ↔ `SearchFocusScreen` on focus state |
 | `src/app/(tabs)/search/[genre].tsx` | 4 | Route wrapper rendering `GenreScreen` |
@@ -242,13 +254,13 @@
 | `src/features/artwork-colors/hooks/useArtworkColors.ts` | 75 | Cache-seeded hook with stale-URL guard |
 | `src/features/artwork-colors/services/artworkColorService.ts` | 160 | Palette extraction + 150-entry LRU cache + fallback |
 
-## `src/features/auth` — 15 files, 1064 lines
+## `src/features/auth` — 16 files, 1115 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
 | `src/features/auth/index.ts` | 15 | Public barrel (screens, hooks, API, validation) |
 | `src/features/auth/api/auth.api.ts` | 21 | `authApi`: signup/login/refresh/logout/`getMe` |
-| `src/features/auth/api/auth.types.ts` | 23 | `AuthTokens`, `User`, login/signup payloads |
+| `src/features/auth/api/auth.types.ts` | 28 | `AuthTokens`, `User` (incl. optional `role`), login/signup payloads |
 | `src/features/auth/components/AuthFooter.tsx` | 23 | Auth screen footer link row † |
 | `src/features/auth/components/AuthHeader.tsx` | 38 | Auth screen header art + title † |
 | `src/features/auth/components/SocialAuthButtons.tsx` | 49 | DEAD: Google/Apple buttons with no handlers, unimported |
@@ -258,6 +270,7 @@
 | `src/features/auth/screens/LoginScreen.tsx` | 155 | Login form UI + back button to Server Setup review + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/screens/SignupScreen.tsx` | 164 | Signup form UI + dynamic keyboard padding/scroll wiring |
 | `src/features/auth/store/authStore.ts` | 134 | Session state: login/signup/logout/`checkAuth`/`resetAuth` |
+| `src/features/auth/utils/refreshError.ts` | 46 | Pure `isNetworkRefreshError()` classifier: network-level refresh failures (no response) preserve the session |
 | `src/features/auth/utils/tokenManager.ts` | 186 | JWT expiry decode + `ensureFreshToken()` pre-flight refresh (generation-guarded, takeover, ownership-guarded finally, captured-URL + stamped save) |
 | `src/features/auth/utils/tokenStorage.ts` | 95 | Serialized SecureStore token get/save/clear + generation-stamped `saveTokensIfCurrent` |
 | `src/features/auth/utils/validation.ts` | 16 | `validateLogin`/`validateSignup` field rules |
@@ -427,28 +440,32 @@
 | `src/features/search/screens/SearchScreen.tsx` | 50 | Search landing screen † |
 | `src/features/search/components/ExploreGenres.tsx` | 256 | Genre card grid (press/large/small/wide cards) † |
 
-## `src/features/server` — 26 files, 6,094 lines
+## `src/features/server` — 31 files, 9329 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
-| `src/features/server/index.ts` | 109 | Barrel (screens, hooks, store, validation, setup API + key registries, storage-mode helpers, config/storage/switch/session-generation utils, setup navigation decisions + auth-init gate) |
+| `src/features/server/index.ts` | 145 | Barrel (screens, hooks, store, validation, setup API + key registries, admin storage API/hook/screen/reset, storage-mode helpers, config/storage/switch/session-generation utils, setup navigation decisions + auth-init gate) |
 | `src/features/server/api/serverValidation.ts` | 244 | `checkServerConnection()`: unauthenticated `GET /health` probe (Sonic identity + `setupRequired` routing only with a healthy db, `db` ok/down/unconfigured incl. the setupRequired+unconfigured Termux-installer branch, informational `features.storage` incl. `local`, `storageModes` capabilities defaulting to R2-only), 15s timeout, inline failure codes |
 | `src/features/server/api/serverValidation.test.ts` | 409 | `node:test` (22): /health routing (ready/setup/down/Termux-unconfigured/invalid), Local + storageModes, R2-only default, malformed/non-Sonic, network/timeout, no-auth probe |
 | `src/features/server/api/setupApi.ts` | 703 | Setup API: `GET /setup/status` (modes), `POST /setup/config` (`X-Setup-Token`, plain fetch), mode/storage/playback/API-key registries, per-mode required keys, patch builder, secret redaction, mode-verifying readiness poll, current-storage probe |
 | `src/features/server/api/setupApi.test.ts` | 774 | `node:test` (39): token validation, headers/payload, modes, locked/configured fields, worker URL, restart polling + mode verification, redaction, current storage |
+| `src/features/server/api/adminStorageApi.ts` | 593 | Admin storage API: `GET`/`POST /admin/storage` (injected Bearer client), admin visibility, mode label, required-fields wrapper (`playbackSecretRequired`), patch builder, dirty check, parsers, unknown-result retry planner, axios-compatible error mapping + secret redaction |
+| `src/features/server/api/adminStorageApi.test.ts` | 776 | `node:test` (44): admin visibility, labels, key registry, required fields (first-time r2, configured-kept, locked, forced secret), patch building, dirty check, parsers, GET/POST mapping + redaction, unknown-retry plans, refresh network-error classification |
 | `src/features/server/components/SecretInput.tsx` | 91 | Labeled credential field, masked by default with visibility toggle; theme muted placeholder |
 | `src/features/server/components/SetupTokenStep.tsx` | 97 | Wizard step 1: setup-token explainer + secure input + validate CTA |
-| `src/features/server/components/SetupStorageStep.tsx` | 293 | Wizard step 2: mode selector (advertised modes only) + R2 fields or local explainer + Termux data-loss warning + no-migration warning + continue CTA |
-| `src/features/server/components/SetupPlaybackStep.tsx` | 123 | Wizard step 3: worker stream URL + playback secret (locked/configured variants, worker-match note) + continue CTA |
+| `src/features/server/components/SetupStorageStep.tsx` | 306 | Wizard step 2: mode selector (advertised modes only) + R2 fields or local explainer + Termux data-loss warning + no-migration warning + continue CTA; optional admin props (hidden submit, copy overrides) with wizard-identical defaults |
+| `src/features/server/components/SetupPlaybackStep.tsx` | 141 | Wizard step 3: worker stream URL + playback secret (locked/configured variants, worker-match note) + continue CTA; optional admin props (hidden submit, copy overrides) with wizard-identical defaults |
 | `src/features/server/components/SetupApiKeysStep.tsx` | 113 | Wizard step 4: YouTube + Last.fm keys (locked/configured variants) + save CTA |
 | `src/features/server/components/SetupFinishStep.tsx` | 112 | Wizard step 5: one-shot save/poll progress, retry + back-to-edit on failure |
 | `src/features/server/components/SetupField.tsx` | 97 | Shared wizard field idioms: plain text field (theme muted placeholder), environment-managed note, keep-saved-value note |
 | `src/features/server/hooks/useServerSetup.ts` | 156 | Setup form state + validate → check → atomic commit connect flow (every Continue re-validates via /health; Login review mode prefills current with Continue/Connect CTA; ServerGuard owns wizard/first-launch routing, hook owns same-URL ready follow-ups; attempt/mounted guards; success toasts) |
 | `src/features/server/hooks/useServerSwitch.ts` | 148 | Switch form state + validate → confirm → shared `performServerSwitch()` (unconfigured targets blocked with inline guidance) |
 | `src/features/server/hooks/useSetupWizard.ts` | 572 | Wizard state machine: token → storage (mode + R2/local) → playback (R2 only) → API keys → finish; mode preselect from current storage, local patch + mode-verified poll, local-only step validation, one-shot save + saved-patch-aware retry, memory-only secrets, stale-async guards, poll cancellation; validates the kept session on completion (home/login); `beforeRemove` releases `setupPending` on abandon |
+| `src/features/server/hooks/useAdminStorage.ts` | 605 | Admin storage state machine: load + mode/R2/playback form (wizard validation) → inline confirm → POST → same-server playback reset (session kept) → 3s wait → mode-verified /health poll → 10s worker wait → success + back to Settings; busy-only Back block (dead sessions exempt), repeat-tap guards, unknown-POST reset + server check + resubmit, poll-timeout check-again, memory-only secrets, stale-async guards |
 | `src/features/server/screens/ServerManagementScreen.tsx` | 242 | In-app server switching screen: current server ("Configured" label), prefilled edit, validate → confirm, inline states; theme muted placeholder |
 | `src/features/server/screens/ServerSetupScreen.tsx` | 177 | "Connect your server" screen (Sonic dark/amber idiom); green verified check + Continue/Connect CTA + dynamic keyboard padding/scroll wiring; theme muted placeholder |
 | `src/features/server/screens/SetupWizardScreen.tsx` | 166 | Wizard shell: back button, mode-aware step progress (playback hidden in local mode), per-step content wiring |
+| `src/features/server/screens/AdminStorageScreen.tsx` | 384 | Admin storage screen: current-mode card, reused wizard storage + playback steps (submit hidden, admin copy), Save (dirty-gated), inline confirm, busy status, unknown-resubmit + poll check-again cards with leave paths |
 | `src/features/server/store/serverStore.ts` | 175 | `useServerStore`: loading/unconfigured/configured, boot load + baked-URL migration (storage-failure safe), first-time stale-token clear, `setApiServerUrl` apply; atomic `setServer` commits `setupPending` + `setupRequestId` for guard routing; idempotent `markSetupPending()` for boot discovery |
 | `src/features/server/utils/serverConfig.ts` | 115 | Pure URL normalize/validate, localhost check, `BAKED_SERVER_URL` |
 | `src/features/server/utils/serverConfig.test.ts` | 177 | `node:test` (19): URL normalization/validation edge cases + localhost detection |
@@ -457,14 +474,15 @@
 | `src/features/server/utils/setupNavigation.ts` | 360 | Pure guard/connect decisions (single owner per redirect, one-shot commit routing, AuthGuard setup yield, review-aware connect follow-ups, idle-only auth-init gate, stale-attempt guard); shared by `_layout` guards, `useServerSetup`, and tests |
 | `src/features/server/utils/setupNavigation.test.ts` | 1229 | `node:test` (43): wizard-over-login, unmount-proof commits, login-once, loading silence, no competing redirects, pending yield, retryable failures, superseded attempts, review re-commit routing, boot discovery, completion landing, abandon routing, init-once gate, startup sequences |
 | `src/features/server/utils/sessionGeneration.ts` | 53 | Dependency-free session generation: `getSessionGeneration()` / `invalidateSession()` for refresh guards + `onSessionInvalidated()` settle hook |
+| `src/features/server/utils/adminStorageReset.ts` | 47 | `resetPlaybackForStorageChange()`: same-server playback/data reset (mirrors the playback half of `performServerSwitch`) while keeping tokens, auth state, and server URL |
 
-## `src/features/settings` — 3 files, 155 lines
+## `src/features/settings` — 3 files, 166 lines
 
 | File | Lines | Responsibility |
 |------|------:|----------------|
 | `src/features/settings/index.ts` | 6 | Barrel (screen + row component) |
 | `src/features/settings/components/SettingsRow.tsx` | 83 | Reusable settings row: icon tile, label, description, chevron |
-| `src/features/settings/screens/SettingsScreen.tsx` | 66 | Settings hub: Account & Profile + Server Management entries |
+| `src/features/settings/screens/SettingsScreen.tsx` | 77 | Settings hub: Account & Profile + Server Management entries + admin-only Storage entry |
 
 ## `src/features/song` — 2 files, 254 lines
 

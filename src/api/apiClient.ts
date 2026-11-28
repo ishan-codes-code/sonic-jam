@@ -4,6 +4,7 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 import { tokenStorage } from "@/features/auth/utils/tokenStorage";
+import { isNetworkRefreshError } from "@/features/auth/utils/refreshError";
 import {
   getSessionGeneration,
   onSessionInvalidated,
@@ -324,6 +325,14 @@ apiClient.interceptors.response.use(
         return Promise.reject(refreshError);
       }
       processQueue(refreshError, null, refreshGeneration);
+      if (isNetworkRefreshError(refreshError)) {
+        // The refresh never reached the server (backend restart, outage, or
+        // timeout): the stored tokens may still be valid, so the session is
+        // PRESERVED — queued requests fail retryably instead of logging the
+        // user out. Only a refresh the server explicitly rejects clears it.
+        // (tokenManager's catch already behaves this way; this aligns the pair.)
+        return Promise.reject(refreshError);
+      }
       // Clear tokens + trigger logout via the auth store. A switch can land
       // inside either await below, so generation is re-checked before each
       // auth-state mutation: a stale refresh must never log out the new session.

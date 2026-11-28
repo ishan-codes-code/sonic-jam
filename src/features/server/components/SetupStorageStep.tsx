@@ -32,6 +32,14 @@ interface SetupStorageStepProps {
   currentStorage: HealthStorage | null;
   /** No-migration warning for an already-configured server, if any. */
   switchWarning: string | null;
+  /**
+   * Admin-settings reuse (all optional; the wizard leaves them unset and
+   * renders exactly as before): hide the Continue button when the host owns
+   * submission, and override wizard-specific copy.
+   */
+  hideSubmit?: boolean;
+  description?: string;
+  localNote?: string;
 }
 
 const MODE_META: Record<
@@ -69,6 +77,9 @@ export function SetupStorageStep({
   modeLocked,
   currentStorage,
   switchWarning,
+  hideSubmit = false,
+  description,
+  localNote,
 }: SetupStorageStepProps) {
   const allLocked = R2_FIELD_KEYS.every((key) => isLocked(key));
   const anyKeepable = R2_FIELD_KEYS.some(
@@ -82,9 +93,10 @@ export function SetupStorageStep({
         Storage
       </Text>
       <Text className="mb-7 text-[13px] font-heading leading-relaxed text-muted-foreground">
-        {showSelector || modeLocked
-          ? 'Choose where your music files live. Nothing is saved until the final step.'
-          : 'Cloudflare R2 holds your music files for streaming. Every field is required — nothing is saved until the final step.'}
+        {description ??
+          (showSelector || modeLocked
+            ? 'Choose where your music files live. Nothing is saved until the final step.'
+            : 'Cloudflare R2 holds your music files for streaming. Every field is required — nothing is saved until the final step.')}
       </Text>
 
       {error ? (
@@ -187,9 +199,8 @@ export function SetupStorageStep({
               strokeWidth={2.5}
             />
             <Text className="flex-1 text-[12px] leading-relaxed text-emerald-200/90">
-              No storage keys needed — the server keeps its own music folder
-              and creates the playback secret automatically. Continue to add
-              your API keys.
+              {localNote ??
+                'No storage keys needed — the server keeps its own music folder and creates the playback secret automatically. Continue to add your API keys.'}
             </Text>
           </View>
           <View className="mb-4 flex-row gap-2.5 rounded-md border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3">
@@ -272,22 +283,24 @@ export function SetupStorageStep({
         </>
       )}
 
-      <Pressable
-        onPress={onSubmit}
-        accessibilityRole="button"
-        accessibilityLabel="Continue"
-        className="mt-5 h-[52px] w-full items-center justify-center rounded-md bg-amber-300"
-        style={({ pressed }) => ({
-          opacity: pressed ? 0.8 : 1,
-        })}
-      >
-        <View className="flex-row items-center gap-2">
-          <Icon as={HardDrive} size={16} className="text-secondary" />
-          <Text className="text-[15px] font-display text-secondary">
-            Continue
-          </Text>
-        </View>
-      </Pressable>
+      {hideSubmit ? null : (
+        <Pressable
+          onPress={onSubmit}
+          accessibilityRole="button"
+          accessibilityLabel="Continue"
+          className="mt-5 h-[52px] w-full items-center justify-center rounded-md bg-amber-300"
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <View className="flex-row items-center gap-2">
+            <Icon as={HardDrive} size={16} className="text-secondary" />
+            <Text className="text-[15px] font-display text-secondary">
+              Continue
+            </Text>
+          </View>
+        </Pressable>
+      )}
     </View>
   );
 }

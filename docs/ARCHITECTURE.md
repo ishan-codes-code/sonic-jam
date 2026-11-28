@@ -142,6 +142,21 @@
   `playlistPendingService` 351→409, `pollingResolver` 235→285,
   `playlistPendingService.test` 406→577. Working tree:
   **227 files, 26,631 lines**. Re-baseline the commit hash on commit.
+- Structural delta (feat/admin-storage, admin storage settings):
+  admin-only Settings → Storage screen reusing the wizard's storage +
+  playback steps and validation. +`server/api/adminStorageApi.ts` (593)
+  +`server/api/adminStorageApi.test.ts` (776, 44 tests)
+  +`server/hooks/useAdminStorage.ts` (605)
+  +`server/screens/AdminStorageScreen.tsx` (384)
+  +`server/utils/adminStorageReset.ts` (47, same-server playback reset)
+  +`auth/utils/refreshError.ts` (46, network-refresh classifier)
+  +`(tabs)/settings/storage.tsx` route (19, admin-guarded);
+  `SetupStorageStep` 293→306 / `SetupPlaybackStep` 123→141 (optional
+  admin props, wizard defaults unchanged), `SettingsScreen` 66→77 (admin
+  row), `index`
+  +36, `apiClient` +9 (network refresh preserves session), `auth.types`
+  +5 (`role`), `_layout` +1 (hidden route). Working tree:
+  **234 files, 29,194 lines**. Re-baseline the commit hash on commit.
 - Scope note: `node_modules/`, `.git/`, `.expo/` are excluded. `.env` is local and gitignored (1 line).
 - Companion docs: `AGENTS.md`, `docs/ARCHITECTURE_AUDIT.md`, `docs/SELF_HOST_IMPACT.md`, `docs/contracts/`, `docs/decisions/`.
 

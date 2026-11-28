@@ -2,16 +2,18 @@ import React from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { ArrowLeft, Server, User as UserIcon } from 'lucide-react-native';
+import { ArrowLeft, Database, Server, User as UserIcon } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { useServerStore } from '@/features/server';
+import { useAuthStore } from '@/features/auth/store/authStore';
+import { isAdmin, useServerStore } from '@/features/server';
 import { SettingsRow } from '../components/SettingsRow';
 
 export function SettingsScreen() {
   const router = useRouter();
   const serverUrl = useServerStore((s) => s.serverUrl);
+  const user = useAuthStore((s) => s.user);
   const appVersion = Constants.expoConfig?.version ?? '0.0.0';
 
   return (
@@ -55,6 +57,15 @@ export function SettingsScreen() {
           description={serverUrl ?? 'Configure your server'}
           onPress={() => router.push('/settings/server')}
         />
+
+        {isAdmin(user) ? (
+          <SettingsRow
+            icon={Database}
+            label="Storage"
+            description="Storage mode & credentials"
+            onPress={() => router.push('/settings/storage')}
+          />
+        ) : null}
 
         {/* Version */}
         <Text className="mt-10 text-center text-[10px] font-bold uppercase tracking-[3px] text-muted">
